@@ -15,16 +15,17 @@ data by EeroRuntime.account.
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import timedelta
-import logging
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed
-from homeassistant.helpers import device_registry as dr, issue_registry as ir
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import (
@@ -122,7 +123,9 @@ class EeroTierCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 translation_domain=DOMAIN,
                 translation_key="rate_limited",
                 translation_placeholders={
-                    "seconds": str(int(self.update_interval.total_seconds()))
+                    "seconds": str(
+                        int((self.update_interval or self.base_interval).total_seconds())
+                    )
                 },
             ) from error
         except TimeoutError as error:
@@ -160,7 +163,9 @@ class EeroRuntime:
     options: dict[str, Any]
     coordinators: dict[str, EeroTierCoordinator] = field(default_factory=dict)
     _account: EeroAccount | None = None
-    _account_sources: tuple[Any, Any, Any] | None = None
+    _account_sources: (
+        tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None] | None
+    ) = None
     _issues: dict[str, set[str]] = field(default_factory=dict)
 
     def setup_coordinators(self, scan_interval: timedelta) -> None:
@@ -233,8 +238,10 @@ class EeroRuntime:
     @property
     def account(self) -> EeroAccount:
         """Return the property-object tree, rebuilt when any tier has new data."""
-        sources = tuple(
-            self.coordinators[tier].data for tier in (TIER_FAST, TIER_HOURLY, TIER_DAILY)
+        sources = (
+            self.coordinators[TIER_FAST].data,
+            self.coordinators[TIER_HOURLY].data,
+            self.coordinators[TIER_DAILY].data,
         )
         # Compared by identity, holding references: a coordinator replaces
         # its data dict on every refresh, and an id() of a freed dict could be

@@ -4,15 +4,11 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from homeassistant.components.switch import (
-    SwitchDeviceClass,
-    SwitchEntity,
-    SwitchEntityDescription,
-)
+from homeassistant.components.switch import SwitchEntity, SwitchEntityDescription
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import TIER_DAILY, TIER_FAST
@@ -26,6 +22,13 @@ from .entity import (
     EeroEntityDescription,
     async_setup_platform_entities,
 )
+
+if TYPE_CHECKING:
+    # Moved to .const in Home Assistant 2026.10; still defined in the package
+    # itself before that, which is what runs on both.
+    from homeassistant.components.switch.const import SwitchDeviceClass
+else:
+    from homeassistant.components.switch import SwitchDeviceClass
 
 PARALLEL_UPDATES = 1
 
@@ -235,6 +238,8 @@ async def async_setup_entry(
 class EeroSwitchEntity(EeroEntity, SwitchEntity):
     """Representation of an Eero switch entity."""
 
+    entity_description: EeroSwitchEntityDescription
+
     @property
     def is_on(self) -> bool | None:
         """Return True if entity is on; None when the state is not known."""
@@ -245,7 +250,7 @@ class EeroSwitchEntity(EeroEntity, SwitchEntity):
     @property
     def extra_state_attributes(self) -> Mapping[str, Any] | None:
         """Return entity specific state attributes."""
-        attrs = {}
+        attrs: dict[str, Any] = {}
         if self.entity_description.extra_attrs and self.is_on:
             for key, func in self.entity_description.extra_attrs.items():
                 attrs[key] = func(self.resource)

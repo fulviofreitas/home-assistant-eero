@@ -39,7 +39,7 @@ class EeroResource:
         return None
 
     @property
-    def sdk_id(self) -> str:
+    def known_id(self) -> str:
         """ID for SDK and URL building.
 
         Typing only: every resource fetched from the API carries a URL, so the
@@ -48,8 +48,8 @@ class EeroResource:
         return cast("str", self.id)
 
     @property
-    def sdk_url(self) -> str:
-        """URL for SDK and call naming; same contract as ``sdk_id``."""
+    def known_url(self) -> str:
+        """URL for SDK and call naming; same contract as ``known_id``."""
         return cast("str", self.url)
 
     @property

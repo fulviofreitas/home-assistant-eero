@@ -129,12 +129,12 @@ class EeroClient(EeroResource):
         """Add or remove this client from the network's block list."""
         if value:
             await self.api.call(
-                self.api.sdk.blacklist.add_to_blacklist(self.network.sdk_id, cast("str", self.mac)),
+                self.api.sdk.blacklist.add_to_blacklist(self.network.known_id, cast("str", self.mac)),
                 name=f"/2.2/networks/{self.network.id}/blacklist",
             )
         else:
             await self.api.call(
-                self.api.sdk.blacklist.remove_from_blacklist(self.network.sdk_id, cast("str", self.mac)),
+                self.api.sdk.blacklist.remove_from_blacklist(self.network.known_id, cast("str", self.mac)),
                 name=f"/2.2/networks/{self.network.id}/blacklist",
             )
 
@@ -333,7 +333,7 @@ class EeroClient(EeroResource):
         """Pause or resume the client."""
         await self.api.call(
             self.api.sdk.devices.pause_device(
-                self.network.sdk_id, cast("str", self.mac), value
+                self.network.known_id, cast("str", self.mac), value
             ),
             name=f"/2.3/networks/{self.network.id}/devices",
         )
@@ -394,16 +394,16 @@ class EeroClient(EeroResource):
                 if not _same_client(self, assigned) and assigned.url
             ]
             await self.api.call(
-                self.api.sdk.profiles.set_profile_devices(self.network.sdk_id, current.sdk_id, urls),
-                name=current.sdk_url,
+                self.api.sdk.profiles.set_profile_devices(self.network.known_id, current.known_id, urls),
+                name=current.known_url,
             )
         if target is not None and target is not current:
             urls = [
                 assigned.url for assigned in target.clients if assigned.url
             ] + ([self.url] if self.url else [])
             await self.api.call(
-                self.api.sdk.profiles.set_profile_devices(self.network.sdk_id, target.sdk_id, urls),
-                name=target.sdk_url,
+                self.api.sdk.profiles.set_profile_devices(self.network.known_id, target.known_id, urls),
+                name=target.known_url,
             )
 
     @property

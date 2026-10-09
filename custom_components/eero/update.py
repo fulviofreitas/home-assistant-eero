@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any
 
 from homeassistant.components.update import (
     UpdateDeviceClass,
@@ -11,10 +11,11 @@ from homeassistant.components.update import (
     UpdateEntityDescription,
     UpdateEntityFeature,
 )
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from .api.eero import EeroDevice
 from .const import RELEASE_URL, TIER_DAILY
 from .coordinator import EeroConfigEntry
 from .entity import KIND_EEROS, EeroEntity, EeroEntityDescription, build_entities
@@ -63,6 +64,14 @@ async def async_setup_entry(
 class EeroUpdateEntity(EeroEntity, UpdateEntity):
     """Representation of an Eero update entity."""
 
+    entity_description: EeroUpdateEntityDescription
+
+    @property
+    def eero(self) -> EeroDevice | None:
+        """Return this entity's eero, or None if it is no longer reported."""
+        resource = self.resource
+        return resource if isinstance(resource, EeroDevice) else None
+
     @property
     def auto_update(self) -> bool:
         """Indicate if the device or service has auto update enabled."""
@@ -71,14 +80,18 @@ class EeroUpdateEntity(EeroEntity, UpdateEntity):
     @property
     def installed_version(self) -> str | None:
         """Version installed and in use."""
-        if os_version := self.resource.current_firmware.os_version:
-            return cast("str | None", os_version)
-        return cast("str | None", self.resource.os_version)
+        if (eero := self.eero) is None:
+            return None
+        if os_version := eero.current_firmware.os_version:
+            return os_version
+        return eero.os_version
 
     @property
     def latest_version(self) -> str | None:
         """Latest version available for install."""
-        return cast("str | None", self.resource.target_firmware.os_version)
+        if (eero := self.eero) is None:
+            return None
+        return eero.target_firmware.os_version
 
     @property
     def release_summary(self) -> str | None:
@@ -87,7 +100,9 @@ class EeroUpdateEntity(EeroEntity, UpdateEntity):
         This is not suitable for long changelogs, but merely suitable
         for a short excerpt update description of max 255 characters.
         """
-        features = self.resource.target_firmware.features
+        if (eero := self.eero) is None:
+            return None
+        features = eero.target_firmware.features
         if features:
             return str("- " + "\n- ".join(features))
         return None
@@ -106,13 +121,13 @@ class EeroUpdateEntity(EeroEntity, UpdateEntity):
         return RELEASE_URL
 
     @property
-    def supported_features(self) -> int:
+    def supported_features(self) -> UpdateEntityFeature:
         """Flag supported features.
 
         Read even while unavailable, so it has to cope with a resource that is
         no longer reported.
         """
-        if self.resource is not None and self.resource.target_firmware.features:
+        if (eero := self.eero) is not None and eero.target_firmware.features:
             return UpdateEntityFeature.INSTALL | UpdateEntityFeature.RELEASE_NOTES
         return UpdateEntityFeature.INSTALL
 
@@ -123,7 +138,9 @@ class EeroUpdateEntity(EeroEntity, UpdateEntity):
         This helps to differentiate between the device or entity name
         versus the title of the software installed.
         """
-        return cast("str | None", self.resource.target_firmware.title)
+        if (eero := self.eero) is None:
+            return None
+        return eero.target_firmware.title
 
     async def async_install(
         self, version: str | None, backup: bool, **kwargs: Any

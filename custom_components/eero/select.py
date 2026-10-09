@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import cast
 
-from dataclasses import dataclass
-
 from homeassistant.components.select import SelectEntity, SelectEntityDescription
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .coordinator import EeroConfigEntry
@@ -27,24 +26,27 @@ class EeroSelectEntityDescription(EeroEntityDescription, SelectEntityDescription
     """Class to describe an Eero select entity."""
 
     entity_category: EntityCategory | None = EntityCategory.CONFIG
+    # Name of the resource property listing the selectable options (the
+    # options depend on the resource, so they are read live).
+    options_attr: str
 
 
 SELECT_DESCRIPTIONS: list[EeroSelectEntityDescription] = [
     EeroSelectEntityDescription(
         key="profile_assignment",
         translation_key="profile_assignment",
-        options="profile_assignment_options",
+        options_attr="profile_assignment_options",
         requires_profiles=True,
     ),
     EeroSelectEntityDescription(
         key="nightlight_mode",
         translation_key="nightlight_mode",
-        options="nightlight_mode_options",
+        options_attr="nightlight_mode_options",
     ),
     EeroSelectEntityDescription(
         key="mlo_mode",
         translation_key="mlo_mode",
-        options="mlo_mode_options",
+        options_attr="mlo_mode_options",
         # Unconfirmed write: may reboot every eero, like the confirmed DNS
         # write path.
         request_refresh=False,
@@ -52,7 +54,7 @@ SELECT_DESCRIPTIONS: list[EeroSelectEntityDescription] = [
     EeroSelectEntityDescription(
         key="preferred_update_hour",
         translation_key="preferred_update_hour",
-        options="preferred_update_hour_options",
+        options_attr="preferred_update_hour_options",
     ),
 ]
 
@@ -88,7 +90,7 @@ class EeroSelectEntity(EeroEntity, SelectEntity):
         """
         if self.resource is None:
             return []
-        return cast("list[str]", getattr(self.resource, self.entity_description.options))
+        return cast("list[str]", getattr(self.resource, self.entity_description.options_attr))
 
     @property
     def current_option(self) -> str | None:

@@ -128,7 +128,7 @@ class EeroDevice(EeroResource):
     async def async_reboot(self) -> None:
         """Reboot this eero."""
         await self.api.call(
-            self.api.sdk.eeros.reboot_eero(self.network.sdk_id, self.sdk_id),
+            self.api.sdk.eeros.reboot_eero(self.network.known_id, self.known_id),
             name=f"{self.url}/reboot",
         )
 
@@ -141,7 +141,7 @@ class EeroDevice(EeroResource):
         """Turn the status light on or off."""
         await self.api.call(
             self.api.sdk.eeros.set_led(
-                self.network.sdk_id, self.sdk_id, value, parent=self.data
+                self.network.known_id, self.known_id, value, parent=self.data
             ),
             name=f"{self.url}/led",
         )
@@ -153,7 +153,7 @@ class EeroDevice(EeroResource):
             return
         await self.api.call(
             self.api.sdk.eeros.set_led_brightness(
-                self.network.sdk_id, self.sdk_id, int(value), parent=self.data
+                self.network.known_id, self.known_id, int(value), parent=self.data
             ),
             name=f"{self.url}/led",
         )
@@ -231,7 +231,7 @@ class EeroDevice(EeroResource):
         disruptive to whatever is connected to that port.
         """
         await self.api.call(
-            self.api.sdk.eeros.port_action(self.sdk_id, str(interface_number), action),
+            self.api.sdk.eeros.port_action(self.known_id, str(interface_number), action),
             name=f"{self.url}/ports/{interface_number}/action",
         )
 
@@ -349,7 +349,7 @@ class EeroDeviceBeacon(EeroDevice):
     async def _set_nightlight(self, **settings: Any) -> None:
         await self.api.call(
             self.api.sdk.eeros.set_nightlight(
-                self.network.sdk_id, self.sdk_id, parent=self.data, **settings
+                self.network.known_id, self.known_id, parent=self.data, **settings
             ),
             name=f"{self.url}/nightlight",
         )

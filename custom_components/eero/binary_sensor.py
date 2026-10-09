@@ -4,17 +4,17 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from homeassistant.components.binary_sensor import (
-    BinarySensorDeviceClass,
     BinarySensorEntity,
     BinarySensorEntityDescription,
 )
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from .api.client import EeroClient
 from .const import TIER_HOURLY
 from .coordinator import EeroConfigEntry
 from .entity import (
@@ -28,6 +28,13 @@ from .entity import (
     async_setup_platform_entities,
 )
 
+if TYPE_CHECKING:
+    # Defined in .const from Home Assistant 2026.10, in the package itself
+    # before that; the package's own import is what runs on both.
+    from homeassistant.components.binary_sensor.const import BinarySensorDeviceClass
+else:
+    from homeassistant.components.binary_sensor import BinarySensorDeviceClass
+
 
 @dataclass(frozen=True, kw_only=True)
 class EeroBinarySensorEntityDescription(
@@ -36,7 +43,7 @@ class EeroBinarySensorEntityDescription(
     """Class to describe an Eero binary sensor entity."""
 
     entity_category: EntityCategory | None = EntityCategory.DIAGNOSTIC
-    extra_attrs_wireless_only: dict[str, Callable] | None = None
+    extra_attrs_wireless_only: dict[str, Callable[[Any], Any]] | None = None
 
 
 BINARY_SENSOR_DESCRIPTIONS: list[EeroBinarySensorEntityDescription] = [
@@ -88,6 +95,8 @@ async def async_setup_entry(
 class EeroBinarySensorEntity(EeroEntity, BinarySensorEntity):
     """Representation of an Eero binary sensor entity."""
 
+    entity_description: EeroBinarySensorEntityDescription
+
     @property
     def is_on(self) -> bool | None:
         """Return true if the binary sensor is on."""
@@ -107,7 +116,7 @@ class EeroBinarySensorEntity(EeroEntity, BinarySensorEntity):
                     attrs[key] = func(self.resource)
             if (
                 self.entity_description.extra_attrs_wireless_only
-                and self.resource.is_client
+                and isinstance(self.resource, EeroClient)
                 and self.resource.wireless
             ):
                 for (
