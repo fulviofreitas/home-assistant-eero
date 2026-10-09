@@ -1,10 +1,16 @@
-# Test/lint dependencies for CI. Keep in sync with the venv used for local
-# development (see .github/workflows/ci.yml for how these are consumed).
+# Test/lint dependencies for the 3.13 (standalone) CI jobs: pytest against
+# tests/*.py (everything except tests/ha, which needs Home Assistant) and
+# ruff. Mypy moved to the 3.14 job (requirements_test_ha.txt): it needs a
+# real Home Assistant (with BaseScannerEntity) to typecheck
+# custom_components/eero correctly. Keep in sync with the venv used for
+# local development (see .github/workflows/ci.yml for how these are
+# consumed).
 pytest==9.0.0
-pytest-homeassistant-custom-component==0.13.316
+pytest-asyncio==1.3.0
 ruff==0.16.10
-mypy==2.4.0
-# Not imported by the vendored custom_components/eero/api package yet, but
-# pinned here to match the local dev venv (branch feat/eero-api-sdk is
-# migrating toward it) so CI stays reproducible as that lands.
+# custom_components/eero/api imports the eero-api SDK directly, and
+# tests/helpers.py loads that package standalone (no Home Assistant), so
+# these three are needed to collect and run tests/*.py.
 eero-api==8.0.6
+aiohttp==3.13.3
+python-dateutil==2.9.0.post0

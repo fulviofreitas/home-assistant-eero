@@ -38,7 +38,11 @@ ignore = [
 "tests/*" = ["ARG001", "ARG002"]
 
 [tool.mypy]
-python_version = "3.13"
+# Runs in CI against requirements_test_ha.txt's Python 3.14 (see
+# .github/workflows/ci.yml): custom_components/eero's platforms need an HA
+# with BaseScannerEntity, which the 3.13 job's requirements_test.txt does
+# not install.
+python_version = "3.14"
 ignore_missing_imports = true
 check_untyped_defs = false
 disallow_untyped_defs = false
@@ -71,5 +75,10 @@ module = "tests.*"
 ignore_errors = true
 
 [tool.pytest.ini_options]
+pythonpath = ["."]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+# tests/ha needs Home Assistant >= 2026.3 (Python 3.14); bare `pytest -q`
+# (the 3.13 job) must not try to collect it. The HA CI job passes
+# `tests/ha` explicitly on the command line, which overrides this ignore.
+addopts = "--ignore=tests/ha"

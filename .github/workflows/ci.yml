@@ -2,6 +2,7 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 jobs:
@@ -53,7 +54,20 @@ jobs:
         with:
           python-version: "3.13"
       - run: pip install -r requirements_test.txt
+      # tests/ha needs Home Assistant >= 2026.3, which needs Python 3.14;
+      # pyproject.toml's addopts already ignores it for a bare `pytest -q`.
       - run: pytest -q
+
+  pytest-ha:
+    name: Pytest HA (3.14)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: pip install -r requirements_test_ha.txt
+      - run: pytest -q tests/ha
 
   mypy:
     name: mypy
@@ -62,6 +76,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
-      - run: pip install -r requirements_test.txt
+          python-version: "3.14"
+      - run: pip install -r requirements_test_ha.txt
       - run: mypy custom_components/eero
