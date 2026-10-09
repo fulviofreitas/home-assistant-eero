@@ -487,6 +487,7 @@ def _update_config(
         conf_update[network_id] = EeroUpdateConfig(
             activity=conf_activity.get(network_id, {}),
             profiles=resources[CONF_PROFILES],
+            eeros=resources[CONF_EEROS],
             get_backup_access_points=bool(resources[CONF_BACKUP_NETWORKS]),
             get_devices=get_devices,
             get_release_notes=bool(resources[CONF_EEROS]),
@@ -496,6 +497,9 @@ def _update_config(
             get_blacklist=get_devices,
             # Bedtime schedules: one read per configured profile.
             get_schedules=bool(resources[CONF_PROFILES]),
+            # Per-port sensors/buttons: one connections read per configured
+            # eero.
+            get_connections=bool(resources[CONF_EEROS]),
         )
     return conf_update
 

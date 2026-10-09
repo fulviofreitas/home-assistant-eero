@@ -196,6 +196,36 @@ class EeroDevice(EeroResource):
         """URL reboot."""
         return self.data.get("resources", {}).get("reboot")
 
+    @property
+    def ports(self) -> list[dict]:
+        """This eero's port interfaces, from the daily-tier connections read.
+
+        eeros.get_connections has no dedicated "list ports" reader in the
+        SDK -- this is the only eeros.py read that happens to carry a
+        "ports" block alongside the client-connection data it is actually
+        for. Shape (``ports.interfaces[]``, each with ``interface_number``,
+        ``connection_status``, ``negotiated_speed``, ``actions``, ...)
+        comes from the eero app's own observed API schema, not from
+        eero-api, which does not document or verify this shape at all.
+        """
+        connections = self.network.data.get("connections") or {}
+        ports = (connections.get(self.id) or {}).get("ports") or {}
+        interfaces = ports.get("interfaces")
+        if not isinstance(interfaces, list):
+            return []
+        return [interface for interface in interfaces if isinstance(interface, dict)]
+
+    async def async_port_action(self, interface_number: int, action: str) -> None:
+        """Perform a port-level action (e.g. RESTART_POWER, DISABLE_PORT).
+
+        Unconfirmed write; several of the declared actions are inherently
+        disruptive to whatever is connected to that port.
+        """
+        await self.api.call(
+            self.api.sdk.eeros.port_action(self.id, str(interface_number), action),
+            name=f"{self.url}/ports/{interface_number}/action",
+        )
+
 
 class EeroDeviceBeacon(EeroDevice):
     """EeroDeviceBeacon."""

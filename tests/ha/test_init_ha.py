@@ -184,6 +184,76 @@ async def test_mlo_mode_select_only_created_when_capable(hass, sdk_factory) -> N
     assert hass.states.get("select.testnetwork_mlo_mode") is None
 
 
+def eero_entry_data(**overrides) -> dict:
+    """Entry data with one eero ("e1") configured."""
+    resources = {
+        NETWORK_ID: {
+            CONF_BACKUP_NETWORKS: [],
+            CONF_EEROS: ["e1"],
+            CONF_PROFILES: [],
+            CONF_WIRED_CLIENTS: [],
+            CONF_WIRED_CLIENTS_FILTER: CONF_FILTER_INCLUDE,
+            CONF_WIRELESS_CLIENTS: [],
+            CONF_WIRELESS_CLIENTS_FILTER: CONF_FILTER_INCLUDE,
+        }
+    }
+    return entry_data(**{CONF_RESOURCES: resources, **overrides})
+
+
+async def test_port_sensors_and_port_action_button(hass, sdk_factory) -> None:
+    """Per-port sensors read eeros.get_connections; the button calls port_action."""
+    eero = {"url": "/2.2/eeros/e1", "model": "eero 6"}
+    connections = {
+        "ports": {
+            "interfaces": [
+                {
+                    "interface_number": 1,
+                    "connection_status": "CONNECTED",
+                    "negotiated_speed": "P1000",
+                    "actions": [{"position": 0, "type": "RESTART_POWER"}],
+                }
+            ]
+        }
+    }
+    sdk_factory(
+        {
+            "networks.get_network": network_envelope(),
+            "eeros.get_eeros": [eero],
+            "entitlements.get_features": {"features": []},
+            "updates.get_updates": {},
+            "reservations.get_reservations": [],
+            "forwards.get_forwards": [],
+            "security.get_fast_transition": {"fast_transition": False},
+            "eeros.get_connections": connections,
+        }
+    )
+    entry = make_entry(hass, **eero_entry_data())
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    from homeassistant.helpers import entity_registry as er
+
+    registry = er.async_get(hass)
+    status_id = registry.async_get_entity_id(
+        "sensor", DOMAIN, f"{NETWORK_ID}-e1-port_1_connection_status"
+    )
+    speed_id = registry.async_get_entity_id(
+        "sensor", DOMAIN, f"{NETWORK_ID}-e1-port_1_negotiated_speed"
+    )
+    button_id = registry.async_get_entity_id(
+        "button", DOMAIN, f"{NETWORK_ID}-e1-port_1_action_restart_power"
+    )
+    assert status_id is not None
+    assert speed_id is not None
+    assert button_id is not None
+    assert hass.states.get(status_id).state == "CONNECTED"
+    assert hass.states.get(speed_id).state == "1000"
+    # Disruptive, unconfirmed write: disabled by default, so there is no
+    # live state to press through the service layer here; the SDK-call
+    # shape itself is covered by the eero.port_action case in test_hub.py.
+    assert registry.async_get(button_id).disabled
+
+
 async def test_mlo_mode_select_reads_and_writes_when_capable(hass, sdk_factory) -> None:
     """mlo_mode reads the network envelope and writes via security.set_mlo_mode."""
     sdk = sdk_factory(
@@ -917,3 +987,25 @@ async def test_unload_entry(hass, sdk_factory) -> None:
     from homeassistant.config_entries import ConfigEntryState
 
     assert entry.state is ConfigEntryState.NOT_LOADED
+
+
+def test_port_value_helpers_map_phy_rate_and_tolerate_odd_shapes() -> None:
+    """Port sensor value functions map PhyRate to Mbit/s and tolerate odd shapes."""
+    from custom_components.eero import sensor as eero_sensor
+
+    assert eero_sensor._port_negotiated_speed({"negotiated_speed": "P1000"}) == 1000
+    assert eero_sensor._port_negotiated_speed({"negotiated_speed": "P25000"}) == 25000
+    assert eero_sensor._port_negotiated_speed({"negotiated_speed": "bogus"}) is None
+    assert eero_sensor._port_negotiated_speed({}) is None
+
+    assert (
+        eero_sensor._port_connection_status({"connection_status": "CONNECTED"})
+        == "CONNECTED"
+    )
+    assert (
+        eero_sensor._port_connection_status(
+            {"connection_status": {"status": "CONNECTED"}}
+        )
+        == "CONNECTED"
+    )
+    assert eero_sensor._port_connection_status({}) is None

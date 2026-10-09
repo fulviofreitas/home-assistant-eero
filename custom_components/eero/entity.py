@@ -387,3 +387,113 @@ class EeroEntity(CoordinatorEntity[EeroTierCoordinator]):
             await self.runtime.async_refresh_tiers(
                 self.entity_description.refresh_tiers or (self.tier,)
             )
+
+
+def async_setup_port_entities[EntityT: "EeroPortEntity"](
+    config_entry: EeroConfigEntry,
+    build: Callable[[EeroRuntime, str, str, dict], list[EntityT]],
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Build per-port entities for every configured eero, and add new ports.
+
+    build(runtime, network_id, eero_id, port) returns the entities for one
+    port (e.g. one sensor per field, or one button per supported action);
+    called for every port of every configured eero. Wired to the daily
+    tier, which is what fetches ports (eeros.get_connections).
+    """
+    runtime = config_entry.runtime_data
+    added: set[str] = set()
+
+    def _new_entities() -> list[EntityT]:
+        entities: list[EntityT] = []
+        for network in runtime.account.networks:
+            if network.id not in runtime.networks:
+                continue
+            for eero in network.eeros:
+                if eero.id not in runtime.resources[network.id][CONF_EEROS]:
+                    continue
+                for port in eero.ports:
+                    if port.get("interface_number") is None:
+                        continue
+                    for entity in build(runtime, network.id, eero.id, port):
+                        if entity.unique_id not in added:
+                            added.add(entity.unique_id)
+                            entities.append(entity)
+        return entities
+
+    async_add_entities(_new_entities())
+
+    @callback
+    def _check_for_new_ports() -> None:
+        if fresh := _new_entities():
+            async_add_entities(fresh)
+
+    config_entry.async_on_unload(
+        runtime.coordinator(TIER_DAILY).async_add_listener(_check_for_new_ports)
+    )
+
+
+class EeroPortEntity(CoordinatorEntity[EeroTierCoordinator]):
+    """Base for a port-level entity: one interface on one eero.
+
+    Not an EeroEntity: a port is a sub-item of an eero's own data (keyed by
+    interface_number), not one of the resource kinds build_entities
+    iterates. Always reads the eero's current port list fresh rather than
+    caching the port dict at construction time.
+    """
+
+    _attr_has_entity_name = True
+
+    def __init__(
+        self,
+        runtime: EeroRuntime,
+        network_id: str,
+        eero_id: str,
+        interface_number: int,
+    ) -> None:
+        """Initialize."""
+        super().__init__(runtime.coordinator(TIER_DAILY))
+        self.runtime = runtime
+        self.network_id = network_id
+        self.eero_id = eero_id
+        self.interface_number = interface_number
+
+    @property
+    def network(self) -> EeroNetwork | None:
+        """Return the network for this entity, or None if it is no longer reported."""
+        if self.coordinator.data is None:
+            return None
+        for network in self.runtime.account.networks:
+            if network.id == self.network_id:
+                return network
+        return None
+
+    @property
+    def eero(self) -> EeroResource | None:
+        """Return the eero for this entity, or None if it is no longer reported."""
+        if (network := self.network) is None:
+            return None
+        for eero in network.eeros:
+            if eero.id == self.eero_id:
+                return eero
+        return None
+
+    @property
+    def port(self) -> dict | None:
+        """Return this entity's current port dict, or None if it no longer appears."""
+        if (eero := self.eero) is None:
+            return None
+        for port in eero.ports:
+            if port.get("interface_number") == self.interface_number:
+                return port
+        return None
+
+    @property
+    def available(self) -> bool:
+        """Return True if the coordinator succeeded and this port still exists."""
+        return bool(self.coordinator.last_update_success and self.port is not None)
+
+    @property
+    def device_info(self) -> dr.DeviceInfo | None:
+        """Attach to the eero's own device, already registered by another platform."""
+        return dr.DeviceInfo(identifiers={(DOMAIN, self.eero_id)})

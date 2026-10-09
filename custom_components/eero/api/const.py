@@ -155,6 +155,24 @@ REDACT_KEYS = frozenset(
 
 RESOURCE_MAP = {"clients": "devices"}
 
+#: Valid values for eeros.port_action's `action` field (eero-api's own
+#: `_PORT_ACTIONS`, duplicated here rather than importing a private name
+#: across the package boundary): used to filter a port's own `actions`
+#: list down to the ones the SDK will actually accept.
+PORT_ACTIONS = frozenset(
+    {
+        "ENABLE_DATA",
+        "DISABLE_DATA",
+        "ENABLE_POE",
+        "DISABLE_POE",
+        "ENABLE_PORT",
+        "DISABLE_PORT",
+        "RESTART_POWER",
+        "ENABLE_PORT_SECURITY",
+        "DISABLE_PORT_SECURITY",
+    }
+)
+
 STATE_ACTIVE = "active"
 STATE_AMBIENT = "ambient"
 STATE_AUTOMATIC = "automatic"

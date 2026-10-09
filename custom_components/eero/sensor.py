@@ -48,9 +48,71 @@ from .entity import (
     KIND_PROFILES,
     EeroEntity,
     EeroEntityDescription,
+    EeroPortEntity,
     async_setup_platform_entities,
+    async_setup_port_entities,
 )
 from .util import resource_supports
+
+#: PhyRate enum (eero app's observed API schema) -> Mbit/s. Not documented
+#: or live-verified by eero-api itself, which has no reader for a port's
+#: speed at all.
+_PHY_RATE_MBPS = {
+    "P10": 10,
+    "P100": 100,
+    "P1000": 1000,
+    "P2500": 2500,
+    "P5000": 5000,
+    "P10000": 10000,
+    "P25000": 25000,
+}
+
+
+def _port_negotiated_speed(port: dict) -> int | None:
+    """Return a port's negotiated speed in Mbit/s, or None if unrecognised."""
+    return _PHY_RATE_MBPS.get(port.get("negotiated_speed"))
+
+
+def _port_connection_status(port: dict) -> str | None:
+    """Return a port's connection status.
+
+    PortConnectionStatus is an opaque object in the observed schema; this
+    stays defensive about it being a plain string in practice (as
+    PortConnectionPower/WirelessConnectionStatus siblings suggest for this
+    whole family) or a dict carrying the real value under "status"/"value".
+    """
+    status = port.get("connection_status")
+    if isinstance(status, dict):
+        return status.get("status") or status.get("value")
+    if isinstance(status, str):
+        return status
+    return None
+
+
+@dataclass(frozen=True, kw_only=True)
+class EeroPortSensorEntityDescription(SensorEntityDescription):
+    """Class to describe one per-port sensor field."""
+
+    value_fn: Callable[[dict], Any]
+    translation_key: str | None = None
+    entity_category: EntityCategory | None = EntityCategory.DIAGNOSTIC
+
+
+PORT_SENSOR_DESCRIPTIONS: tuple[EeroPortSensorEntityDescription, ...] = (
+    EeroPortSensorEntityDescription(
+        key="connection_status",
+        translation_key="port_connection_status",
+        value_fn=_port_connection_status,
+    ),
+    EeroPortSensorEntityDescription(
+        key="negotiated_speed",
+        translation_key="port_negotiated_speed",
+        device_class=SensorDeviceClass.DATA_RATE,
+        native_unit_of_measurement=UnitOfDataRate.MEGABITS_PER_SECOND,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=_port_negotiated_speed,
+    ),
+)
 
 DEVICE_CATEGORIES = [
     DEVICE_CATEGORY_COMPUTERS_PERSONAL,
@@ -358,6 +420,16 @@ async def async_setup_entry(
         (KIND_NETWORK, KIND_BACKUP_NETWORKS, KIND_EEROS, KIND_PROFILES, KIND_CLIENTS),
         async_add_entities,
     )
+    async_setup_port_entities(
+        config_entry,
+        lambda runtime, network_id, eero_id, port: [
+            EeroPortSensorEntity(
+                runtime, network_id, eero_id, port["interface_number"], description
+            )
+            for description in PORT_SENSOR_DESCRIPTIONS
+        ],
+        async_add_entities,
+    )
 
 
 class EeroSensorEntity(EeroEntity, SensorEntity):
@@ -441,3 +513,36 @@ class EeroSensorEntity(EeroEntity, SensorEntity):
             ):
                 attrs["failure_reason"] = failure_reason.lower()
         return attrs
+
+
+class EeroPortSensorEntity(EeroPortEntity, SensorEntity):
+    """Representation of one field of one eero's port."""
+
+    entity_description: EeroPortSensorEntityDescription
+
+    def __init__(
+        self,
+        runtime,
+        network_id: str,
+        eero_id: str,
+        interface_number: int,
+        description: EeroPortSensorEntityDescription,
+    ) -> None:
+        """Initialize."""
+        super().__init__(runtime, network_id, eero_id, interface_number)
+        self.entity_description = description
+
+    @property
+    def unique_id(self) -> str:
+        """Return a unique ID."""
+        return (
+            f"{self.network_id}-{self.eero_id}-port_{self.interface_number}"
+            f"_{self.entity_description.key}"
+        )
+
+    @property
+    def native_value(self) -> StateType:
+        """Return the value reported by the sensor."""
+        if (port := self.port) is None:
+            return None
+        return self.entity_description.value_fn(port)

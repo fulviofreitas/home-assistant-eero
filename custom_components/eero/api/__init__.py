@@ -515,6 +515,19 @@ class EeroHub:
             network_id,
             "fast_transition",
         )
+        if config.get_connections:
+            connections: dict[str, Any] = {}
+            for eero_id in config.eeros:
+                connections[eero_id] = (
+                    await self._optional(
+                        self.sdk.eeros.get_connections(network_id, eero_id),
+                        f"/2.2/eeros/{eero_id}/connections",
+                        network_id,
+                        "connections",
+                    )
+                    or {}
+                )
+            payload["connections"] = connections
         if resources.get("thread"):
             payload["thread"] = await self._optional(
                 self.sdk.thread.get_thread(network_id),
@@ -653,6 +666,8 @@ class EeroHub:
                 value = tier["fast_transition"].get("fast_transition")
                 if value is not None:
                     network["fast_transition_enabled"] = value
+            if "connections" in tier:
+                network["connections"] = tier["connections"]
             if isinstance(tier.get("updates"), dict):
                 network["updates"] = tier["updates"]
             networks.append(network)
@@ -765,15 +780,18 @@ class EeroUpdateConfig:
         self,
         activity: dict | None = None,
         profiles: list | None = None,
+        eeros: list | None = None,
         get_backup_access_points: bool = False,
         get_devices: bool = False,
         get_release_notes: bool = False,
         get_blacklist: bool = False,
         get_schedules: bool = False,
+        get_connections: bool = False,
     ) -> None:
         """Initialize."""
         self.activity = activity if activity is not None else {}
         self.profiles = profiles if profiles is not None else []
+        self.eeros = eeros if eeros is not None else []
         self.get_backup_access_points = get_backup_access_points
         self.get_devices = get_devices
         self.get_profiles = bool(self.profiles)
@@ -784,3 +802,6 @@ class EeroUpdateConfig:
         # Bedtime switch/time entities: one schedules read per configured
         # profile, only when a profile entity is configured.
         self.get_schedules = get_schedules
+        # Per-port sensors/buttons: one connections read per configured
+        # eero, only when an eero entity is configured.
+        self.get_connections = get_connections

@@ -428,6 +428,12 @@
             },
             "reservation_count": {
                 "name": "Reservations"
+            },
+            "port_connection_status": {
+                "name": "Port connection status"
+            },
+            "port_negotiated_speed": {
+                "name": "Port negotiated speed"
             }
         },
         "switch": {
@@ -494,6 +500,35 @@
         "event": {
             "app_events": {
                 "name": "App events"
+            }
+        },
+        "button": {
+            "port_action_enable_data": {
+                "name": "Enable port data"
+            },
+            "port_action_disable_data": {
+                "name": "Disable port data"
+            },
+            "port_action_enable_poe": {
+                "name": "Enable port PoE"
+            },
+            "port_action_disable_poe": {
+                "name": "Disable port PoE"
+            },
+            "port_action_enable_port": {
+                "name": "Enable port"
+            },
+            "port_action_disable_port": {
+                "name": "Disable port"
+            },
+            "port_action_restart_power": {
+                "name": "Restart port power"
+            },
+            "port_action_enable_port_security": {
+                "name": "Enable port security"
+            },
+            "port_action_disable_port_security": {
+                "name": "Disable port security"
             }
         }
     },

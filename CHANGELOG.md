@@ -259,17 +259,23 @@ UPnP, WPA3 and DDNS go through the SDK's methods, which send the same requests
   for it would always write and never skip a redundant one, which the
   project's own read-compare-skip discipline treats as mandatory for
   exactly this kind of settings write. Revisit once a reader exists.
-- **Gap:** Per-port status sensors and port action buttons (`eeros.
-  port_action`) are not implemented this phase. `eeros.get_ports` does
-  not exist, and the SDK has no other read for "the eero's own port
-  listing" `port_action`'s docstring refers callers to for a valid
-  `interface_number` -- only the write. Building either a status sensor
-  or an action button per port requires knowing how many ports an eero
-  has and their interface numbers first, and there is no fixture or
-  live-verified shape to build that read from (embedded on the eero
-  envelope, or a raw GET on `eeros/{id}/ports`) without guessing. Revisit
-  once a real eero envelope or a documented `ports` shape is available to
-  confirm against.
+- Per-port sensors (`sensor.<eero>_port_<n>_connection_status`,
+  `..._negotiated_speed`) and per-port action buttons
+  (`button.<eero>_port_<n>_action_<action>`, one per action the port's own
+  `actions` list reports, intersected with the SDK's accepted
+  `eeros.port_action` values): built dynamically from a new daily-tier
+  read, `eeros.get_connections`, once per configured eero -- the SDK has
+  no dedicated "list ports" reader at all (`eeros.get_ports` does not
+  exist); `get_connections` happens to carry a `ports` block alongside
+  the client-connection data it is actually for. The response shape
+  (`ports.interfaces[]`, `interface_number`, `connection_status`,
+  `negotiated_speed` as a `PhyRate` enum mapped here to Mbit/s, `actions`)
+  comes from the eero app's own observed API schema, not from eero-api,
+  which does not document or verify any of it. Port action buttons are
+  disruptive (power-cycle, disable data/PoE/the port itself) and
+  unconfirmed against a live network: disabled by default, a CONFIG
+  entity. New ports (or a newly-connected eero) appear without a reload,
+  the same as a new client.
 
 ### Since 1.9.3, also in this release
 

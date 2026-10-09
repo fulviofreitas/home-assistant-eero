@@ -684,6 +684,15 @@ SETTER_CASES = [
         ),
     ),
     _case(
+        "eero.port_action",
+        {"eeros.port_action": {}},
+        lambda hub: eero_api.eero.EeroDevice(
+            hub, make_network(hub), {"url": "/2.2/eeros/e1"}
+        ).async_port_action(1, "RESTART_POWER"),
+        lambda sdk: ("eeros", "port_action", ("e1", "1", "RESTART_POWER"), {})
+        in sdk.calls,
+    ),
+    _case(
         "backup_network.auto_join_enabled",
         {"backup_access_points.update": {}},
         lambda hub: eero_api.backup_network.EeroBackupNetwork(

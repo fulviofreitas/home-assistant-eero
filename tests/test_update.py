@@ -275,6 +275,69 @@ async def test_reservations_and_forwards_counted_in_the_daily_tier() -> None:
     assert net.dns_mode == "custom"
 
 
+async def test_ports_fetched_only_when_eeros_configured_and_parsed_per_interface() -> (
+    None
+):
+    """Connections (and so ports) are read per configured eero, only when configured."""
+    eero = {"url": "/2.2/eeros/e1", "model": "eero 6"}
+    network = dict(fixture("network"))
+    network["eeros"] = {"count": 1, "data": [eero]}
+    connections = {
+        "node_actions": [],
+        "ports": {
+            "interfaces": [
+                {
+                    "interface_number": 1,
+                    "connection_status": "CONNECTED",
+                    "negotiated_speed": "P1000",
+                    "actions": [
+                        {"position": 0, "type": "RESTART_POWER"},
+                        {"position": 1, "type": "DISABLE_PORT"},
+                    ],
+                },
+                {
+                    "interface_number": 2,
+                    "connection_status": "DISCONNECTED",
+                    "negotiated_speed": None,
+                    "actions": [],
+                },
+            ]
+        },
+        "wireless_devices": [],
+    }
+    sdk = FakeSDK(
+        {
+            "networks.get_network": network,
+            "thread.get_thread": fixture("thread"),
+            "entitlements.get_features": {"features": []},
+            "updates.get_updates": {},
+            "reservations.get_reservations": [],
+            "forwards.get_forwards": [],
+            "security.get_fast_transition": {"fast_transition": False},
+            "eeros.get_connections": connections,
+        }
+    )
+    hub = build_hub(sdk=sdk)
+
+    # Not configured: no request made, no connections in the payload.
+    plain_config = eero_api.EeroUpdateConfig()
+    fast = await hub.fetch_fast(NETWORK_ID, plain_config)
+    daily = await hub.fetch_daily(NETWORK_ID, fast["network"], plain_config)
+    assert "connections" not in daily
+    assert ("eeros", "get_connections", (NETWORK_ID, "e1"), {}) not in sdk.calls
+
+    # Configured: fetched once per configured eero.
+    config = eero_api.EeroUpdateConfig(eeros=["e1"], get_connections=True)
+    fast = await hub.fetch_fast(NETWORK_ID, config)
+    daily = await hub.fetch_daily(NETWORK_ID, fast["network"], config)
+    assert ("eeros", "get_connections", (NETWORK_ID, "e1"), {}) in sdk.calls
+    account = hub.assemble(None, {NETWORK_ID: fast}, {}, {NETWORK_ID: daily})
+    device = account.networks[0].eeros[0]
+    ports = device.ports
+    assert [port["interface_number"] for port in ports] == [1, 2]
+    assert ports[0]["negotiated_speed"] == "P1000"
+
+
 async def test_network_without_a_thread_resource() -> None:
     """A network with no Thread border router must not raise KeyError (H4)."""
     sdk = FakeSDK(

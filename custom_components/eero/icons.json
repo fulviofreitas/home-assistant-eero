@@ -36,7 +36,42 @@
                 "default": "mdi:bell-alert-outline"
             }
         },
+        "button": {
+            "port_action_enable_data": {
+                "default": "mdi:ethernet"
+            },
+            "port_action_disable_data": {
+                "default": "mdi:ethernet-off"
+            },
+            "port_action_enable_poe": {
+                "default": "mdi:power-plug"
+            },
+            "port_action_disable_poe": {
+                "default": "mdi:power-plug-off"
+            },
+            "port_action_enable_port": {
+                "default": "mdi:ethernet"
+            },
+            "port_action_disable_port": {
+                "default": "mdi:ethernet-off"
+            },
+            "port_action_restart_power": {
+                "default": "mdi:restart"
+            },
+            "port_action_enable_port_security": {
+                "default": "mdi:shield-lock"
+            },
+            "port_action_disable_port_security": {
+                "default": "mdi:shield-off"
+            }
+        },
         "sensor": {
+            "port_connection_status": {
+                "default": "mdi:ethernet"
+            },
+            "port_negotiated_speed": {
+                "default": "mdi:speedometer"
+            },
             "unprofiled_data_usage_day": {
                 "default": "mdi:help-network-outline"
             },
