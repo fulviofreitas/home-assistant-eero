@@ -581,22 +581,14 @@ async def test_event_app_events_fires_new_events_once_and_binary_sensor_has_unre
     unread_id = "binary_sensor.testnetwork_unread_notifications"
     assert hass.states.get(event_id) is not None
     assert hass.states.get(unread_id).state == "off"
-    # Nothing has fired yet: the data an entity is created with is read via
-    # its own properties, not via a coordinator-update event.
+    # Nothing has fired yet: event "1" was already present when the entity
+    # was added, so it was recorded as seen without firing.
     assert hass.states.get(event_id).state == "unknown"
 
-    # The next poll with the same data fires event "1" once -- this entity
-    # has not seen it before (a known limitation: see EeroEventEntity's
-    # docstring on the lack of a persisted cursor).
+    # Re-polling with the same, already-seen event must not fire it.
     await entry.runtime_data.coordinator(TIER_HOURLY).async_refresh()
     await hass.async_block_till_done()
-    first_state = hass.states.get(event_id).state
-    assert first_state != "unknown"
-
-    # Re-polling with the same event must not fire it again.
-    await entry.runtime_data.coordinator(TIER_HOURLY).async_refresh()
-    await hass.async_block_till_done()
-    assert hass.states.get(event_id).state == first_state
+    assert hass.states.get(event_id).state == "unknown"
 
     # A genuinely new event does fire.
     sdk.set_route(
@@ -613,8 +605,13 @@ async def test_event_app_events_fires_new_events_once_and_binary_sensor_has_unre
     await hass.async_block_till_done()
 
     second_state = hass.states.get(event_id).state
-    assert second_state != first_state
+    assert second_state != "unknown"
     assert hass.states.get(unread_id).state == "on"
+
+    # Re-polling with the same two events again must not fire anything.
+    await entry.runtime_data.coordinator(TIER_HOURLY).async_refresh()
+    await hass.async_block_till_done()
+    assert hass.states.get(event_id).state == second_state
 
 
 async def test_sensor_unprofiled_data_usage_has_a_tz_aware_last_reset(

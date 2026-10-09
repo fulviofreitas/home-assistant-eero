@@ -67,16 +67,19 @@ class EeroEventEntity(EeroEntity, EventEntity):
     """Representation of an Eero event entity.
 
     Fires EVENT_TYPE_APP_EVENT for every app event the network reports that
-    this entity has not already seen, carrying the raw eero event as its
-    attributes.
+    this entity instance has not already seen, carrying the raw eero event
+    as its attributes.
 
     Dedup is in-memory only, by a best-effort identifying key taken from
     the raw event (id/timestamp/created_at/time, or the whole event as a
-    last resort): nothing is persisted across a restart. The first poll
-    after the entity is added (or after a restart) therefore re-announces
-    everything the bounded page then returns as "new" -- a known limitation
-    until the real eero app_events schema is confirmed well enough to page
-    strictly forward from a stored cursor.
+    last resort): nothing is persisted across a restart. The data already
+    present when the entity is added is recorded as seen without firing
+    (async_added_to_hass), so events that happened before this entity was
+    added -- including before HA started -- are never replayed as live HA
+    events; only an event that appears in a later poll fires. The seen-set
+    is replaced (not accumulated) on every update, bounded by the page the
+    SDK call requests, so memory never grows across polls -- an event that
+    scrolls off that page cannot reappear as "new" either.
     """
 
     _attr_event_types: ClassVar[list[str]] = [EVENT_TYPE_APP_EVENT]
@@ -84,7 +87,9 @@ class EeroEventEntity(EeroEntity, EventEntity):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         """Initialize."""
         super().__init__(*args, **kwargs)
-        self._seen_events: set[str] = set()
+        # None until primed (async_added_to_hass): _handle_coordinator_update
+        # must never fire anything before that has happened.
+        self._seen_events: set[str] | None = None
 
     @staticmethod
     def _event_key(event: dict) -> str:
@@ -94,20 +99,31 @@ class EeroEventEntity(EeroEntity, EventEntity):
                 return f"{field}:{event[field]}"
         return repr(sorted(event.items()))
 
+    def _current_events(self) -> list[dict]:
+        """Return the resource's current raw event list, defensively typed."""
+        if (resource := self.resource) is None:
+            return []
+        events = getattr(resource, self.entity_description.key, None) or []
+        return [event for event in events if isinstance(event, dict)]
+
+    async def async_added_to_hass(self) -> None:
+        """Record the data already fetched as seen, without firing it."""
+        await super().async_added_to_hass()
+        self._seen_events = {self._event_key(event) for event in self._current_events()}
+
     def _handle_coordinator_update(self) -> None:
         """Fire EVENT_TYPE_APP_EVENT for every event not seen before."""
-        if (resource := self.resource) is not None:
-            for event in getattr(resource, self.entity_description.key, None) or []:
-                if not isinstance(event, dict):
-                    continue
+        if self._seen_events is not None:
+            events = self._current_events()
+            for event in events:
                 key = self._event_key(event)
                 if key in self._seen_events:
                     continue
-                self._seen_events.add(key)
                 # Redacted defensively: the real app_events shape is not
                 # documented, so this is the same safety net every saved
                 # response goes through, applied to event attributes too.
                 self._trigger_event(
                     EVENT_TYPE_APP_EVENT, self.runtime.hub.redact(event)
                 )
+            self._seen_events = {self._event_key(event) for event in events}
         super()._handle_coordinator_update()

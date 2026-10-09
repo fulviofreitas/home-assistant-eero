@@ -207,8 +207,10 @@ UPnP, WPA3 and DDNS go through the SDK's methods, which send the same requests
   raw eero event as attributes; the eero API's own event schema is not
   documented well enough to split these into distinct HA event types yet.
   Latency: an event is only visible up to an hour after it happened (the
-  hourly tier's cadence), and a restart or a newly-added entity replays
-  whatever its first poll returns as new.
+  hourly tier's cadence). Events already present when the entity is added
+  are recorded as seen without firing, so a restart or a newly-added
+  entity never replays history as live HA events; an event that happened
+  while Home Assistant was down is not replayed once it comes back either.
 
 ### Since 1.9.3, also in this release
 
