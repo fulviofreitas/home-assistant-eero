@@ -9,7 +9,7 @@ This file covers two forks:
 
 # fulviofreitas/home-assistant-eero
 
-## 2.0.0
+## [2.0.0](https://github.com/fulviofreitas/home-assistant-eero/releases/tag/v2.0.0) (2026-10-09)
 
 The integration now uses the [`eero-api`](https://pypi.org/project/eero-api/)
 package instead of its own `requests` client, and splits polling into three
