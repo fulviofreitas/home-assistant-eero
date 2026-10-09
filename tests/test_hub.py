@@ -231,6 +231,32 @@ SETTER_CASES = [
         in sdk.calls,
     ),
     _case(
+        "network.guest_network_name",
+        {"networks.set_guest_network": {}},
+        lambda hub: make_network(hub, guest_network={"enabled": True}).async_set_guest_network_name(
+            "New Guest SSID"
+        ),
+        lambda sdk: (
+            "networks",
+            "set_guest_network",
+            (NETWORK_ID,),
+            {"enabled": True, "name": "New Guest SSID"},
+        )
+        in sdk.calls,
+    ),
+    _case(
+        "network.guest_network_password",
+        {"networks.set_guest_password": {}},
+        lambda hub: make_network(hub).async_set_guest_network_password("supersecret1"),
+        lambda sdk: (
+            "networks",
+            "set_guest_password",
+            (NETWORK_ID, "supersecret1"),
+            {},
+        )
+        in sdk.calls,
+    ),
+    _case(
         "network.thread_enabled",
         {"PUT /2.2/networks/1234567/thread/enable": {}},
         lambda hub: make_network(hub).async_set_thread_enabled(True),

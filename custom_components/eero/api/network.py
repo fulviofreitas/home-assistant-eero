@@ -455,10 +455,30 @@ class EeroNetwork(EeroResource):
         """Guest network name."""
         return self.data.get("guest_network", {}).get("name")
 
+    async def async_set_guest_network_name(self, value: str) -> None:
+        """Rename the guest network, without changing whether it is enabled."""
+        await self.api.call(
+            self.api.sdk.networks.set_guest_network(
+                self.id, enabled=bool(self.guest_network_enabled), name=value
+            ),
+            name=f"{self.url}/guestnetwork",
+        )
+
     @property
     def guest_network_password(self) -> str | None:
-        """Guest network password."""
+        """Guest network password.
+
+        Not read by any entity: the guest password text entity is
+        write-only and never reports this value as state.
+        """
         return self.data.get("guest_network", {}).get("password")
+
+    async def async_set_guest_network_password(self, value: str) -> None:
+        """Set the guest network's password."""
+        await self.api.call(
+            self.api.sdk.networks.set_guest_password(self.id, value),
+            name=f"{self.url}/guestnetwork/password",
+        )
 
     @property
     def health_eero_network_status(self) -> str | None:

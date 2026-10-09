@@ -21,6 +21,14 @@
                 "default": "mdi:account-group"
             }
         },
+        "text": {
+            "guest_network_name": {
+                "default": "mdi:wifi"
+            },
+            "guest_network_password": {
+                "default": "mdi:wifi-lock"
+            }
+        },
         "time": {
             "bedtime_weekday_start": {
                 "default": "mdi:bed-clock"

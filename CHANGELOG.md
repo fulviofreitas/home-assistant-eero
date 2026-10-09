@@ -173,6 +173,14 @@ UPnP, WPA3 and DDNS go through the SDK's methods, which send the same requests
   client filter as initial setup, since it is the same `build_entities`
   doing the filtering both times.
 
+- `text.<network>_guest_network_name` and `text.<network>_guest_network_password`
+  (new `text` platform): rename the guest network, or set its password.
+  The password text is write-only: it is never read back as state, even
+  though the network envelope carries it (`networks.set_guest_password`
+  accepts it, nothing ever surfaces it), and requires at least 8
+  characters. Writes go through `networks.set_guest_network` (name, keeping
+  the current enabled state) and `networks.set_guest_password`.
+
 ### Since 1.9.3, also in this release
 
 - Config entry diagnostics: the API payload, with tokens, secrets and contact

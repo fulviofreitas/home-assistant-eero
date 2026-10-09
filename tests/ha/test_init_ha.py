@@ -542,6 +542,60 @@ async def test_new_client_gets_entities_without_a_reload(hass, sdk_factory) -> N
     assert len(er.async_entries_for_config_entry(registry, entry.entry_id)) == added_before
 
 
+async def test_text_guest_network_name_and_write_only_password(hass, sdk_factory) -> None:
+    """The guest SSID text reads/writes; the password text is write-only (always unknown)."""
+    sdk = sdk_factory(
+        {
+            "networks.get_network": network_envelope(
+                guest_network={"enabled": True, "name": "MyGuest", "password": "leaked"}
+            ),
+            "eeros.get_eeros": [],
+            "entitlements.get_features": {"features": []},
+            "updates.get_updates": {},
+        }
+    )
+    entry = make_entry(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    name_id = "text.testnetwork_guest_network_name"
+    password_id = "text.testnetwork_guest_network_password"
+    assert hass.states.get(name_id).state == "MyGuest"
+    # Never reports the real password, even though the fixture carries one.
+    password_state = hass.states.get(password_id)
+    assert password_state is not None
+    assert password_state.state in (None, "unknown")
+
+    sdk.calls.clear()
+    sdk.set_route("networks.set_guest_network", {})
+    await hass.services.async_call(
+        "text", "set_value", {"entity_id": name_id, "value": "NewGuest"}, blocking=True
+    )
+    assert (
+        "networks",
+        "set_guest_network",
+        (NETWORK_ID,),
+        {"enabled": True, "name": "NewGuest"},
+    ) in sdk.calls
+
+    sdk.calls.clear()
+    sdk.set_route("networks.set_guest_password", {})
+    await hass.services.async_call(
+        "text",
+        "set_value",
+        {"entity_id": password_id, "value": "supersecret1"},
+        blocking=True,
+    )
+    assert (
+        "networks",
+        "set_guest_password",
+        (NETWORK_ID, "supersecret1"),
+        {},
+    ) in sdk.calls
+    # Still never reports the password after writing it.
+    assert hass.states.get(password_id).state in (None, "unknown")
+
+
 async def test_unload_entry(hass, sdk_factory) -> None:
     """The entry unloads cleanly."""
     sdk_factory()

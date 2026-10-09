@@ -337,6 +337,14 @@
             "bedtime_weekend_end": {
                 "name": "Bedtime weekend end"
             }
+        },
+        "text": {
+            "guest_network_name": {
+                "name": "Guest network name"
+            },
+            "guest_network_password": {
+                "name": "Guest network password"
+            }
         }
     },
     "exceptions": {
