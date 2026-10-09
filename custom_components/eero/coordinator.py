@@ -24,7 +24,7 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed
-from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers import device_registry as dr, issue_registry as ir
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import (
@@ -44,6 +44,10 @@ _LOGGER = logging.getLogger(__name__)
 
 HOURLY_INTERVAL = timedelta(hours=1)
 DAILY_INTERVAL = timedelta(days=1)
+# After a failed poll, the hourly and daily tiers retry this soon, doubling
+# up to backoff.MAX_BACKOFF, instead of waiting out a whole hour or day with
+# their entities unavailable.
+SLOW_TIER_RETRY = timedelta(minutes=5)
 
 type EeroConfigEntry = ConfigEntry[EeroRuntime]
 
@@ -72,6 +76,28 @@ class EeroTierCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.tier = tier
         self.base_interval = interval
         self._fetch = fetch
+        self._retrying = False
+
+    def _after_failure(self, rate_limited: bool) -> None:
+        """Pick the interval to the next attempt after a failed poll.
+
+        The fast tier keeps its interval, stretched only by a rate limit. The
+        hourly and daily tiers retry within minutes, never later than their
+        normal cadence.
+        """
+        if self.tier == TIER_FAST:
+            if rate_limited:
+                self.update_interval = backoff_interval(
+                    self.update_interval, self.base_interval
+                )
+            return
+        retry = (
+            backoff_interval(self.update_interval, SLOW_TIER_RETRY)
+            if self._retrying
+            else SLOW_TIER_RETRY
+        )
+        self.update_interval = min(retry, self.base_interval)
+        self._retrying = True
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch this tier for every configured network.
@@ -91,9 +117,7 @@ class EeroTierCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 translation_domain=DOMAIN, translation_key="auth_failed"
             ) from error
         except EeroRateLimitException as error:
-            self.update_interval = backoff_interval(
-                self.update_interval, self.base_interval
-            )
+            self._after_failure(rate_limited=True)
             raise UpdateFailed(
                 translation_domain=DOMAIN,
                 translation_key="rate_limited",
@@ -102,16 +126,19 @@ class EeroTierCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 },
             ) from error
         except TimeoutError as error:
+            self._after_failure(rate_limited=False)
             raise UpdateFailed(
                 translation_domain=DOMAIN, translation_key="timeout"
             ) from error
         except EeroException as error:
+            self._after_failure(rate_limited=False)
             raise UpdateFailed(
                 translation_domain=DOMAIN,
                 translation_key="api_error",
                 translation_placeholders={"error": str(error)},
             ) from error
         self.update_interval = self.base_interval
+        self._retrying = False
         self.runtime.report_unavailable(self.tier, unavailable)
         if self.tier == TIER_FAST:
             await self.runtime.async_persist_token()
@@ -182,6 +209,21 @@ class EeroRuntime:
         keeping the last good data beats replacing it with an empty one.
         """
         return dict((self.coordinators[tier].data or {}).get(network_id) or {})
+
+    def network_name(self, network_id: str) -> str:
+        """Return a network's name for messages, or its ID when not known.
+
+        A network the API no longer returns still has its device, and the
+        device keeps the name.
+        """
+        if name := self.network_payload(network_id).get("name"):
+            return str(name)
+        device = dr.async_get(self.hass).async_get_device_by_identifier(
+            (DOMAIN, network_id), self.entry.entry_id
+        )
+        if device is not None and (device.name_by_user or device.name):
+            return str(device.name_by_user or device.name)
+        return network_id
 
     def network_payload(self, network_id: str) -> dict[str, Any]:
         """Return the latest raw network envelope from the fast tier."""
@@ -255,7 +297,7 @@ class EeroRuntime:
                 ),
                 translation_placeholders={
                     "feature": item.feature,
-                    "network": item.network_id,
+                    "network": self.network_name(item.network_id),
                 },
             )
         for issue_id in self._issues.get(tier, set()) - current:

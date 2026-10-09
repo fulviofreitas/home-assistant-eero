@@ -131,6 +131,59 @@ async def test_rate_limit_doubles_the_fast_interval_and_resets_on_success(
     assert coordinator.update_interval == base
 
 
+async def test_a_failed_daily_poll_retries_within_minutes_then_resets(
+    hass, sdk_factory
+) -> None:
+    """The daily tier retries after 5, then 10, then 15 minutes, not a day later."""
+    from datetime import timedelta
+
+    from eero.exceptions import EeroAPIException
+
+    from custom_components.eero.const import TIER_DAILY
+
+    sdk = sdk_factory()
+    entry = make_entry(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    coordinator = entry.runtime_data.coordinator(TIER_DAILY)
+    assert coordinator.update_interval == timedelta(days=1)
+
+    sdk.set_route("updates.get_updates", EeroAPIException(500, "server error"))
+    for minutes in (5, 10, 15, 15):
+        await coordinator.async_refresh()
+        assert not coordinator.last_update_success
+        assert coordinator.update_interval == timedelta(minutes=minutes)
+
+    sdk.set_route("updates.get_updates", {})
+    await coordinator.async_refresh()
+    assert coordinator.last_update_success
+    assert coordinator.update_interval == timedelta(days=1)
+
+
+async def test_a_gone_network_issue_names_the_network(hass, sdk_factory) -> None:
+    """The repair issue for a network the API no longer returns uses its name."""
+    from eero.exceptions import EeroNotFoundException
+    from homeassistant.helpers import issue_registry as ir
+
+    from custom_components.eero.const import DOMAIN
+
+    sdk = sdk_factory()
+    entry = make_entry(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    sdk.set_route("networks.get_network", EeroNotFoundException("network", NETWORK_ID))
+    await entry.runtime_data.coordinator(TIER_FAST).async_refresh()
+
+    issue = ir.async_get(hass).async_get_issue(
+        DOMAIN, f"{entry.entry_id}_{NETWORK_ID}_network"
+    )
+    assert issue is not None
+    assert issue.translation_key == "network_unavailable"
+    assert issue.translation_placeholders["network"] == "TestNetwork"
+
+
 async def test_switch_turn_on_calls_the_sdk_and_skips_when_already_on(
     hass, sdk_factory
 ) -> None:
@@ -1182,3 +1235,29 @@ async def test_an_action_failure_on_one_target_does_not_skip_the_others(hass) ->
     with pytest.raises(HomeAssistantError) as raised:
         failures.raise_if_any()
     assert raised.value.translation_key == "auth_failed"
+
+
+async def test_network_action_buttons_exist_and_call_the_sdk(hass, sdk_factory) -> None:
+    """Reboot and Run Speed Test are created and reach the SDK when pressed.
+
+    Regression: the button platform checked for an attribute named after the
+    key ("reboot"), while the methods are async_<key>, so no action button
+    was ever created.
+    """
+    from homeassistant.helpers import entity_registry as er
+
+    sdk = sdk_factory(
+        {"networks.reboot_network": {}, "networks.run_speed_test": {}}
+    )
+    entry = make_entry(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    registry = er.async_get(hass)
+    for key, method in (("reboot", "reboot_network"), ("run_speed_test", "run_speed_test")):
+        entity_id = registry.async_get_entity_id("button", "eero", f"{NETWORK_ID}-{key}")
+        assert entity_id is not None, key
+        await hass.services.async_call(
+            "button", "press", {"entity_id": entity_id}, blocking=True
+        )
+        assert any(d == "networks" and m == method for d, m, _a, _kw in sdk.calls), key
