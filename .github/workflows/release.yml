@@ -1,14 +1,25 @@
 name: Release
 
+# For tags pushed by hand. Releases cut by release-please build their zip in
+# release-please.yml: a release created with GITHUB_TOKEN triggers no
+# other workflow.
 on:
   push:
     tags:
       - "v*"
 
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   release:
     name: Build and attach eero.zip
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
     steps:
@@ -20,6 +31,6 @@ jobs:
           zip -r "${{ github.workspace }}/eero.zip" . -x '*.pyc' -x '__pycache__/*'
 
       - name: Attach to the GitHub release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65  # v2.6.2
         with:
           files: eero.zip

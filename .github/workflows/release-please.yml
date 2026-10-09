@@ -10,15 +10,22 @@ permissions:
   contents: write
   pull-requests: write
 
+# Serialised, never cancelled: a run may be halfway through writing the
+# release pull request or the release.
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
 jobs:
   release-please:
     name: Release Please
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       release-created: ${{ steps.release.outputs.release_created }}
       tag-name: ${{ steps.release.outputs.tag_name }}
     steps:
-      - uses: googleapis/release-please-action@v4
+      - uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071  # v4.4.1
         id: release
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -30,6 +37,7 @@ jobs:
     needs: release-please
     if: needs.release-please.outputs.release-created == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
     steps:
@@ -43,7 +51,7 @@ jobs:
           zip -r "${{ github.workspace }}/eero.zip" . -x '*.pyc' -x '__pycache__/*'
 
       - name: Upload to the GitHub release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65  # v2.6.2
         with:
           files: eero.zip
           tag_name: ${{ needs.release-please.outputs.tag-name }}
