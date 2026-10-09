@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from functools import cached_property
+
 from ipaddress import ip_address
 import logging
 from typing import Any
@@ -1162,7 +1164,7 @@ class EeroNetwork(EeroResource):
             self.api.sdk.security.set_wpa3(self.id, value, parent=self.data), name=f"{self.url}/settings"
         )
 
-    @property
+    @cached_property
     def backup_networks(self) -> list[EeroBackupNetwork | None]:
         """Backup networks."""
         return [
@@ -1172,7 +1174,7 @@ class EeroNetwork(EeroResource):
             )
         ]
 
-    @property
+    @cached_property
     def clients(self) -> list[EeroClient | None]:
         """Clients."""
         return [
@@ -1180,7 +1182,7 @@ class EeroNetwork(EeroResource):
             for client in self.data.get("devices", {}).get("data", [])
         ]
 
-    @property
+    @cached_property
     def eeros(self) -> list[EeroDevice | EeroDeviceBeacon | None]:
         """Eeros."""
         eeros = []
@@ -1191,7 +1193,7 @@ class EeroNetwork(EeroResource):
                 eeros.append(EeroDevice(self.api, self, eero))
         return eeros
 
-    @property
+    @cached_property
     def profiles(self) -> list[EeroProfile | None]:
         """Profiles."""
         return [
@@ -1199,7 +1201,7 @@ class EeroNetwork(EeroResource):
             for profile in self.data.get("profiles", {}).get("data", [])
         ]
 
-    @property
+    @cached_property
     def resources(
         self,
     ) -> list[
@@ -1212,3 +1214,16 @@ class EeroNetwork(EeroResource):
     ]:
         """Resources."""
         return self.backup_networks + self.eeros + self.profiles + self.clients
+
+    @cached_property
+    def resource_by_id(self) -> dict[str, EeroResource]:
+        """Resources of this network by ID, built once per tree.
+
+        The first resource wins on a shared ID, as a scan of resources in
+        order (backup networks, eeros, profiles, clients) would find it.
+        """
+        index: dict[str, EeroResource] = {}
+        for resource in self.resources:
+            if resource is not None and resource.id is not None:
+                index.setdefault(resource.id, resource)
+        return index

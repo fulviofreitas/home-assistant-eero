@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from functools import cached_property
+
 from .network import EeroNetwork
 from .resource import EeroResource
 
@@ -38,10 +40,23 @@ class EeroAccount(EeroResource):
         """Premium status."""
         return self.data.get("premium_status")
 
-    @property
+    @cached_property
     def networks(self) -> list[EeroNetwork | None]:
         """Networks."""
         return [
             EeroNetwork(self.api, self, network)
             for network in self.data.get("networks", {}).get("data", [])
         ]
+
+    @cached_property
+    def network_by_id(self) -> dict[str, EeroNetwork]:
+        """Networks by ID.
+
+        This tree is rebuilt whenever a tier has new data and never changes
+        after, so it is safe to build each list and index once per tree.
+        """
+        index: dict[str, EeroNetwork] = {}
+        for network in self.networks:
+            if network is not None and network.id is not None:
+                index.setdefault(network.id, network)
+        return index

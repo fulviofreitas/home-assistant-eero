@@ -310,10 +310,7 @@ class EeroEntity(CoordinatorEntity[EeroTierCoordinator]):
         """Return the network for this entity, or None if it is no longer reported."""
         if self.coordinator.data is None:
             return None
-        for network in self.runtime.account.networks:
-            if network.id == self.network_id:
-                return network
-        return None
+        return self.runtime.account.network_by_id.get(self.network_id)
 
     @property
     def resource(self) -> EeroResource | None:
@@ -322,10 +319,7 @@ class EeroEntity(CoordinatorEntity[EeroTierCoordinator]):
             return None
         if self.resource_id is None:
             return network
-        for resource in network.resources:
-            if resource.id == self.resource_id:
-                return resource
-        return None
+        return network.resource_by_id.get(self.resource_id)
 
     @property
     def available(self) -> bool:
@@ -509,10 +503,7 @@ class EeroPortEntity(CoordinatorEntity[EeroTierCoordinator]):
         """Return the network for this entity, or None if it is no longer reported."""
         if self.coordinator.data is None:
             return None
-        for network in self.runtime.account.networks:
-            if network.id == self.network_id:
-                return network
-        return None
+        return self.runtime.account.network_by_id.get(self.network_id)
 
     @property
     def eero(self) -> EeroResource | None:

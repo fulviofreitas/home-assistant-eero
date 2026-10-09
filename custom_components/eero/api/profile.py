@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from functools import cached_property
+
 from datetime import datetime, time
 
 from eero.api.schedule import WEEKDAYS, WEEKEND
@@ -494,7 +496,7 @@ class EeroProfile(EeroResource):
         """Set youtube restricted."""
         await self.api.post(self.url_dns_policies, json={"youtube_restricted": value})
 
-    @property
+    @cached_property
     def clients(self) -> list[EeroClient]:
         """Clients assigned to this profile."""
         return [
