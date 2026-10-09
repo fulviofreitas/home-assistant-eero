@@ -1,14 +1,14 @@
 ## About this fork
 
-This is an audited fork of [schmittx/home-assistant-eero](https://github.com/schmittx/home-assistant-eero), taken at upstream version 1.8.1; this fork is version 1.9.1. It exists because, in the Home Assistant install it serves, every integration that holds a login or can act on the home gets a line-by-line audit before it runs, and the fixes live here rather than upstream.
+This is an audited fork of [schmittx/home-assistant-eero](https://github.com/schmittx/home-assistant-eero), taken at upstream version 1.8.1. The current version is the `version` field in `custom_components/eero/manifest.json`, and CHANGELOG.md lists what each version changed. It exists because, in the Home Assistant install it serves, every integration that holds a login or can act on the home gets a line-by-line audit before it runs, and the fixes live here rather than upstream.
 
 **Why it was forked.** Upstream's device tracker broke on Home Assistant 2026.7 and the project went quiet with the fix sitting in an unmerged pull request, so the only way to run working code was to carry it ourselves.
 
-**What is different.** It merges upstream pull requests #170, #169, #171 and #174 (the 2026.7 device-tracker fix, a Python 3.14 crash fix, a bug-fix bundle, and per-client band, channel and width). A full code audit then found 33 issues and every one is fixed here: the session token is never written to disk or logged, API errors no longer dump response bodies (which carried the wifi password and Thread key) into the log, an expired session raises a re-authentication prompt instead of crashing in a loop, failed polls make entities unavailable instead of freezing on stale data, HTTP calls have timeouts, several crash paths on missing fields are closed, the image platform and its two abandoned dependencies are gone, and a test suite (42 tests, no Home Assistant needed) was added. An independent review then found and fixed one more defect: a token refresh no longer reloads the whole integration. Fixes are not sent upstream; upstream is unchanged by this fork.
+**What is different.** It merges upstream pull requests #170, #169, #171 and #174 (the 2026.7 device-tracker fix, a Python 3.14 crash fix, a bug-fix bundle, and per-client band, channel and width). A full code audit then found 33 issues and every one is fixed here: the session token is never written to disk or logged, API errors no longer dump response bodies (which carried the wifi password and Thread key) into the log, an expired session raises a re-authentication prompt instead of crashing in a loop, failed polls make entities unavailable instead of freezing on stale data, HTTP calls have timeouts, several crash paths on missing fields are closed, the image platform and its two abandoned dependencies are gone, and a test suite (46 tests at 1.9.3, no Home Assistant needed) was added. An independent review then found and fixed one more defect: a token refresh no longer reloads the whole integration. Fixes are not sent upstream; upstream is unchanged by this fork.
 
 **How it is kept current.** A weekly job merges upstream's new commits onto a branch, runs this fork's tests, reviews the diff, and only then pushes; a merge conflict or a failing test stops it. The fork is installed through HACS as a custom repository, so Home Assistant offers each new version as an update.
 
-**Where the detail is.** CHANGELOG.md record every change by audit finding.
+**Where the detail is.** CHANGELOG.md records every change by version, and by audit finding for 1.9.0.
 
 ---
 
@@ -29,10 +29,11 @@ Custom component to allow control of Eero networks in [Home Assistant](https://h
 ## Options
 - Networks, resources, and activity metrics can be updated via integration options.
 - The inclusion method for clients can be toggled between whitelisting (include only selected clients) or blacklisting (exclude only selected clients).
-- If `Advanced Mode` is enabled for the current profile, additional options are available (interval, timeout, and response logging).
+- An Advanced step is always offered at the end of setup and of the options flow: polling interval, request timeout, and response logging, each with a default. Before 1.9.3 this step appeared only when `Advanced Mode` was enabled on the user profile.
 
 ## Notes
 - This integration does not support login via Amazon account. A workaround is to create a new account without Amazon login and add that account as another network admin. Refer to this [post](https://github.com/schmittx/home-assistant-eero/issues/77#issuecomment-1960875926) for step-by-step instructions.
+- The integration is moving to the [`eero-api`](https://pypi.org/project/eero-api/) package on PyPI (import name `eero`) as its API client. That package depends on `keyring`, so installing it also installs `keyring`. The integration creates the client with `use_keyring=False`, so no keyring function is ever called and the session token stays in the config entry as before. On Home Assistant the `keyring` package installs and goes unused.
 
 ## Currently Working
 - Multiple networks supported
