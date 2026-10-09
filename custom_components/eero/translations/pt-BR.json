@@ -4,7 +4,8 @@
             "already_configured": "A rede escolhida já está configurada",
             "reauth_successful": "Reautenticação realizada com sucesso",
             "wrong_account": "A conta verificada não é a conta com a qual esta entrada foi configurada",
-            "cannot_connect": "Não foi possível ler as redes da conta pela API do eero. Tente novamente mais tarde."
+            "cannot_connect": "Não foi possível ler as redes da conta pela API do eero. Tente novamente mais tarde.",
+            "reconfigure_successful": "A entrada foi reconfigurada com sucesso"
         },
         "error": {
             "invalid_code": "Código inválido",
@@ -17,35 +18,50 @@
                     "login": "Login (e-mail ou número de telefone para SMS)"
                 },
                 "description": "Informe o endereço de e-mail ou o número de telefone para SMS (com o código do país) associado à sua conta.",
-                "title": "Entrar na conta eero"
+                "title": "Entrar na conta eero",
+                "data_description": {
+                    "login": "O e-mail ou número de celular para SMS (com código do país) que você usa para entrar no app da Eero."
+                }
             },
             "verify": {
                 "data": {
                     "code": "Código de verificação"
                 },
                 "description": "Informe o código de verificação enviado para {login}.",
-                "title": "Verificar conta eero"
+                "title": "Verificar conta eero",
+                "data_description": {
+                    "code": "O código de uso único que a Eero enviou por SMS ou e-mail para {login}."
+                }
             },
             "reauth_confirm": {
                 "data": {
                     "login": "Login (e-mail ou número de telefone para SMS)"
                 },
                 "description": "A sessão do eero expirou. Informe o endereço de e-mail ou o número de telefone para SMS (com o código do país) associado à sua conta para entrar novamente.",
-                "title": "Reautenticar conta eero"
+                "title": "Reautenticar conta eero",
+                "data_description": {
+                    "login": "O e-mail ou número de celular para SMS (com código do país) que você usa para entrar no app da Eero."
+                }
             },
             "reauth_verify": {
                 "data": {
                     "code": "Código de verificação"
                 },
                 "description": "Informe o código de verificação enviado para {login}.",
-                "title": "Verificar conta eero"
+                "title": "Verificar conta eero",
+                "data_description": {
+                    "code": "O código de uso único que a Eero enviou por SMS ou e-mail para {login}."
+                }
             },
             "networks": {
                 "data": {
                     "networks": "Redes"
                 },
                 "description": "Selecione a(s) rede(s) eero desejada(s).",
-                "title": "Selecionar redes eero"
+                "title": "Selecionar redes eero",
+                "data_description": {
+                    "networks": "As redes Eero desta conta a configurar. Redes não selecionadas não são adicionadas."
+                }
             },
             "resources": {
                 "data": {
@@ -58,7 +74,16 @@
                     "backup_networks": "Redes de backup"
                 },
                 "description": "Rede: {network}\n\nUm novo dispositivo e todas as entidades aplicáveis serão criados no Home Assistant para cada recurso selecionado (para clientes, o comportamento pode ser invertido alterando o método de filtro). Depois, entidades individuais podem ser desativadas conforme desejado.",
-                "title": "Selecionar recursos da rede"
+                "title": "Selecionar recursos da rede",
+                "data_description": {
+                    "eeros": "Unidades eero para as quais criar um dispositivo e entidades.",
+                    "profiles": "Perfis para os quais criar um dispositivo e entidades.",
+                    "wired_clients": "Clientes cabeados para os quais criar um dispositivo e entidades quando o filtro estiver em incluir.",
+                    "wired_clients_filter": "Incluir: só os clientes cabeados selecionados recebem entidades. Excluir: todos os clientes cabeados recebem entidades, exceto os selecionados.",
+                    "wireless_clients": "Clientes sem fio para os quais criar um dispositivo e entidades quando o filtro estiver em incluir.",
+                    "wireless_clients_filter": "Incluir: só os clientes sem fio selecionados recebem entidades. Excluir: todos os clientes sem fio recebem entidades, exceto os selecionados.",
+                    "backup_networks": "Outras redes da conta que podem servir de backup para esta pela internet."
+                }
             },
             "activity": {
                 "data": {
@@ -68,7 +93,13 @@
                     "clients": "Clientes"
                 },
                 "description": "Rede: {network}\n\nCada métrica exige uma chamada exclusiva à API do eero, e você pode encontrar erros de tempo limite ao selecionar várias métricas.",
-                "title": "Selecionar métricas de atividade"
+                "title": "Selecionar métricas de atividade",
+                "data_description": {
+                    "network": "Métricas de atividade da rede inteira para as quais criar sensores.",
+                    "eeros": "Métricas de uso de dados por eero para as quais criar sensores.",
+                    "profiles": "Métricas de atividade por perfil para as quais criar sensores.",
+                    "clients": "Métricas de atividade por cliente para as quais criar sensores."
+                }
             },
             "miscellaneous": {
                 "data": {
@@ -77,7 +108,12 @@
                     "suffix_connection_type": "Adicionar o tipo de conexão (cabeada ou sem fio) como sufixo de todos os dispositivos e entidades de clientes"
                 },
                 "description": "Rede: {network}",
-                "title": "Opções diversas"
+                "title": "Opções diversas",
+                "data_description": {
+                    "consider_home": "Por quanto tempo um rastreador de dispositivo continua em casa depois que deixa de aparecer como conectado.",
+                    "prefix_network_name": "Ajuda a distinguir as entidades quando mais de uma rede está configurada.",
+                    "suffix_connection_type": "Ajuda a distinguir a presença cabeada e sem fio de um cliente quando as duas existem."
+                }
             },
             "advanced": {
                 "data": {
@@ -85,7 +121,26 @@
                     "scan_interval": "Intervalo de consulta",
                     "timeout": "Tempo limite de consulta"
                 },
-                "title": "Opções avançadas"
+                "title": "Opções avançadas",
+                "data_description": {
+                    "save_responses": "Útil principalmente para diagnóstico e relatos de erro; tokens e outros segredos são ocultados.",
+                    "scan_interval": "Com que frequência os dados do nível rápido (rede, clientes, eeros) são consultados.",
+                    "timeout": "Quanto tempo esperar a resposta da API da eero antes de desistir de uma requisição."
+                }
+            },
+            "reconfigure": {
+                "data": {
+                    "save_responses": "Salvar as respostas do servidor, sem dados sensíveis, em .storage/eero_responses",
+                    "scan_interval": "Intervalo de consulta",
+                    "timeout": "Tempo limite de consulta"
+                },
+                "data_description": {
+                    "save_responses": "Útil principalmente para diagnóstico e relatos de erro; tokens e outros segredos são ocultados.",
+                    "scan_interval": "Com que frequência os dados do nível rápido (rede, clientes, eeros) são consultados.",
+                    "timeout": "Quanto tempo esperar a resposta da API da eero antes de desistir de uma requisição."
+                },
+                "description": "Altere o intervalo de consulta, o tempo limite de consulta e a opção de salvar respostas desta entrada. Para mudar quais redes ou recursos estão configurados, use a opção Configurar.",
+                "title": "Reconfigurar Eero"
             }
         }
     },
