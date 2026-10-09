@@ -436,6 +436,23 @@ class EeroHub:
                 )
                 or []
             )
+        if config.get_schedules:
+            schedules: dict[str, Any] = {}
+            for profile_id in config.profiles:
+                if profile_id == "*":
+                    # Only ever seen from snapshot(), which has no real
+                    # profile IDs to resolve schedules for.
+                    continue
+                schedules[profile_id] = (
+                    await self._optional(
+                        self.sdk.schedule.get_schedules(network_id, profile_id),
+                        f"/2.2/networks/{network_id}/profiles/{profile_id}/schedules",
+                        network_id,
+                        "schedules",
+                    )
+                    or []
+                )
+            payload["schedules"] = schedules
         if resources.get("thread"):
             payload["thread"] = await self._optional(
                 self.sdk.thread.get_thread(network_id),
@@ -564,6 +581,8 @@ class EeroHub:
                 network["entitlements"] = tier["features"]
             if "blacklist" in tier:
                 network["blacklist"] = _counted(tier["blacklist"])
+            if "schedules" in tier:
+                network["schedules"] = tier["schedules"]
             if isinstance(tier.get("updates"), dict):
                 network["updates"] = tier["updates"]
             networks.append(network)
@@ -680,6 +699,7 @@ class EeroUpdateConfig:
         get_devices: bool = False,
         get_release_notes: bool = False,
         get_blacklist: bool = False,
+        get_schedules: bool = False,
     ) -> None:
         """Initialize."""
         self.activity = activity if activity is not None else {}
@@ -691,3 +711,6 @@ class EeroUpdateConfig:
         # Only meaningful (and only ever set) alongside get_devices: the
         # block switch has nothing to read state from without a client list.
         self.get_blacklist = get_blacklist
+        # Bedtime switch/time entities: one schedules read per configured
+        # profile, only when a profile entity is configured.
+        self.get_schedules = get_schedules

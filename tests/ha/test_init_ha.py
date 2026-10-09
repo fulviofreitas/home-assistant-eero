@@ -235,6 +235,102 @@ async def test_switch_block_and_unblock_client(hass, sdk_factory) -> None:
     )
 
 
+def profile_entry_data(**overrides) -> dict:
+    """Entry data with one profile ("p1") configured."""
+    resources = {
+        NETWORK_ID: {
+            CONF_BACKUP_NETWORKS: [],
+            CONF_EEROS: [],
+            CONF_PROFILES: ["p1"],
+            CONF_WIRED_CLIENTS: [],
+            CONF_WIRED_CLIENTS_FILTER: CONF_FILTER_INCLUDE,
+            CONF_WIRELESS_CLIENTS: [],
+            CONF_WIRELESS_CLIENTS_FILTER: CONF_FILTER_INCLUDE,
+        }
+    }
+    return entry_data(**{CONF_RESOURCES: resources, **overrides})
+
+
+async def test_switch_and_time_bedtime_schedule(hass, sdk_factory) -> None:
+    """Bedtime switch/time entities read the daily schedules read and write via the SDK."""
+    profile = {"url": f"{NETWORK_URL}/profiles/p1", "name": "Kid"}
+    sdk = sdk_factory(
+        {
+            "networks.get_network": network_envelope(),
+            "eeros.get_eeros": [],
+            "profiles.get_profiles": [profile],
+            "entitlements.get_features": {"features": []},
+            "updates.get_updates": {},
+            "schedule.get_schedules": [],
+        }
+    )
+    entry = make_entry(hass, **profile_entry_data())
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    from homeassistant.helpers import entity_registry as er
+
+    registry = er.async_get(hass)
+    switch_id = registry.async_get_entity_id(
+        "switch", DOMAIN, f"{NETWORK_ID}-p1-bedtime_enabled"
+    )
+    assert switch_id is not None
+    assert hass.states.get(switch_id).state == "off"
+
+    sdk.calls.clear()
+    sdk.set_route("schedule.set_weekday_bedtime", {})
+    sdk.set_route("schedule.set_weekend_bedtime", {})
+    await hass.services.async_call(
+        "switch", "turn_on", {"entity_id": switch_id}, blocking=True
+    )
+    assert any(
+        d == "schedule" and m == "set_weekday_bedtime" for d, m, _a, _kw in sdk.calls
+    )
+    assert any(
+        d == "schedule" and m == "set_weekend_bedtime" for d, m, _a, _kw in sdk.calls
+    )
+
+    # Daily tier re-fetch picks up the created schedule.
+    sdk.set_route(
+        "schedule.get_schedules",
+        [
+            {
+                "name": "Bedtime",
+                "days": [
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday",
+                    "friday",
+                ],
+                "start": "22:00",
+                "end": "07:00",
+                "enabled": True,
+                "url": f"{NETWORK_URL}/profiles/p1/schedules/1",
+            }
+        ],
+    )
+    await entry.runtime_data.coordinator(TIER_DAILY).async_refresh()
+    await hass.async_block_till_done()
+    assert hass.states.get(switch_id).state == "on"
+
+    time_id = registry.async_get_entity_id(
+        "time", DOMAIN, f"{NETWORK_ID}-p1-bedtime_weekday_start"
+    )
+    assert time_id is not None
+    assert hass.states.get(time_id).state == "22:00:00"
+
+    sdk.calls.clear()
+    sdk.set_route("schedule.update_schedule", {})
+    await hass.services.async_call(
+        "time", "set_value", {"entity_id": time_id, "time": "21:30:00"}, blocking=True
+    )
+    assert any(
+        d == "schedule" and m == "update_schedule" and kw.get("start") == "21:30"
+        for d, m, _a, kw in sdk.calls
+    )
+
+
 async def test_diagnostics_redacts_the_token(hass, sdk_factory) -> None:
     """The config entry diagnostics never leak the session token."""
     sdk_factory()

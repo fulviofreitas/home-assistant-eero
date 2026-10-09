@@ -7,6 +7,27 @@
                     "on": "mdi:account-cancel",
                     "off": "mdi:account-check"
                 }
+            },
+            "bedtime_enabled": {
+                "default": "mdi:sleep",
+                "state": {
+                    "on": "mdi:sleep",
+                    "off": "mdi:sleep-off"
+                }
+            }
+        },
+        "time": {
+            "bedtime_weekday_start": {
+                "default": "mdi:bed-clock"
+            },
+            "bedtime_weekday_end": {
+                "default": "mdi:bed-clock"
+            },
+            "bedtime_weekend_start": {
+                "default": "mdi:bed-clock"
+            },
+            "bedtime_weekend_end": {
+                "default": "mdi:bed-clock"
             }
         }
     },

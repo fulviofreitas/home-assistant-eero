@@ -61,6 +61,11 @@ SWITCH_DESCRIPTIONS: list[EeroSwitchEntityDescription] = [
         name="Band Steering",
     ),
     EeroSwitchEntityDescription(
+        key="bedtime_enabled",
+        translation_key="bedtime_enabled",
+        tier=TIER_DAILY,
+    ),
+    EeroSwitchEntityDescription(
         key="blocked",
         translation_key="blocked",
         tier=TIER_DAILY,

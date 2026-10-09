@@ -10,9 +10,11 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from .const import TIER_DAILY
 from .coordinator import EeroConfigEntry
 from .entity import (
     KIND_EEROS,
+    KIND_PROFILES,
     EeroEntity,
     EeroEntityDescription,
     build_entities,
@@ -35,6 +37,26 @@ TIME_DESCRIPTIONS: list[EeroTimeEntityDescription] = [
         key="nightlight_schedule_off",
         name="Nightlight Off",
     ),
+    EeroTimeEntityDescription(
+        key="bedtime_weekday_start",
+        translation_key="bedtime_weekday_start",
+        tier=TIER_DAILY,
+    ),
+    EeroTimeEntityDescription(
+        key="bedtime_weekday_end",
+        translation_key="bedtime_weekday_end",
+        tier=TIER_DAILY,
+    ),
+    EeroTimeEntityDescription(
+        key="bedtime_weekend_start",
+        translation_key="bedtime_weekend_start",
+        tier=TIER_DAILY,
+    ),
+    EeroTimeEntityDescription(
+        key="bedtime_weekend_end",
+        translation_key="bedtime_weekend_end",
+        tier=TIER_DAILY,
+    ),
 ]
 
 PARALLEL_UPDATES = 1
@@ -51,7 +73,7 @@ async def async_setup_entry(
             config_entry.runtime_data,
             TIME_DESCRIPTIONS,
             EeroTimeEntity,
-            (KIND_EEROS,),
+            (KIND_EEROS, KIND_PROFILES),
         )
     )
 

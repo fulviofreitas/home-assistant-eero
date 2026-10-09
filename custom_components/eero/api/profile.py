@@ -2,10 +2,32 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, time
+
+from eero.api.schedule import WEEKDAYS, WEEKEND
 
 from .client import EeroClient
 from .resource import EeroResource
+
+#: Scheduled pauses this integration manages are always named "Bedtime";
+#: the SDK has no separate "is this a bedtime pause" flag, so a weekday/
+#: weekend pause is identified by its day set, not by an ID it keeps.
+_BEDTIME_NAME = "bedtime"
+_WEEKDAYS = frozenset(WEEKDAYS)
+_WEEKEND = frozenset(WEEKEND)
+_DEFAULT_BEDTIME_START = "22:00"
+_DEFAULT_BEDTIME_END = "07:00"
+
+
+def _parse_hhmm(value: str | None) -> time | None:
+    """Parse an "HH:MM" schedule time into a time object."""
+    if not value:
+        return None
+    try:
+        hour, minute = value.split(":", 1)
+        return time(int(hour), int(minute))
+    except (ValueError, TypeError):
+        return None
 
 
 def _insight_sum(network, activity: str, profile_id, insight_type: str) -> int | None:
@@ -57,6 +79,130 @@ class EeroProfile(EeroResource):
     def adblock_week(self) -> int | None:
         """Adblock week."""
         return _insight_sum(self.network, "adblock_week", self.id, "adblock")
+
+    def _bedtime_entries(self) -> tuple[dict | None, dict | None]:
+        """Return (weekday, weekend) bedtime schedule entries, if any exist."""
+        schedules = self.network.data.get("schedules")
+        weekday: dict | None = None
+        weekend: dict | None = None
+        if not isinstance(schedules, dict):
+            return (weekday, weekend)
+        for entry in schedules.get(self.id) or []:
+            if not isinstance(entry, dict):
+                continue
+            if str(entry.get("name", "")).strip().lower() != _BEDTIME_NAME:
+                continue
+            days = frozenset(entry.get("days") or [])
+            if days == _WEEKDAYS:
+                weekday = entry
+            elif days == _WEEKEND:
+                weekend = entry
+        return (weekday, weekend)
+
+    @property
+    def bedtime_enabled(self) -> bool | None:
+        """Whether a weekday or weekend bedtime schedule is active.
+
+        None until the daily tier has fetched this profile's schedules.
+        """
+        schedules = self.network.data.get("schedules")
+        if not isinstance(schedules, dict) or self.id not in schedules:
+            return None
+        weekday, weekend = self._bedtime_entries()
+        return bool((weekday or {}).get("enabled") or (weekend or {}).get("enabled"))
+
+    async def async_set_bedtime_enabled(self, value: bool) -> None:
+        """Turn the bedtime schedule(s) on or off.
+
+        Turning on creates a schedule (default 22:00-07:00) for whichever of
+        weekday/weekend has none yet, and re-enables the other(s). Turning
+        off disables rather than deletes, so times already set survive being
+        turned off and back on.
+        """
+        weekday, weekend = self._bedtime_entries()
+        for entry, setter in (
+            (weekday, self.api.sdk.schedule.set_weekday_bedtime),
+            (weekend, self.api.sdk.schedule.set_weekend_bedtime),
+        ):
+            if value:
+                if entry is None:
+                    await self.api.call(
+                        setter(
+                            self.network.id,
+                            self.id,
+                            _DEFAULT_BEDTIME_START,
+                            _DEFAULT_BEDTIME_END,
+                        ),
+                        name=f"{self.url}/schedules",
+                    )
+                elif not entry.get("enabled"):
+                    await self.api.call(
+                        self.api.sdk.schedule.update_schedule(entry, enabled=True),
+                        name=f"{self.url}/schedules",
+                    )
+            elif entry is not None and entry.get("enabled"):
+                await self.api.call(
+                    self.api.sdk.schedule.update_schedule(entry, enabled=False),
+                    name=f"{self.url}/schedules",
+                )
+
+    async def _async_set_bedtime_time(self, weekday: bool, field: str, value: time) -> None:
+        """Set one start/end field of the weekday or weekend bedtime schedule."""
+        entry = self._bedtime_entries()[0 if weekday else 1]
+        hhmm = value.strftime("%H:%M")
+        if entry is not None:
+            await self.api.call(
+                self.api.sdk.schedule.update_schedule(entry, **{field: hhmm}),
+                name=f"{self.url}/schedules",
+            )
+            return
+        start = hhmm if field == "start" else _DEFAULT_BEDTIME_START
+        end = hhmm if field == "end" else _DEFAULT_BEDTIME_END
+        setter = (
+            self.api.sdk.schedule.set_weekday_bedtime
+            if weekday
+            else self.api.sdk.schedule.set_weekend_bedtime
+        )
+        await self.api.call(
+            setter(self.network.id, self.id, start, end),
+            name=f"{self.url}/schedules",
+        )
+
+    @property
+    def bedtime_weekday_start(self) -> time | None:
+        """Weekday bedtime start."""
+        return _parse_hhmm((self._bedtime_entries()[0] or {}).get("start"))
+
+    async def async_set_bedtime_weekday_start(self, value: time) -> None:
+        """Set weekday bedtime start."""
+        await self._async_set_bedtime_time(True, "start", value)
+
+    @property
+    def bedtime_weekday_end(self) -> time | None:
+        """Weekday bedtime end."""
+        return _parse_hhmm((self._bedtime_entries()[0] or {}).get("end"))
+
+    async def async_set_bedtime_weekday_end(self, value: time) -> None:
+        """Set weekday bedtime end."""
+        await self._async_set_bedtime_time(True, "end", value)
+
+    @property
+    def bedtime_weekend_start(self) -> time | None:
+        """Weekend bedtime start."""
+        return _parse_hhmm((self._bedtime_entries()[1] or {}).get("start"))
+
+    async def async_set_bedtime_weekend_start(self, value: time) -> None:
+        """Set weekend bedtime start."""
+        await self._async_set_bedtime_time(False, "start", value)
+
+    @property
+    def bedtime_weekend_end(self) -> time | None:
+        """Weekend bedtime end."""
+        return _parse_hhmm((self._bedtime_entries()[1] or {}).get("end"))
+
+    async def async_set_bedtime_weekend_end(self, value: time) -> None:
+        """Set weekend bedtime end."""
+        await self._async_set_bedtime_time(False, "end", value)
 
     @property
     def block_apps_enabled(self) -> bool:

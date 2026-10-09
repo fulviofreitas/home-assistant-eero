@@ -94,6 +94,62 @@ async def test_blacklist_fetched_only_when_configured_and_matched_by_mac() -> No
     assert clients["11:22:33:44:55:66"].blocked is False
 
 
+async def test_schedules_fetched_only_when_profiles_configured_and_parsed_by_name_and_days() -> (
+    None
+):
+    """The daily tier reads schedules per configured profile; bedtime is matched by name/days."""
+    sdk = FakeSDK(
+        {
+            "networks.get_network": fixture("network"),
+            "eeros.get_eeros": [],
+            "profiles.get_profiles": [],
+            "thread.get_thread": fixture("thread"),
+            "entitlements.get_features": {"features": []},
+            "updates.get_updates": {},
+            "schedule.get_schedules": [
+                {
+                    "name": "Bedtime",
+                    "days": list(eero_api.profile.WEEKDAYS),
+                    "start": "21:00",
+                    "end": "06:30",
+                    "enabled": True,
+                    "url": "/2.2/networks/1234567/profiles/p1/schedules/1",
+                },
+                {
+                    "name": "Homework",
+                    "days": ["monday"],
+                    "start": "15:00",
+                    "end": "16:00",
+                    "enabled": True,
+                },
+            ],
+        }
+    )
+    hub = build_hub(sdk=sdk)
+
+    # Not configured: no request made, no schedules in the payload.
+    plain_config = eero_api.EeroUpdateConfig()
+    fast = await hub.fetch_fast(NETWORK_ID, plain_config)
+    daily = await hub.fetch_daily(NETWORK_ID, fast["network"], plain_config)
+    assert "schedules" not in daily
+    assert ("schedule", "get_schedules", (NETWORK_ID, "p1"), {}) not in sdk.calls
+
+    # Configured: fetched once per configured profile.
+    config = eero_api.EeroUpdateConfig(profiles=["p1"], get_schedules=True)
+    fast = await hub.fetch_fast(NETWORK_ID, config)
+    daily = await hub.fetch_daily(NETWORK_ID, fast["network"], config)
+    assert ("schedule", "get_schedules", (NETWORK_ID, "p1"), {}) in sdk.calls
+    account = hub.assemble(None, {NETWORK_ID: fast}, {}, {NETWORK_ID: daily})
+    network = account.networks[0]
+    profile = eero_api.profile.EeroProfile(
+        hub, network, {"url": f"{network.url}/profiles/p1"}
+    )
+    assert profile.bedtime_enabled is True
+    assert profile.bedtime_weekday_start.isoformat() == "21:00:00"
+    assert profile.bedtime_weekday_end.isoformat() == "06:30:00"
+    assert profile.bedtime_weekend_start is None
+
+
 async def test_network_without_a_thread_resource() -> None:
     """A network with no Thread border router must not raise KeyError (H4)."""
     sdk = FakeSDK(

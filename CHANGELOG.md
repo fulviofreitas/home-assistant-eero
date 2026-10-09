@@ -140,6 +140,17 @@ UPnP, WPA3 and DDNS go through the SDK's methods, which send the same requests
   fetched only for networks with client entities configured; blocking a
   client also refreshes the fast tier, since a blocked device is removed from
   the network's device list, not just flagged.
+- `switch.<profile>_bedtime_enabled` and four `time.<profile>_bedtime_*`
+  entities (weekday start/end, weekend start/end): read from a new
+  daily-tier read of each configured profile's schedules
+  (`schedule.get_schedules`), fetched only for networks with profile
+  entities configured. The eero API models a bedtime as a named scheduled
+  pause rather than a single on/off field, so these are matched by name
+  ("Bedtime") and day set; turning the switch off disables the schedule(s)
+  rather than deleting them, so times already set survive being turned back
+  on. Writes go through `schedule.set_weekday_bedtime`/
+  `set_weekend_bedtime`/`update_schedule`, none of which the SDK has
+  verified against a live network yet (`warn_uncharacterised_write`).
 
 ### Since 1.9.3, also in this release
 

@@ -5,6 +5,7 @@ requests-based client (b989da7, the commit immediately before this SDK port).
 
 from __future__ import annotations
 
+from datetime import time as _time
 import importlib.util
 import json
 from pathlib import Path
@@ -346,6 +347,51 @@ SETTER_CASES = [
         ).async_set_blocked(False),
         lambda sdk: ("blacklist", "remove_from_blacklist", (NETWORK_ID, "aa"), {})
         in sdk.calls,
+    ),
+    _case(
+        "profile.bedtime_enabled.create",
+        {"schedule.set_weekday_bedtime": {}, "schedule.set_weekend_bedtime": {}},
+        lambda hub: eero_api.profile.EeroProfile(
+            hub, make_network(hub), {"url": f"{NETWORK_URL}/profiles/p1"}
+        ).async_set_bedtime_enabled(True),
+        lambda sdk: (
+            ("schedule", "set_weekday_bedtime", (NETWORK_ID, "p1", "22:00", "07:00"), {})
+            in sdk.calls
+            and (
+                "schedule",
+                "set_weekend_bedtime",
+                (NETWORK_ID, "p1", "22:00", "07:00"),
+                {},
+            )
+            in sdk.calls
+        ),
+    ),
+    _case(
+        "profile.bedtime_weekday_start.update_existing",
+        {"schedule.update_schedule": {}},
+        lambda hub: eero_api.profile.EeroProfile(
+            hub,
+            make_network(
+                hub,
+                schedules={
+                    "p1": [
+                        {
+                            "name": "Bedtime",
+                            "days": list(eero_api.profile.WEEKDAYS),
+                            "start": "21:00",
+                            "end": "06:00",
+                            "enabled": True,
+                            "url": f"{NETWORK_URL}/profiles/p1/schedules/1",
+                        }
+                    ]
+                },
+            ),
+            {"url": f"{NETWORK_URL}/profiles/p1"},
+        ).async_set_bedtime_weekday_start(_time(20, 30)),
+        lambda sdk: any(
+            d == "schedule" and m == "update_schedule" and kw.get("start") == "20:30"
+            for d, m, a, kw in sdk.calls
+        ),
     ),
     _case(
         "client.secondary_wan_allow_access",

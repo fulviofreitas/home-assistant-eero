@@ -303,6 +303,8 @@ def _update_config(
             # the same condition as get_devices, so networks with no client
             # entities configured never pay for this daily-tier request.
             get_blacklist=get_devices,
+            # Bedtime schedules: one read per configured profile.
+            get_schedules=bool(resources[CONF_PROFILES]),
         )
     return conf_update
 

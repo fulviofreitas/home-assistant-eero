@@ -316,6 +316,23 @@
             },
             "blocked": {
                 "name": "Blocked"
+            },
+            "bedtime_enabled": {
+                "name": "Bedtime"
+            }
+        },
+        "time": {
+            "bedtime_weekday_start": {
+                "name": "Bedtime weekday start"
+            },
+            "bedtime_weekday_end": {
+                "name": "Bedtime weekday end"
+            },
+            "bedtime_weekend_start": {
+                "name": "Bedtime weekend start"
+            },
+            "bedtime_weekend_end": {
+                "name": "Bedtime weekend end"
             }
         }
     },
