@@ -3,6 +3,7 @@
         "abort": {
             "already_configured": "The desired network is already configured",
             "reauth_successful": "Re-authentication was successful",
+            "reconfigure_successful": "The entry was reconfigured successfully",
             "wrong_account": "The verified account is not the account this entry was set up with",
             "cannot_connect": "Could not read the account's networks from the eero API. Try again later."
         },
@@ -16,12 +17,18 @@
                 "data": {
                     "login": "Login (email or SMS phone number)"
                 },
+                "data_description": {
+                    "login": "The email address or SMS phone number (including country code) you use to sign in to the Eero app."
+                },
                 "description": "Enter the email address or SMS phone number (including country code) associated with your account.",
                 "title": "Login to Eero account"
             },
             "verify": {
                 "data": {
                     "code": "Verification code"
+                },
+                "data_description": {
+                    "code": "The one-time code Eero texted or emailed to {login}."
                 },
                 "description": "Enter the verification code that was sent to {login}.",
                 "title": "Verify Eero account"
@@ -30,6 +37,9 @@
                 "data": {
                     "login": "Login (email or SMS phone number)"
                 },
+                "data_description": {
+                    "login": "The email address or SMS phone number (including country code) you use to sign in to the Eero app."
+                },
                 "description": "The Eero session has expired. Enter the email address or SMS phone number (including country code) associated with your account to sign in again.",
                 "title": "Reauthenticate Eero account"
             },
@@ -37,12 +47,18 @@
                 "data": {
                     "code": "Verification code"
                 },
+                "data_description": {
+                    "code": "The one-time code Eero texted or emailed to {login}."
+                },
                 "description": "Enter the verification code that was sent to {login}.",
                 "title": "Verify Eero account"
             },
             "networks": {
                 "data": {
                     "networks": "Networks"
+                },
+                "data_description": {
+                    "networks": "The Eero networks on this account to set up. Unselected networks are not added."
                 },
                 "description": "Select the desired Eero network(s).",
                 "title": "Select Eero networks"
@@ -57,6 +73,15 @@
                     "wireless_clients_filter": "Wireless clients filter behavior",
                     "backup_networks": "Backup Networks"
                 },
+                "data_description": {
+                    "eeros": "Eero hardware units to create a device and entities for.",
+                    "profiles": "Profiles to create a device and entities for.",
+                    "wired_clients": "Wired clients to create a device and entities for when the filter behavior is set to include.",
+                    "wired_clients_filter": "Include: only the selected wired clients get entities. Exclude: every wired client gets entities except the selected ones.",
+                    "wireless_clients": "Wireless clients to create a device and entities for when the filter behavior is set to include.",
+                    "wireless_clients_filter": "Include: only the selected wireless clients get entities. Exclude: every wireless client gets entities except the selected ones.",
+                    "backup_networks": "Other networks on the account eligible to back this one up over the internet."
+                },
                 "description": "Network: {network}\n\nA new device entry and all applicable entities will be created within Home Assistant for each selected resource (the behavior can be inverted for clients by changing the filter method). Individual entities can then be disabled as desired.",
                 "title": "Select network resources"
             },
@@ -67,6 +92,12 @@
                     "profiles": "Profiles",
                     "clients": "Clients"
                 },
+                "data_description": {
+                    "network": "Network-wide activity metrics to create sensors for.",
+                    "eeros": "Per-eero data usage metrics to create sensors for.",
+                    "profiles": "Per-profile activity metrics to create sensors for.",
+                    "clients": "Per-client activity metrics to create sensors for."
+                },
                 "description": "Network: {network}\n\nEach metric requires an exclusive call to the eero API and you may encounter timeout errors if selecting multiple metrics.",
                 "title": "Select activity metrics"
             },
@@ -75,6 +106,11 @@
                     "consider_home": "Consider home interval (applicable to device tracker entities only)",
                     "prefix_network_name": "Add network name as a prefix for all non-network entities",
                     "suffix_connection_type": "Add connection type (wired or wireless) as a suffix for all client devices and entities"
+                },
+                "data_description": {
+                    "consider_home": "How long a device tracker stays home after it stops reporting as connected.",
+                    "prefix_network_name": "Helps tell entities apart when more than one network is configured.",
+                    "suffix_connection_type": "Helps tell a client's wired and wireless presence apart when both exist."
                 },
                 "description": "Network: {network}",
                 "title": "Miscellaneous options"
@@ -85,7 +121,26 @@
                     "scan_interval": "Polling interval",
                     "timeout": "Polling timeout"
                 },
+                "data_description": {
+                    "save_responses": "Mainly useful for troubleshooting and bug reports; tokens and other secrets are redacted.",
+                    "scan_interval": "How often the fast-tier data (network, clients, eeros) is polled.",
+                    "timeout": "How long to wait for the eero API to respond before giving up on a request."
+                },
                 "title": "Advanced options"
+            },
+            "reconfigure": {
+                "data": {
+                    "save_responses": "Save redacted server responses to .storage/eero_responses",
+                    "scan_interval": "Polling interval",
+                    "timeout": "Polling timeout"
+                },
+                "data_description": {
+                    "save_responses": "Mainly useful for troubleshooting and bug reports; tokens and other secrets are redacted.",
+                    "scan_interval": "How often the fast-tier data (network, clients, eeros) is polled.",
+                    "timeout": "How long to wait for the eero API to respond before giving up on a request."
+                },
+                "description": "Change the polling interval, polling timeout and save-responses setting for this entry. To change which networks or resources are set up, use the Configure option instead.",
+                "title": "Reconfigure Eero"
             }
         }
     },

@@ -532,6 +532,88 @@ class EeroConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
+    async def async_step_reconfigure(self, user_input=None):
+        """Let the user change polling interval, timeout and save-responses.
+
+        These are the Advanced step's values. Options take precedence over
+        data for them (see async_setup_entry), so a prior options flow run
+        may already carry an override; writing options too (not just data)
+        here ensures the new values actually take effect regardless of
+        whether that override exists.
+        """
+        errors = {}
+        reconfigure_entry = self._get_reconfigure_entry()
+        data = reconfigure_entry.data
+        options = reconfigure_entry.options
+
+        if user_input:
+            conf_scan_interval = user_input[CONF_SCAN_INTERVAL]
+            conf_timeout = user_input[CONF_TIMEOUT]
+
+            invalid_scan_interval_timeout = timedelta(
+                seconds=conf_scan_interval
+            ) <= timedelta(seconds=conf_timeout)
+
+            if invalid_scan_interval_timeout:
+                errors["base"] = "invalid_scan_interval_timeout"
+            else:
+                updates = {
+                    CONF_SAVE_RESPONSES: user_input[CONF_SAVE_RESPONSES],
+                    CONF_SCAN_INTERVAL: conf_scan_interval,
+                    CONF_TIMEOUT: conf_timeout,
+                }
+                return self.async_update_reload_and_abort(
+                    reconfigure_entry,
+                    data_updates=updates,
+                    options={**options, **updates},
+                )
+
+        conf_save_responses = options.get(
+            CONF_SAVE_RESPONSES,
+            data.get(CONF_SAVE_RESPONSES, DEFAULT_SAVE_RESPONSES),
+        )
+        conf_scan_interval = max(
+            MIN_SCAN_INTERVAL,
+            options.get(
+                CONF_SCAN_INTERVAL,
+                data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
+            ),
+        )
+        conf_timeout = min(
+            MAX_TIMEOUT,
+            options.get(CONF_TIMEOUT, data.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)),
+        )
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_SAVE_RESPONSES, default=conf_save_responses
+                    ): BooleanSelector(),
+                    vol.Optional(
+                        CONF_SCAN_INTERVAL, default=conf_scan_interval
+                    ): NumberSelector(
+                        NumberSelectorConfig(
+                            min=MIN_SCAN_INTERVAL,
+                            max=MAX_SCAN_INTERVAL,
+                            step=STEP_SCAN_INTERVAL,
+                            unit_of_measurement=UnitOfTime.SECONDS,
+                        )
+                    ),
+                    vol.Optional(CONF_TIMEOUT, default=conf_timeout): NumberSelector(
+                        NumberSelectorConfig(
+                            min=MIN_TIMEOUT,
+                            max=MAX_TIMEOUT,
+                            step=STEP_TIMEOUT,
+                            unit_of_measurement=UnitOfTime.SECONDS,
+                        )
+                    ),
+                }
+            ),
+            errors=errors,
+        )
+
     async def async_step_reauth(self, entry_data: Mapping[str, Any]):
         """Handle re-authentication when the Eero session can no longer be refreshed."""
         self.reauth_login = entry_data.get(CONF_LOGIN)
