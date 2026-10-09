@@ -2,6 +2,6 @@
 	"name": "eero",
 	"content_in_root": false,
 	"homeassistant": "2025.2.0",
-	"iot_class": "Cloud Polling",
-	"render_readme": true
+	"zip_release": true,
+	"filename": "eero.zip"
 }

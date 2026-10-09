@@ -1,0 +1,10 @@
+# Test/lint dependencies for CI. Keep in sync with the venv used for local
+# development (see .github/workflows/ci.yml for how these are consumed).
+pytest==9.0.0
+pytest-homeassistant-custom-component==0.13.316
+ruff==0.16.10
+mypy==2.4.0
+# Not imported by the vendored custom_components/eero/api package yet, but
+# pinned here to match the local dev venv (branch feat/eero-api-sdk is
+# migrating toward it) so CI stays reproducible as that lands.
+eero-api==8.0.6

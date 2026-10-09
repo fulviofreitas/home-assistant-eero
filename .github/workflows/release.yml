@@ -1,0 +1,25 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    name: Build and attach eero.zip
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Zip the eero integration
+        run: |
+          cd custom_components/eero
+          zip -r "${{ github.workspace }}/eero.zip" . -x '*.pyc' -x '__pycache__/*'
+
+      - name: Attach to the GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: eero.zip

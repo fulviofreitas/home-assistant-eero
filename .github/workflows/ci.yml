@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  ruff:
+    name: Ruff (lint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install -r requirements_test.txt
+      - run: ruff check .
+
+  hassfest:
+    name: Hassfest validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: home-assistant/actions/hassfest@master
+
+  hacs:
+    name: HACS validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hacs/action@main
+        with:
+          category: integration
+          # hacs/action's `ignore` input is a space-separated list of check
+          # names (see hacs/integration custom_components/hacs/validate/).
+          # - brands: no local brand assets and the repo isn't registered in
+          #   home-assistant/brands; that's a submission to a different repo,
+          #   not something this repo's settings/code can satisfy.
+          # - issues: GitHub issues are currently disabled on this repo (a
+          #   repo setting, not code). manifest.json's issue_tracker points
+          #   at this repo's /issues, so enabling them is the real fix; drop
+          #   this ignore when that happens.
+          # - topics: the repo has no GitHub topics set; a repo setting, not
+          #   code, and out of scope for this housekeeping pass.
+          ignore: brands issues topics
+
+  pytest:
+    name: Pytest (3.13)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install -r requirements_test.txt
+      - run: pytest -q
+
+  mypy:
+    name: mypy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install -r requirements_test.txt
+      - run: mypy custom_components/eero

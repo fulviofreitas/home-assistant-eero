@@ -1,0 +1,75 @@
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.ruff.lint]
+# Modeled on Home Assistant core's ruff config, scaled back to what the
+# current codebase actually satisfies. Rules that fire only on
+# custom_components/eero (which this CI setup does not modify) are listed
+# in the `ignore` block below with a reason; see the housekeeping report
+# for exact file:line occurrences to fix separately.
+select = [
+    "A",      # flake8-builtins
+    "B",      # flake8-bugbear
+    "BLE",    # flake8-blind-except
+    "C4",     # flake8-comprehensions
+    "DTZ",    # flake8-datetimez
+    "E",      # pycodestyle errors
+    "ERA",    # eradicate (commented-out code)
+    "F",      # pyflakes
+    "PIE",    # flake8-pie
+    "PTH",    # flake8-use-pathlib
+    "RET",    # flake8-return
+    "RUF",    # ruff-specific
+    "SIM",    # flake8-simplify
+    "TID",    # flake8-tidy-imports
+    "UP",     # pyupgrade
+    "W",      # pycodestyle warnings
+]
+ignore = [
+    "E501",   # line-too-long: 3 pre-existing long lines in custom_components/eero
+              # (see housekeeping report); line-length above already covers the rest.
+    "SIM102", # collapsible nested if: 1 occurrence in custom_components/eero/__init__.py
+    "RUF015", # prefer next() over slice: 2 occurrences in custom_components/eero/__init__.py
+    "RUF100", # unused noqa: 2 occurrences in custom_components/eero (api/__init__.py, util.py)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["ARG001", "ARG002"]
+
+[tool.mypy]
+python_version = "3.13"
+ignore_missing_imports = true
+check_untyped_defs = false
+disallow_untyped_defs = false
+warn_unused_ignores = false
+# The entity/description layer leans on dynamic attribute access and
+# frozen-dataclass inheritance patterns that mypy's strict optional/attr
+# checks don't model well without touching custom_components/eero (out of
+# scope for this housekeeping pass). Disabled codes below all have current
+# occurrences logged verbatim in the housekeeping report for the
+# coordinator to fix; re-enable as those are addressed.
+disable_error_code = [
+    "union-attr",
+    "attr-defined",
+    "misc",
+    "override",
+    "arg-type",
+    "call-overload",
+    "var-annotated",
+    "return-value",
+    "index",
+    "operator",
+    "no-redef",
+    "assignment",
+    "typeddict-unknown-key",
+    "call-arg",
+]
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+ignore_errors = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
