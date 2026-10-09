@@ -9,6 +9,19 @@ This file covers two forks:
 
 # fulviofreitas/home-assistant-eero
 
+## [2.0.1](https://github.com/fulviofreitas/home-assistant-eero/compare/v2.0.0...v2.0.1) (2026-10-09)
+
+### Fixes
+
+- Setup no longer fails when Home Assistant's device registry holds an eero
+  device without a model, for example one registered for a port while its
+  eero was unavailable.
+
+### Internal
+
+- The whole integration is type-checked in mypy's strict mode. No behaviour
+  change is intended.
+
 ## [2.0.0](https://github.com/fulviofreitas/home-assistant-eero/releases/tag/v2.0.0) (2026-10-09)
 
 The integration now uses the [`eero-api`](https://pypi.org/project/eero-api/)
