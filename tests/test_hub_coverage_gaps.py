@@ -274,6 +274,20 @@ async def test_release_notes_rejects_non_json_object_body() -> None:
         await hub.get_release_notes(url)
 
 
+async def test_an_empty_list_activity_stays_a_list() -> None:
+    """A series that is an empty list must not collapse into None.
+
+    The properties iterate whatever update_activity returns, so None made
+    every sensor reading that activity raise and be skipped.
+    """
+    sdk = FakeSDK({"data_usage.get_data_usage": []})
+    hub = build_hub(sdk=sdk)
+
+    series = await hub.update_activity("data_usage_day", NETWORK_ID, "network", "UTC")
+
+    assert series == []
+
+
 async def test_release_notes_rejects_invalid_json() -> None:
     from helpers import FakeHTTPSession
 

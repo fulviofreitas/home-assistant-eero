@@ -451,7 +451,9 @@ class EeroHub:
                 auth_token=await self._token(),
                 params={**window, "insight_type": insight_type},
             )
-        data = await self._optional(request, name, network_id, activity) or {}
+        data = await self._optional(request, name, network_id, activity)
+        if data is None:
+            data = {}
         if activity == ACTIVITY_NOTIFICATIONS_UNREAD:
             # Always the {"has_unread": bool} shape has_unread's docstring
             # describes; never routed through the insights/series/values
