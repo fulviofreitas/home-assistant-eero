@@ -3,11 +3,17 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable
 from datetime import timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import voluptuous as vol
+if TYPE_CHECKING:
+    # Home Assistant 2026.10 validates with probatio and aliases voluptuous to it
+    # at runtime; before that it is voluptuous itself. Only the type checker
+    # needs to be told which one the schemas below are.
+    import probatio as vol
+else:
+    import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import CONF_SCAN_INTERVAL, Platform
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -26,6 +32,7 @@ from homeassistant.helpers.typing import ConfigType
 
 from .api import EeroAuthenticationException, EeroException, EeroHub, EeroUpdateConfig
 from .api.const import SUPPORTED_APPS
+from .api.network import EeroNetwork
 from .config_flow import EeroConfigFlow
 from .const import (
     ACTIVITIES_PREMIUM,
@@ -242,7 +249,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                 ):
                     continue
                 for profile in network.profiles:
-                    if profile.id not in runtime.resources[network.id][CONF_PROFILES]:
+                    if profile.id not in runtime.resources[network.known_id][CONF_PROFILES]:
                         continue
                     if target_profile and not (
                         profile.id in target_profile or profile.name in target_profile
@@ -254,7 +261,9 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             await runtime.coordinator(TIER_FAST).async_request_refresh()
         failures.raise_if_any()
 
-    async def _async_network_action(target_network: list, action) -> None:
+    async def _async_network_action(
+        target_network: list[Any], action: Callable[[EeroNetwork], Awaitable[Any]]
+    ) -> None:
         """Run action(network) for every loaded network matching target_network.
 
         Shared by every reservation/forward/DNS service: all five act on a
@@ -389,7 +398,7 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
         _LOGGER.debug("Initial options:\n%s", options)
 
         if config_entry.version <= 1:
-            resources = {}
+            resources: dict[str, dict[str, Any]] = {}
             for network_id in options.get(CONF_NETWORKS, data.get(CONF_NETWORKS, [])):
                 _LOGGER.info("Migrating resources for network: %s", network_id)
                 resources[network_id] = {
@@ -414,10 +423,15 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
                     device_registry, config_entry.entry_id
                 ):
                     if network_device_id := device_entry.via_device_id:
-                        network_id = list(
-                            device_registry.async_get(network_device_id).identifiers
-                        )[0][1]
-                        network_name = device_registry.async_get(network_device_id).name
+                        # A parent that is gone is skipped; this used to raise.
+                        if (
+                            network_device := device_registry.async_get(
+                                network_device_id
+                            )
+                        ) is None:
+                            continue
+                        network_id = list(network_device.identifiers)[0][1]
+                        network_name = network_device.name
                         resource_id = list(device_entry.identifiers)[0][1]
                         if any(
                             [
@@ -492,7 +506,7 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
 
 
 def _update_config(
-    conf_resources: dict, conf_activity: dict
+    conf_resources: dict[str, Any], conf_activity: dict[str, Any]
 ) -> dict[str, EeroUpdateConfig]:
     """Work out what each configured network needs fetched."""
     conf_update = {}
@@ -738,7 +752,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: EeroConfigEntry) 
         if network.id in conf_networks:
             device_registry.async_get_or_create(
                 config_entry_id=config_entry.entry_id,
-                identifiers={(DOMAIN, network.id)},
+                identifiers={(DOMAIN, network.known_id)},
                 manufacturer=MANUFACTURER,
                 name=network.name,
                 model=MODEL_NETWORK,
