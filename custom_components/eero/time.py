@@ -86,7 +86,7 @@ class EeroTimeEntity(EeroEntity, TimeEntity):
     @property
     def native_value(self) -> time | None:
         """Return the value reported by the time."""
-        return getattr(self.resource, self.entity_description.key)
+        return getattr(self.resource, self.entity_description.key, None)
 
     async def async_set_value(self, value: time) -> None:
         """Change the time."""

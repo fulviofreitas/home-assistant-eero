@@ -78,7 +78,7 @@ class EeroTextEntity(EeroEntity, TextEntity):
         """
         if self.entity_description.write_only:
             return None
-        return getattr(self.resource, self.entity_description.key)
+        return getattr(self.resource, self.entity_description.key, None)
 
     async def async_set_value(self, value: str) -> None:
         """Change the value.

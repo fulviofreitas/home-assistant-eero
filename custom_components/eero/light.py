@@ -69,7 +69,7 @@ class EeroLightEntity(EeroEntity, LightEntity):
     @property
     def is_on(self) -> bool:
         """Return True if entity is on."""
-        return bool(getattr(self.resource, self.entity_description.key))
+        return bool(getattr(self.resource, self.entity_description.key, False))
 
     @property
     def brightness(self) -> int | None:

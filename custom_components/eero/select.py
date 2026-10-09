@@ -91,7 +91,7 @@ class EeroSelectEntity(EeroEntity, SelectEntity):
     @property
     def current_option(self) -> str | None:
         """Return the selected entity option to represent the entity state."""
-        return getattr(self.resource, self.entity_description.key)
+        return getattr(self.resource, self.entity_description.key, None)
 
     async def async_select_option(self, option: str) -> None:
         """Change the selected option."""

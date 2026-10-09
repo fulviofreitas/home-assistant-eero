@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 
+import pytest
+
 from eero.exceptions import EeroAuthenticationException, EeroRateLimitException
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -1144,3 +1146,39 @@ def test_port_value_helpers_map_phy_rate_and_tolerate_odd_shapes() -> None:
         == "CONNECTED"
     )
     assert eero_sensor._port_connection_status({}) is None
+
+
+async def test_an_action_failure_on_one_target_does_not_skip_the_others(hass) -> None:
+    """Every target is tried; the failures are raised together at the end."""
+    from homeassistant.exceptions import HomeAssistantError
+
+    from custom_components.eero import _ActionFailures
+    from custom_components.eero.api import EeroAuthenticationException, EeroException
+
+    entry = make_entry(hass)
+    done: list[str] = []
+
+    async def ok(name: str) -> None:
+        done.append(name)
+
+    async def fails() -> None:
+        raise EeroException("boom")
+
+    failures = _ActionFailures(hass)
+    await failures.run(entry, fails())
+    await failures.run(entry, ok("second"))
+    assert done == ["second"]
+    with pytest.raises(HomeAssistantError) as raised:
+        failures.raise_if_any()
+    assert raised.value.translation_key == "api_error"
+
+    async def expired() -> None:
+        raise EeroAuthenticationException("expired")
+
+    failures = _ActionFailures(hass)
+    await failures.run(entry, expired())
+    await failures.run(entry, ok("third"))
+    assert done == ["second", "third"]
+    with pytest.raises(HomeAssistantError) as raised:
+        failures.raise_if_any()
+    assert raised.value.translation_key == "auth_failed"

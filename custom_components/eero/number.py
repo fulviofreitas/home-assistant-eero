@@ -61,7 +61,7 @@ class EeroNumberEntity(EeroEntity, NumberEntity):
     @property
     def native_value(self) -> float | None:
         """Return the value reported by the number."""
-        return getattr(self.resource, self.entity_description.key)
+        return getattr(self.resource, self.entity_description.key, None)
 
     async def async_set_native_value(self, value: float) -> None:
         """Set new value."""

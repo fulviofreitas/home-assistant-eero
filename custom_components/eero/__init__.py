@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Awaitable
 from datetime import timedelta
 import logging
+from typing import Any
 
 import voluptuous as vol
 
@@ -184,6 +186,41 @@ PLATFORMS = [
 _LOGGER = logging.getLogger(__name__)
 
 
+class _ActionFailures:
+    """Collect the failures of an action that targets several networks.
+
+    One network failing must not stop the action on the others, nor skip
+    their refresh; the failures are raised together once every target has
+    been tried. An expired session starts reauthentication for its entry.
+    """
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        self.hass = hass
+        self.errors: list[str] = []
+        self.auth_failed = False
+
+    async def run(self, entry: ConfigEntry, request: Awaitable[Any]) -> None:
+        try:
+            await request
+        except EeroAuthenticationException:
+            entry.async_start_reauth(self.hass)
+            self.auth_failed = True
+        except (EeroException, TimeoutError) as error:
+            self.errors.append(str(error))
+
+    def raise_if_any(self) -> None:
+        if self.auth_failed:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN, translation_key="auth_failed"
+            )
+        if self.errors:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="api_error",
+                translation_placeholders={"error": "; ".join(self.errors)},
+            )
+
+
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Register the integration's actions once, for every entry."""
 
@@ -191,6 +228,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         blocked_apps = service.data[ATTR_BLOCKED_APPS]
         target_profile = service.data[ATTR_TARGET_PROFILE]
         target_network = service.data[ATTR_TARGET_NETWORK]
+        failures = _ActionFailures(hass)
         for entry in hass.config_entries.async_entries(DOMAIN):
             if entry.state is not ConfigEntryState.LOADED:
                 continue
@@ -207,20 +245,11 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                         profile.id in target_profile or profile.name in target_profile
                     ):
                         continue
-                    try:
-                        await profile.async_set_blocked_applications(blocked_apps)
-                    except EeroAuthenticationException as error:
-                        entry.async_start_reauth(hass)
-                        raise HomeAssistantError(
-                            translation_domain=DOMAIN, translation_key="auth_failed"
-                        ) from error
-                    except (EeroException, TimeoutError) as error:
-                        raise HomeAssistantError(
-                            translation_domain=DOMAIN,
-                            translation_key="api_error",
-                            translation_placeholders={"error": str(error)},
-                        ) from error
+                    await failures.run(
+                        entry, profile.async_set_blocked_applications(blocked_apps)
+                    )
             await runtime.coordinator(TIER_FAST).async_request_refresh()
+        failures.raise_if_any()
 
     async def _async_network_action(target_network: list, action) -> None:
         """Run action(network) for every loaded network matching target_network.
@@ -228,8 +257,10 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         Shared by every reservation/forward/DNS service: all five act on a
         network directly (not a profile), and all five refresh the daily
         tier afterward, since that is where reservations, forwards and DNS
-        mode are read from.
+        mode are read from. A failure on one network does not stop the
+        others; the failures are reported together at the end.
         """
+        failures = _ActionFailures(hass)
         for entry in hass.config_entries.async_entries(DOMAIN):
             if entry.state is not ConfigEntryState.LOADED:
                 continue
@@ -239,20 +270,9 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                     network.id in target_network or network.name in target_network
                 ):
                     continue
-                try:
-                    await action(network)
-                except EeroAuthenticationException as error:
-                    entry.async_start_reauth(hass)
-                    raise HomeAssistantError(
-                        translation_domain=DOMAIN, translation_key="auth_failed"
-                    ) from error
-                except (EeroException, TimeoutError) as error:
-                    raise HomeAssistantError(
-                        translation_domain=DOMAIN,
-                        translation_key="api_error",
-                        translation_placeholders={"error": str(error)},
-                    ) from error
+                await failures.run(entry, action(network))
             await runtime.coordinator(TIER_DAILY).async_request_refresh()
+        failures.raise_if_any()
 
     async def async_create_reservation(service: ServiceCall) -> None:
         data = {ATTR_IP: service.data[ATTR_IP], ATTR_MAC: service.data[ATTR_MAC]}
