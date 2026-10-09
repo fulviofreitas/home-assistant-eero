@@ -6,9 +6,23 @@ from __future__ import annotations
 from eero.exceptions import EeroAuthenticationException, EeroRateLimitException
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.eero.const import DOMAIN, TIER_FAST
+from custom_components.eero.const import (
+    CONF_BACKUP_NETWORKS,
+    CONF_EEROS,
+    CONF_FILTER_EXCLUDE,
+    CONF_FILTER_INCLUDE,
+    CONF_PROFILES,
+    CONF_RESOURCES,
+    CONF_WIRED_CLIENTS,
+    CONF_WIRED_CLIENTS_FILTER,
+    CONF_WIRELESS_CLIENTS,
+    CONF_WIRELESS_CLIENTS_FILTER,
+    DOMAIN,
+    TIER_DAILY,
+    TIER_FAST,
+)
 
-from conftest import entry_data, network_envelope
+from conftest import NETWORK_ID, NETWORK_URL, entry_data, network_envelope
 
 
 def make_entry(hass, **data_overrides) -> MockConfigEntry:
@@ -144,6 +158,80 @@ async def test_switch_turn_on_calls_the_sdk_and_skips_when_already_on(
     )
     assert not any(
         d == "security" and m == "set_band_steering" for d, m, _a, _kw in sdk.calls
+    )
+
+
+def client_entry_data(**overrides) -> dict:
+    """Entry data with wired clients discovered (exclude filter -> any device qualifies)."""
+    resources = {
+        NETWORK_ID: {
+            CONF_BACKUP_NETWORKS: [],
+            CONF_EEROS: [],
+            CONF_PROFILES: [],
+            CONF_WIRED_CLIENTS: [],
+            CONF_WIRED_CLIENTS_FILTER: CONF_FILTER_EXCLUDE,
+            CONF_WIRELESS_CLIENTS: [],
+            CONF_WIRELESS_CLIENTS_FILTER: CONF_FILTER_INCLUDE,
+        }
+    }
+    return entry_data(**{CONF_RESOURCES: resources, **overrides})
+
+
+async def test_switch_block_and_unblock_client(hass, sdk_factory) -> None:
+    """Blocking calls add_to_blacklist; the switch reflects the daily-tier blacklist read."""
+    mac = "aa:bb:cc:dd:ee:ff"
+    device = {
+        "url": f"{NETWORK_URL}/devices/{mac}",
+        "mac": mac,
+        "wireless": False,
+        "nickname": "TestClient",
+    }
+    sdk = sdk_factory(
+        {
+            "networks.get_network": network_envelope(),
+            "eeros.get_eeros": [],
+            "devices.get_devices": [device],
+            "entitlements.get_features": {"features": []},
+            "updates.get_updates": {},
+            "blacklist.get_blacklist": [],
+        }
+    )
+    entry = make_entry(hass, **client_entry_data())
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    from homeassistant.helpers import entity_registry as er
+
+    registry = er.async_get(hass)
+    unique_id = f"{NETWORK_ID}-{mac}-blocked"
+    entity_id = registry.async_get_entity_id("switch", DOMAIN, unique_id)
+    assert entity_id is not None
+    state = hass.states.get(entity_id)
+    assert state is not None
+    assert state.state == "off"
+
+    sdk.calls.clear()
+    sdk.set_route("blacklist.add_to_blacklist", {})
+    await hass.services.async_call(
+        "switch", "turn_on", {"entity_id": entity_id}, blocking=True
+    )
+    assert any(
+        d == "blacklist" and m == "add_to_blacklist" for d, m, _a, _kw in sdk.calls
+    )
+
+    sdk.set_route("blacklist.get_blacklist", [{"mac": mac}])
+    await entry.runtime_data.coordinator(TIER_DAILY).async_refresh()
+    await hass.async_block_till_done()
+    state = hass.states.get(entity_id)
+    assert state.state == "on"
+
+    sdk.calls.clear()
+    sdk.set_route("blacklist.remove_from_blacklist", {})
+    await hass.services.async_call(
+        "switch", "turn_off", {"entity_id": entity_id}, blocking=True
+    )
+    assert any(
+        d == "blacklist" and m == "remove_from_blacklist" for d, m, _a, _kw in sdk.calls
     )
 
 

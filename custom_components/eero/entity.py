@@ -281,18 +281,11 @@ class EeroEntity(CoordinatorEntity[EeroTierCoordinator]):
                 device_info["via_device_id"] = network_device.id
         return device_info
 
-    @property
-    def name(self) -> str | None:
-        """Return the entity portion of the name.
-
-        has_entity_name is set, so Home Assistant prefixes the device name and
-        this returns the short suffix only. None means the entity carries the
-        device name alone.
-        """
-        name = self.entity_description.name
-        if name is UNDEFINED:
-            return None
-        return name
+    # name is intentionally not overridden: has_entity_name is set, so Home
+    # Assistant's own Entity.name resolves a translation_key against
+    # strings.json/translations before falling back to entity_description.name
+    # (and to the device name alone when neither is set). Descriptions that
+    # still set a literal name= keep returning it unchanged.
 
     async def async_write(
         self,

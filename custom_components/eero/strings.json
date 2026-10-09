@@ -313,6 +313,9 @@
                         "name": "Active operational dataset"
                     }
                 }
+            },
+            "blocked": {
+                "name": "Blocked"
             }
         }
     },

@@ -60,6 +60,40 @@ async def test_eeros_fetched_only_when_the_network_envelope_lacks_them() -> None
     assert [eero.id for eero in account.networks[0].eeros] == ["1"]
 
 
+async def test_blacklist_fetched_only_when_configured_and_matched_by_mac() -> None:
+    """The daily tier reads the blacklist only when configured; blocked() matches by MAC."""
+    sdk = FakeSDK(
+        {
+            "networks.get_network": fixture("network"),
+            "devices.get_devices": fixture("devices"),
+            "eeros.get_eeros": [],
+            "thread.get_thread": fixture("thread"),
+            "entitlements.get_features": {"features": []},
+            "updates.get_updates": {},
+            "blacklist.get_blacklist": [{"mac": "AA:BB:CC:DD:EE:FF"}],
+        }
+    )
+    hub = build_hub(sdk=sdk)
+
+    # Not configured: no request made, no blacklist in the payload.
+    plain_config = eero_api.EeroUpdateConfig(get_devices=True)
+    fast = await hub.fetch_fast(NETWORK_ID, plain_config)
+    daily = await hub.fetch_daily(NETWORK_ID, fast["network"], plain_config)
+    assert "blacklist" not in daily
+    assert ("blacklist", "get_blacklist", (NETWORK_ID,), {}) not in sdk.calls
+
+    # Configured: fetched once, and the matching client reports blocked=True.
+    config = eero_api.EeroUpdateConfig(get_devices=True, get_blacklist=True)
+    fast = await hub.fetch_fast(NETWORK_ID, config)
+    daily = await hub.fetch_daily(NETWORK_ID, fast["network"], config)
+    assert ("blacklist", "get_blacklist", (NETWORK_ID,), {}) in sdk.calls
+    account = hub.assemble(None, {NETWORK_ID: fast}, {}, {NETWORK_ID: daily})
+    network = account.networks[0]
+    clients = {client.mac: client for client in network.clients}
+    assert clients["aa:bb:cc:dd:ee:ff"].blocked is True
+    assert clients["11:22:33:44:55:66"].blocked is False
+
+
 async def test_network_without_a_thread_resource() -> None:
     """A network with no Thread border router must not raise KeyError (H4)."""
     sdk = FakeSDK(

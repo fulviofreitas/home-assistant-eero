@@ -331,6 +331,23 @@ SETTER_CASES = [
         lambda sdk: ("devices", "pause_device", (NETWORK_ID, "aa", True), {}) in sdk.calls,
     ),
     _case(
+        "client.blocked.block",
+        {"blacklist.add_to_blacklist": {}},
+        lambda hub: eero_api.client.EeroClient(
+            hub, make_network(hub), {"url": f"{NETWORK_URL}/devices/aa", "mac": "aa"}
+        ).async_set_blocked(True),
+        lambda sdk: ("blacklist", "add_to_blacklist", (NETWORK_ID, "aa"), {}) in sdk.calls,
+    ),
+    _case(
+        "client.blocked.unblock",
+        {"blacklist.remove_from_blacklist": {}},
+        lambda hub: eero_api.client.EeroClient(
+            hub, make_network(hub), {"url": f"{NETWORK_URL}/devices/aa", "mac": "aa"}
+        ).async_set_blocked(False),
+        lambda sdk: ("blacklist", "remove_from_blacklist", (NETWORK_ID, "aa"), {})
+        in sdk.calls,
+    ),
+    _case(
         "client.secondary_wan_allow_access",
         {"PUT /2.3/networks/1234567/devices/aa": {}},
         lambda hub: eero_api.client.EeroClient(

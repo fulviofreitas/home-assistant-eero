@@ -132,6 +132,15 @@ UPnP, WPA3 and DDNS go through the SDK's methods, which send the same requests
   cannot be read after login, in both the config and the options flow. The
   options flow aborts with `not_loaded` when the entry is not loaded.
 
+### New entities and actions
+
+- `switch.<client>_blocked`: blocks or unblocks a client via the SDK's
+  `blacklist.add_to_blacklist`/`remove_from_blacklist`. State is read from a
+  new daily-tier read of the network's block list (`blacklist.get_blacklist`),
+  fetched only for networks with client entities configured; blocking a
+  client also refreshes the fast tier, since a blocked device is removed from
+  the network's device list, not just flagged.
+
 ### Since 1.9.3, also in this release
 
 - Config entry diagnostics: the API payload, with tokens, secrets and contact

@@ -426,6 +426,16 @@ class EeroHub:
         """
         payload: dict[str, Any] = {}
         resources = network.get("resources") or {}
+        if config.get_blacklist:
+            payload["blacklist"] = (
+                await self._optional(
+                    self.sdk.blacklist.get_blacklist(network_id),
+                    f"/2.2/networks/{network_id}/blacklist",
+                    network_id,
+                    "blacklist",
+                )
+                or []
+            )
         if resources.get("thread"):
             payload["thread"] = await self._optional(
                 self.sdk.thread.get_thread(network_id),
@@ -552,6 +562,8 @@ class EeroHub:
                     network["backup_internet_enabled"] = enabled
             if "features" in tier:
                 network["entitlements"] = tier["features"]
+            if "blacklist" in tier:
+                network["blacklist"] = _counted(tier["blacklist"])
             if isinstance(tier.get("updates"), dict):
                 network["updates"] = tier["updates"]
             networks.append(network)
@@ -667,6 +679,7 @@ class EeroUpdateConfig:
         get_backup_access_points: bool = False,
         get_devices: bool = False,
         get_release_notes: bool = False,
+        get_blacklist: bool = False,
     ) -> None:
         """Initialize."""
         self.activity = activity if activity is not None else {}
@@ -675,3 +688,6 @@ class EeroUpdateConfig:
         self.get_devices = get_devices
         self.get_profiles = bool(self.profiles)
         self.get_release_notes = get_release_notes
+        # Only meaningful (and only ever set) alongside get_devices: the
+        # block switch has nothing to read state from without a client list.
+        self.get_blacklist = get_blacklist

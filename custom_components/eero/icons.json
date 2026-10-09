@@ -1,4 +1,15 @@
 {
+    "entity": {
+        "switch": {
+            "blocked": {
+                "default": "mdi:account-cancel",
+                "state": {
+                    "on": "mdi:account-cancel",
+                    "off": "mdi:account-check"
+                }
+            }
+        }
+    },
     "services": {
         "set_blocked_apps": {
             "service": "mdi:account-cancel"

@@ -61,6 +61,14 @@ SWITCH_DESCRIPTIONS: list[EeroSwitchEntityDescription] = [
         name="Band Steering",
     ),
     EeroSwitchEntityDescription(
+        key="blocked",
+        translation_key="blocked",
+        tier=TIER_DAILY,
+        # Blocking removes the device from the network entirely: the fast
+        # tier's device list changes too, not just the daily-tier blacklist.
+        refresh_tiers=(TIER_FAST, TIER_DAILY),
+    ),
+    EeroSwitchEntityDescription(
         key="block_gaming_content",
         name="Gaming Content Filter",
         premium_type=True,

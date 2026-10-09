@@ -87,6 +87,37 @@ class EeroClient(EeroResource):
         return None
 
     @property
+    def blocked(self) -> bool | None:
+        """Whether this client is on the network's block list.
+
+        Read from the daily-tier blacklist, matched by MAC: a blocked device
+        is removed from the network entirely, so the device envelope itself
+        carries no reliable flag for this (unlike paused). None until the
+        daily tier has been fetched at least once.
+        """
+        if (network := self.network) is None or "blacklist" not in network.data:
+            return None
+        mac = (self.mac or "").replace(":", "").lower()
+        for entry in network.data["blacklist"].get("data", []):
+            entry_mac = str(entry.get("mac") or entry.get("device_id") or "")
+            if entry_mac.replace(":", "").lower() == mac:
+                return True
+        return False
+
+    async def async_set_blocked(self, value: bool) -> None:
+        """Add or remove this client from the network's block list."""
+        if value:
+            await self.api.call(
+                self.api.sdk.blacklist.add_to_blacklist(self.network.id, self.mac),
+                name=f"/2.2/networks/{self.network.id}/blacklist",
+            )
+        else:
+            await self.api.call(
+                self.api.sdk.blacklist.remove_from_blacklist(self.network.id, self.mac),
+                name=f"/2.2/networks/{self.network.id}/blacklist",
+            )
+
+    @property
     def channel(self) -> int | None:
         """Channel."""
         return self.data.get("channel")

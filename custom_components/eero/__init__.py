@@ -283,21 +283,26 @@ def _update_config(
     """Work out what each configured network needs fetched."""
     conf_update = {}
     for network_id, resources in conf_resources.items():
+        get_devices = any(
+            [
+                resources[CONF_WIRED_CLIENTS_FILTER] == CONF_FILTER_EXCLUDE,
+                resources[CONF_WIRED_CLIENTS_FILTER] == CONF_FILTER_INCLUDE
+                and bool(resources[CONF_WIRED_CLIENTS]),
+                resources[CONF_WIRELESS_CLIENTS_FILTER] == CONF_FILTER_EXCLUDE,
+                resources[CONF_WIRELESS_CLIENTS_FILTER] == CONF_FILTER_INCLUDE
+                and bool(resources[CONF_WIRELESS_CLIENTS]),
+            ]
+        )
         conf_update[network_id] = EeroUpdateConfig(
             activity=conf_activity.get(network_id, {}),
             profiles=resources[CONF_PROFILES],
             get_backup_access_points=bool(resources[CONF_BACKUP_NETWORKS]),
-            get_devices=any(
-                [
-                    resources[CONF_WIRED_CLIENTS_FILTER] == CONF_FILTER_EXCLUDE,
-                    resources[CONF_WIRED_CLIENTS_FILTER] == CONF_FILTER_INCLUDE
-                    and bool(resources[CONF_WIRED_CLIENTS]),
-                    resources[CONF_WIRELESS_CLIENTS_FILTER] == CONF_FILTER_EXCLUDE,
-                    resources[CONF_WIRELESS_CLIENTS_FILTER] == CONF_FILTER_INCLUDE
-                    and bool(resources[CONF_WIRELESS_CLIENTS]),
-                ]
-            ),
+            get_devices=get_devices,
             get_release_notes=bool(resources[CONF_EEROS]),
+            # The block switch's state has nothing else to read: gated on
+            # the same condition as get_devices, so networks with no client
+            # entities configured never pay for this daily-tier request.
+            get_blacklist=get_devices,
         )
     return conf_update
 
