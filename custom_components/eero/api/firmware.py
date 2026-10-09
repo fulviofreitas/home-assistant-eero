@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 
 class EeroFirmware:
     """EeroFirmware."""
 
-    def __init__(self, data: dict | None = None) -> None:
+    def __init__(self, data: dict[str, Any] | None = None) -> None:
         """Initialize."""
-        self.data = data
-        if self.data is None:
-            self.data = {}
+        self.data: dict[str, Any] = {} if data is None else data
 
     @property
     def features(self) -> list[str | None] | None:

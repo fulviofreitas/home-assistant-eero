@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from .const import STATE_ACTIVE, STATE_TRIALING
 
 
-def sum_data_usage(resource, key: str) -> int | None:
+def sum_data_usage(resource: Any, key: str) -> int | None:
     """Return total bytes for a (download, upload) pair.
 
     Returns None when neither direction is reported: a period that has just
@@ -17,7 +19,7 @@ def sum_data_usage(resource, key: str) -> int | None:
     return (down or 0) + (up or 0)
 
 
-def backup_access_point_ok(capable: bool | None, requirements: dict | None) -> bool:
+def backup_access_point_ok(capable: bool | None, requirements: dict[str, Any] | None) -> bool:
     """Backup access point OK."""
     return bool(capable) and all(bool(value) for value in (requirements or {}).values())
 

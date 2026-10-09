@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 import logging
+from datetime import datetime
+from typing import TYPE_CHECKING, cast
 
 from eero.exceptions import EeroException
 
 from .const import DEVICE_CATEGORY_TYPE_MAP
 from .resource import EeroResource
+
+if TYPE_CHECKING:
+    from .network import EeroNetwork
+    from .profile import EeroProfile
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -28,6 +33,8 @@ def _same_client(a: EeroClient, b: EeroClient) -> bool:
 class EeroClient(EeroResource):
     """EeroClient."""
 
+    network: EeroNetwork
+
     @property
     def adblock_day(self) -> int | None:
         """Adblock day."""
@@ -37,7 +44,7 @@ class EeroClient(EeroResource):
             .get("adblock_day", [])
         ):
             if device["insights_url"] == self.url_insights:
-                return device["sum"]
+                return cast("int | None", device["sum"])
         return None
 
     @property
@@ -49,7 +56,7 @@ class EeroClient(EeroResource):
             .get("adblock_month", [])
         ):
             if device["insights_url"] == self.url_insights:
-                return device["sum"]
+                return cast("int | None", device["sum"])
         return None
 
     @property
@@ -61,7 +68,7 @@ class EeroClient(EeroResource):
             .get("adblock_week", [])
         ):
             if device["insights_url"] == self.url_insights:
-                return device["sum"]
+                return cast("int | None", device["sum"])
         return None
 
     @property
@@ -73,7 +80,7 @@ class EeroClient(EeroResource):
             .get("blocked_day", [])
         ):
             if device["insights_url"] == self.url_insights:
-                return device["sum"]
+                return cast("int | None", device["sum"])
         return None
 
     @property
@@ -85,7 +92,7 @@ class EeroClient(EeroResource):
             .get("blocked_month", [])
         ):
             if device["insights_url"] == self.url_insights:
-                return device["sum"]
+                return cast("int | None", device["sum"])
         return None
 
     @property
@@ -97,7 +104,7 @@ class EeroClient(EeroResource):
             .get("blocked_week", [])
         ):
             if device["insights_url"] == self.url_insights:
-                return device["sum"]
+                return cast("int | None", device["sum"])
         return None
 
     @property
@@ -122,12 +129,12 @@ class EeroClient(EeroResource):
         """Add or remove this client from the network's block list."""
         if value:
             await self.api.call(
-                self.api.sdk.blacklist.add_to_blacklist(self.network.id, self.mac),
+                self.api.sdk.blacklist.add_to_blacklist(self.network.sdk_id, cast("str", self.mac)),
                 name=f"/2.2/networks/{self.network.id}/blacklist",
             )
         else:
             await self.api.call(
-                self.api.sdk.blacklist.remove_from_blacklist(self.network.id, self.mac),
+                self.api.sdk.blacklist.remove_from_blacklist(self.network.sdk_id, cast("str", self.mac)),
                 name=f"/2.2/networks/{self.network.id}/blacklist",
             )
 
@@ -140,18 +147,18 @@ class EeroClient(EeroResource):
     def channel_width_rx(self) -> str | None:
         """Channel width RX."""
         return (
-            self.data.get("connectivity", {})
+            cast("str | None", self.data.get("connectivity", {})
             .get("rx_rate_info", {})
-            .get("channel_width")
+            .get("channel_width"))
         )
 
     @property
     def channel_width_tx(self) -> str | None:
         """Channel width TX."""
         return (
-            self.data.get("connectivity", {})
+            cast("str | None", self.data.get("connectivity", {})
             .get("tx_rate_info", {})
-            .get("channel_width")
+            .get("channel_width"))
         )
 
     @property
@@ -224,7 +231,7 @@ class EeroClient(EeroResource):
             .get("inspected_day", [])
         ):
             if device["insights_url"] == self.url_insights:
-                return device["sum"]
+                return cast("int | None", device["sum"])
         return None
 
     @property
@@ -236,7 +243,7 @@ class EeroClient(EeroResource):
             .get("inspected_month", [])
         ):
             if device["insights_url"] == self.url_insights:
-                return device["sum"]
+                return cast("int | None", device["sum"])
         return None
 
     @property
@@ -248,7 +255,7 @@ class EeroClient(EeroResource):
             .get("inspected_week", [])
         ):
             if device["insights_url"] == self.url_insights:
-                return device["sum"]
+                return cast("int | None", device["sum"])
         return None
 
     @property
@@ -325,7 +332,9 @@ class EeroClient(EeroResource):
     async def async_set_paused(self, value: bool) -> None:
         """Pause or resume the client."""
         await self.api.call(
-            self.api.sdk.devices.pause_device(self.network.id, self.mac, value),
+            self.api.sdk.devices.pause_device(
+                self.network.sdk_id, cast("str", self.mac), value
+            ),
             name=f"/2.3/networks/{self.network.id}/devices",
         )
 
@@ -364,15 +373,15 @@ class EeroClient(EeroResource):
         list, so this reads both the losing and gaining profile's current
         list and rewrites each exactly once.
         """
-        current = None
-        target = None
+        current: EeroProfile | None = None
+        target: EeroProfile | None = None
         for profile in self.network.profiles:
             if any(_same_client(self, assigned) for assigned in profile.clients):
                 current = profile
             if value != UNASSIGNED_PROFILE and profile.name == value:
                 target = profile
-        for profile in (current, target):
-            if profile is not None and not isinstance(profile.data.get("devices"), list):
+        for pending in (current, target):
+            if pending is not None and not isinstance(pending.data.get("devices"), list):
                 # set_profile_devices replaces the whole list: without the
                 # profile's current list, writing would drop its other clients.
                 raise EeroException(
@@ -385,16 +394,16 @@ class EeroClient(EeroResource):
                 if not _same_client(self, assigned) and assigned.url
             ]
             await self.api.call(
-                self.api.sdk.profiles.set_profile_devices(self.network.id, current.id, urls),
-                name=current.url,
+                self.api.sdk.profiles.set_profile_devices(self.network.sdk_id, current.sdk_id, urls),
+                name=current.sdk_url,
             )
         if target is not None and target is not current:
             urls = [
                 assigned.url for assigned in target.clients if assigned.url
             ] + ([self.url] if self.url else [])
             await self.api.call(
-                self.api.sdk.profiles.set_profile_devices(self.network.id, target.id, urls),
-                name=target.url,
+                self.api.sdk.profiles.set_profile_devices(self.network.sdk_id, target.sdk_id, urls),
+                name=target.sdk_url,
             )
 
     @property
@@ -423,7 +432,7 @@ class EeroClient(EeroResource):
     @property
     def source_location(self) -> str | None:
         """Source location."""
-        return self.data.get("source", {}).get("location")
+        return cast("str | None", self.data.get("source", {}).get("location"))
 
     @property
     def url_insights(self) -> str | None:
@@ -434,14 +443,14 @@ class EeroClient(EeroResource):
     def usage_down(self) -> float:
         """Usage down."""
         if usage := self.data.get("usage"):
-            return usage.get("down_mbps", 0)
+            return cast("float", usage.get("down_mbps", 0))
         return 0
 
     @property
     def usage_up(self) -> float:
         """Usage up."""
         if usage := self.data.get("usage"):
-            return usage.get("up_mbps", 0)
+            return cast("float", usage.get("up_mbps", 0))
         return 0
 
     @property

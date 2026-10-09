@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 from homeassistant.components.light import (
     ATTR_BRIGHTNESS,
@@ -78,7 +78,7 @@ class EeroLightEntity(EeroEntity, LightEntity):
             return None
         if (brightness := self.resource.status_light_brightness) is None:
             return None
-        return round(brightness * 255 / 100)
+        return cast("int | None", round(brightness * 255 / 100))
 
     @property
     def color_mode(self) -> ColorMode:

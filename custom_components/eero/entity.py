@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable, Iterator
 from dataclasses import dataclass
 import logging
-from typing import Any
+from typing import Any, cast
 
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
@@ -525,7 +525,7 @@ class EeroPortEntity(CoordinatorEntity[EeroTierCoordinator]):
             return None
         for port in eero.ports:
             if port.get("interface_number") == self.interface_number:
-                return port
+                return cast("dict | None", port)
         return None
 
     @property

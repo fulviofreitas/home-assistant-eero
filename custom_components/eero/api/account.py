@@ -3,22 +3,26 @@
 from __future__ import annotations
 
 from functools import cached_property
+from typing import TYPE_CHECKING, Any, cast
 
 from .network import EeroNetwork
 from .resource import EeroResource
+
+if TYPE_CHECKING:
+    from . import EeroHub
 
 
 class EeroAccount(EeroResource):
     """EeroAccount."""
 
-    def __init__(self, api, data) -> None:
+    def __init__(self, api: EeroHub, data: dict[str, Any]) -> None:
         """Initialize."""
         super().__init__(api=api, network=None, data=data)
 
     @property
     def email(self) -> str | None:
         """Email."""
-        return self.data.get("email", {}).get("value")
+        return cast("str | None", self.data.get("email", {}).get("value"))
 
     @property
     def log_id(self) -> str | None:
@@ -33,7 +37,7 @@ class EeroAccount(EeroResource):
     @property
     def phone(self) -> str | None:
         """Phone."""
-        return self.data.get("phone", {}).get("value")
+        return cast("str | None", self.data.get("phone", {}).get("value"))
 
     @property
     def premium_status(self) -> str | None:
@@ -41,7 +45,7 @@ class EeroAccount(EeroResource):
         return self.data.get("premium_status")
 
     @cached_property
-    def networks(self) -> list[EeroNetwork | None]:
+    def networks(self) -> list[EeroNetwork]:
         """Networks."""
         return [
             EeroNetwork(self.api, self, network)
@@ -57,6 +61,6 @@ class EeroAccount(EeroResource):
         """
         index: dict[str, EeroNetwork] = {}
         for network in self.networks:
-            if network is not None and network.id is not None:
+            if network.id is not None:
                 index.setdefault(network.id, network)
         return index
