@@ -45,10 +45,8 @@ rules:
       builds and publishes to PyPI from GitHub Actions via trusted publishing;
       PyPI attestations are turned off, so the files carry no provenance.
   docs-actions:
-    status: todo
-    comment: >-
-      services.yaml describes set_blocked_apps, but the README only names the
-      feature and does not document the action or its fields.
+    status: done
+    comment: 'README "Actions" documents all six actions, their fields and an example each.'
   docs-conditions:
     status: exempt
     comment: The integration provides no conditions.
@@ -57,7 +55,8 @@ rules:
   docs-installation-instructions:
     status: done
   docs-removal-instructions:
-    status: todo
+    status: done
+    comment: 'README "Removing the integration".'
   docs-triggers:
     status: exempt
     comment: The integration provides no triggers.
@@ -103,10 +102,11 @@ rules:
       issues; the update listener is removed through async_on_unload. The
       aiohttp session is Home Assistant's shared one and is not closed.
   docs-configuration-parameters:
-    status: todo
-    comment: The README Options section is a summary, not a per-option list.
+    status: done
+    comment: 'README "Configuration options" (Configure and Reconfigure), parameters in "Setup parameters".'
   docs-installation-parameters:
-    status: todo
+    status: done
+    comment: 'README "Setup parameters", step by step with defaults and limits.'
   entity-unavailable:
     status: done
     comment: >-
@@ -167,33 +167,42 @@ rules:
     status: exempt
     comment: No discovery; the integration talks only to the cloud API.
   docs-data-update:
-    status: todo
+    status: done
+    comment: 'README "Data updates" (fast, hourly and daily tiers, backoff).'
   docs-examples:
-    status: todo
+    status: done
+    comment: 'README "Examples" (automation YAML).'
   docs-known-limitations:
-    status: todo
-    comment: README notes Amazon-login accounts are unsupported; nothing else.
+    status: done
+    comment: 'README "Known limitations".'
   docs-supported-devices:
-    status: todo
+    status: done
+    comment: 'README "Supported devices".'
   docs-supported-functions:
-    status: todo
-    comment: README "Currently Working" lists features, not entities.
+    status: done
+    comment: 'README "Supported functions", entity tables per device type.'
   docs-troubleshooting:
-    status: todo
+    status: done
+    comment: 'README "Troubleshooting".'
   docs-use-cases:
-    status: todo
+    status: done
+    comment: 'README "Use cases".'
   dynamic-devices:
-    status: todo
+    status: done
     comment: >-
-      Entities are created only for resources selected in the options flow;
-      a new client needs an options change.
+      async_setup_platform_entities (entity.py) listens to the fast tier and
+      adds entities for a client that joins after setup, without a reload,
+      within the include/exclude client filter; new eero ports are added
+      the same way from the daily tier.
   entity-category:
     status: done
   entity-device-class:
     status: done
   entity-disabled-by-default:
-    status: todo
-    comment: No entity is disabled by default.
+    status: done
+    comment: >-
+      The port action buttons (EeroPortButtonEntity in button.py) are
+      disruptive and set entity_registry_enabled_default to False.
   entity-translations:
     status: done
     comment: >-
