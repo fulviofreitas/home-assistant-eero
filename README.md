@@ -234,6 +234,9 @@ An entity is only created when the network reports the feature it reads, so not 
 | WAN Router IP | sensor | Upstream router IP. Attribute: subnet mask. | |
 | Status | sensor | Network status. | |
 | DNS mode | sensor | `automatic` or `custom`. | |
+| Reboot | button | Reboots every eero on the network. | |
+| Run Speed Test | button | Starts a speed test; the result appears in Download Speed and Upload Speed about a minute later. | |
+| Run Internet Backup Test | button | Checks the internet backup connection. | eero Plus |
 | Reservations | sensor | Number of DHCP reservations. | Daily tier |
 | Port forwards | sensor | Number of port forwards. | Daily tier |
 | Ad Blocking Status | sensor | Whether ad blocking is off, on for the network, or on per profile. | Plus |
@@ -249,6 +252,7 @@ An entity is only created when the network reports the feature it reads, so not 
 | Entity | Platform | Description | Notes |
 | --- | --- | --- | --- |
 | Status Light | light | The eero's status LED: on, off and brightness. | |
+| Reboot | button | Reboots this eero. | |
 | Firmware | update | Installed and latest firmware, with release notes. Installing updates every eero on the network at once. | Latest version from the daily tier |
 | Status | sensor | The eero's status. | |
 | Connected Clients | sensor | Clients connected to this eero; their names in the `clients` attribute. | |

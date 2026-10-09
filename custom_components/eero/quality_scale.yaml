@@ -3,8 +3,10 @@ rules:
   action-setup:
     status: done
     comment: >-
-      set_blocked_apps is registered in async_setup, whether or not a profile
-      is configured, and the handler skips entries that are not loaded.
+      Every action (set_blocked_apps, create/delete_reservation,
+      create/delete_port_forward, set_custom_dns) is registered in
+      async_setup, whether or not anything is configured, and the handlers
+      skip entries that are not loaded.
   appropriate-polling:
     status: done
     comment: >-
