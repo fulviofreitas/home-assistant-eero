@@ -110,6 +110,16 @@ class FakeAuth(FakeDomain):
         self.tokens_set.append(token)
         self.token = token
 
+    async def login(self, user_identifier: str) -> bool:
+        """Return a plain bool, like the real SDK -- never an envelope."""
+        self._sdk.calls.append(("auth", "login", (user_identifier,), {}))
+        return bool(self._sdk.resolve_raw("auth.login", True))
+
+    async def verify(self, verification_code: str) -> bool:
+        """Return a plain bool, like the real SDK -- never an envelope."""
+        self._sdk.calls.append(("auth", "verify", (verification_code,), {}))
+        return bool(self._sdk.resolve_raw("auth.verify", True))
+
 
 class FakeSDK:
     """Stand-in for eero.EeroAPI.
@@ -161,6 +171,25 @@ class FakeSDK:
         """Replace a route after construction and reset its sequence cursor."""
         self._routes[key] = value if isinstance(value, tuple) else (value,)
         self._cursor[key] = 0
+
+    def resolve_raw(self, key: str, default: Any) -> Any:
+        """Resolve a route's plain value, with no {"meta", "data"} envelope.
+
+        For the handful of SDK calls (auth.login, auth.verify) that return a
+        raw bool rather than an envelope: unconfigured routes fall back to
+        ``default`` rather than raising, since most tests never care about
+        this path succeeding or failing.
+        """
+        if key not in self._routes:
+            return default
+        sequence = self._routes[key]
+        index = self._cursor[key]
+        item = sequence[index] if index < len(sequence) else sequence[-1]
+        if index < len(sequence) - 1:
+            self._cursor[key] += 1
+        if isinstance(item, Exception):
+            raise item
+        return item(((), {})) if callable(item) else item
 
 
 class _FakeHTTPResponse:
