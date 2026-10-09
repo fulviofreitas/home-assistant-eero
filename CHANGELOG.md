@@ -9,6 +9,13 @@ This file covers two forks:
 
 # fulviofreitas/home-assistant-eero
 
+## [2.0.1](https://github.com/fulviofreitas/home-assistant-eero/compare/v2.0.0...v2.0.1) (2026-10-09)
+
+
+### Bug Fixes
+
+* do not fail setup on a registered device that has no model ([eee58cf](https://github.com/fulviofreitas/home-assistant-eero/commit/eee58cfb51d61803ee16ef6817bfa39529501a53))
+
 ## [2.0.0](https://github.com/fulviofreitas/home-assistant-eero/releases/tag/v2.0.0) (2026-10-09)
 
 The integration now uses the [`eero-api`](https://pypi.org/project/eero-api/)
