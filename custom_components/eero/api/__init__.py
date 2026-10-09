@@ -12,18 +12,19 @@ Kept free of Home Assistant imports so it can be unit tested on its own.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Iterator
-from contextlib import contextmanager
-from contextvars import ContextVar
 import datetime
 import json
 import logging
+from collections.abc import Awaitable, Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
 import aiohttp
+
 from eero import EeroAPI as EeroSDK
 from eero.const import API_ENDPOINT
 from eero.exceptions import (
@@ -265,7 +266,7 @@ class EeroHub:
             # account with no networks: on a cold start that sets the
             # integration up with no entities at all and no reason logged.
             raise EeroException("Account response reported no networks")
-        return account
+        return cast("dict[str, Any]", account)
 
     @staticmethod
     def network_ids(account: dict[str, Any]) -> list[str]:
@@ -389,10 +390,10 @@ class EeroHub:
         """Fetch one activity series."""
         # "{}/insights" or "{}/data_usage": the family is the last segment.
         family: str = str(ACTIVITY_MAP[activity][0]).rsplit("/", 1)[-1]
-        insight_type: str = ACTIVITY_MAP[activity][1]
-        period: str = ACTIVITY_MAP[activity][2]
+        insight_type = cast("str", ACTIVITY_MAP[activity][1])
+        period = cast("str", ACTIVITY_MAP[activity][2])
         start, end, cadence = self.define_period(period=period, timezone=timezone)
-        window = {"start": start, "end": end, "cadence": cadence}
+        window: dict[str, Any] = {"start": start, "end": end, "cadence": cadence}
         name = f"/2.2/networks/{network_id}/{family}/{resource}"
         if activity == ACTIVITY_UNPROFILED_DATA_USAGE_DAY:
             request = self.sdk.data_usage.get_unprofiled_summary(
@@ -706,7 +707,9 @@ class EeroHub:
 
     # -- helpers ---------------------------------------------------------
 
-    def define_period(self, period: str, timezone: str) -> tuple:
+    def define_period(
+        self, period: str, timezone: str
+    ) -> tuple[str | None, str | None, str | None]:
         """Return the (start, end, cadence) of the day, week or month so far.
 
         Weeks start on Sunday, as the eero app's do. Standard library only:
@@ -799,9 +802,9 @@ class EeroUpdateConfig:
 
     def __init__(
         self,
-        activity: dict | None = None,
-        profiles: list | None = None,
-        eeros: list | None = None,
+        activity: dict[str, list[str]] | None = None,
+        profiles: list[str] | None = None,
+        eeros: list[str] | None = None,
         get_backup_access_points: bool = False,
         get_devices: bool = False,
         get_release_notes: bool = False,

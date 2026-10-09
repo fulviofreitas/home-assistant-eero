@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
@@ -91,7 +91,7 @@ class EeroBinarySensorEntity(EeroEntity, BinarySensorEntity):
     @property
     def is_on(self) -> bool | None:
         """Return true if the binary sensor is on."""
-        return getattr(self.resource, self.entity_description.key)
+        return cast("bool | None", getattr(self.resource, self.entity_description.key))
 
     @property
     def extra_state_attributes(self) -> Mapping[str, Any] | None:

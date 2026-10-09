@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 from zoneinfo import ZoneInfo
 
 from homeassistant.components.sensor import (
@@ -438,9 +438,9 @@ class EeroSensorEntity(EeroEntity, SensorEntity):
     @property
     def native_value(self) -> StateType | datetime:
         """Return the value reported by the sensor."""
-        return self.entity_description.native_value(
+        return cast("StateType | datetime", self.entity_description.native_value(
             self.resource, self.entity_description.key
-        )
+        ))
 
     @property
     def last_reset(self) -> datetime | None:
@@ -467,10 +467,10 @@ class EeroSensorEntity(EeroEntity, SensorEntity):
         if callable(self.entity_description.native_unit_of_measurement):
             if self.resource is None:
                 return None
-            return self.entity_description.native_unit_of_measurement(
+            return cast("str | None", self.entity_description.native_unit_of_measurement(
                 self.resource, self.entity_description.key
-            )
-        return self.entity_description.native_unit_of_measurement
+            ))
+        return cast("str | None", self.entity_description.native_unit_of_measurement)
 
     @property
     def extra_state_attributes(self) -> Mapping[str, Any] | None:
@@ -545,4 +545,4 @@ class EeroPortSensorEntity(EeroPortEntity, SensorEntity):
         """Return the value reported by the sensor."""
         if (port := self.port) is None:
             return None
-        return self.entity_description.value_fn(port)
+        return cast("StateType", self.entity_description.value_fn(port))

@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
 from homeassistant.components.device_tracker import (
     BaseScannerEntity,
@@ -93,32 +93,32 @@ class EeroDeviceTrackerEntity(EeroEntity, BaseScannerEntity):
                 )
             self.last_seen = dt_util.utcnow()
             return True
-        return self.resource.connected
+        return cast("bool | None", self.resource.connected)
 
     @property
     def source_type(self) -> SourceType | str:
         """Return the source type, eg gps or router, of the device."""
-        return self.entity_description.source_type
+        return cast("SourceType | str", self.entity_description.source_type)
 
     @property
     def ip_address(self) -> str | None:
         """Return the primary ip address of the device."""
         if self.resource.is_client:
-            return self.resource.ip
+            return cast("str | None", self.resource.ip)
         return None
 
     @property
     def mac_address(self) -> str | None:
         """Return the mac address of the device."""
         if self.resource.is_client:
-            return self.resource.mac
+            return cast("str | None", self.resource.mac)
         return None
 
     @property
     def hostname(self) -> str | None:
         """Return hostname of the device."""
         if self.resource.is_client:
-            return self.resource.hostname
+            return cast("str | None", self.resource.hostname)
         return None
 
     @property

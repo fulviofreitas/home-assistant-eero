@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
-from functools import cached_property
-
 from datetime import datetime, time
+from functools import cached_property
+from typing import TYPE_CHECKING, Any, cast
 
 from eero.api.schedule import WEEKDAYS, WEEKEND
 
 from .client import EeroClient
 from .resource import EeroResource
+
+if TYPE_CHECKING:
+    from .network import EeroNetwork
 
 #: Scheduled pauses this integration manages are always named "Bedtime";
 #: the SDK has no separate "is this a bedtime pause" flag, so a weekday/
@@ -32,7 +35,9 @@ def _parse_hhmm(value: str | None) -> time | None:
         return None
 
 
-def _insight_sum(network, activity: str, profile_id, insight_type: str) -> int | None:
+def _insight_sum(
+    network: EeroNetwork, activity: str, profile_id: str | None, insight_type: str
+) -> int | None:
     """Return the period total from one profile's insights series."""
     series = network.data.get("activity", {}).get("profiles", {}).get(activity, {})
     if not isinstance(series, dict):
@@ -45,6 +50,8 @@ def _insight_sum(network, activity: str, profile_id, insight_type: str) -> int |
 
 class EeroProfile(EeroResource):
     """EeroProfile."""
+
+    network: EeroNetwork
 
     @property
     def ad_block(self) -> bool:
@@ -82,11 +89,11 @@ class EeroProfile(EeroResource):
         """Adblock week."""
         return _insight_sum(self.network, "adblock_week", self.id, "adblock")
 
-    def _bedtime_entries(self) -> tuple[dict | None, dict | None]:
+    def _bedtime_entries(self) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
         """Return (weekday, weekend) bedtime schedule entries, if any exist."""
         schedules = self.network.data.get("schedules")
-        weekday: dict | None = None
-        weekend: dict | None = None
+        weekday: dict[str, Any] | None = None
+        weekend: dict[str, Any] | None = None
         if not isinstance(schedules, dict):
             return (weekday, weekend)
         for entry in schedules.get(self.id) or []:
@@ -130,8 +137,8 @@ class EeroProfile(EeroResource):
                 if entry is None:
                     await self.api.call(
                         setter(
-                            self.network.id,
-                            self.id,
+                            self.network.sdk_id,
+                            self.sdk_id,
                             _DEFAULT_BEDTIME_START,
                             _DEFAULT_BEDTIME_END,
                         ),
@@ -153,8 +160,9 @@ class EeroProfile(EeroResource):
         entry = self._bedtime_entries()[0 if weekday else 1]
         hhmm = value.strftime("%H:%M")
         if entry is not None:
+            fields: dict[str, Any] = {field: hhmm}
             await self.api.call(
-                self.api.sdk.schedule.update_schedule(entry, **{field: hhmm}),
+                self.api.sdk.schedule.update_schedule(entry, **fields),
                 name=f"{self.url}/schedules",
             )
             return
@@ -166,7 +174,7 @@ class EeroProfile(EeroResource):
             else self.api.sdk.schedule.set_weekend_bedtime
         )
         await self.api.call(
-            setter(self.network.id, self.id, start, end),
+            setter(self.network.sdk_id, self.sdk_id, start, end),
             name=f"{self.url}/schedules",
         )
 
@@ -215,121 +223,121 @@ class EeroProfile(EeroResource):
     def block_gaming_content(self) -> bool | None:
         """Block gaming content."""
         return (
-            self.data.get("unified_content_filters", {})
+            cast("bool | None", self.data.get("unified_content_filters", {})
             .get("dns_policies", {})
-            .get("block_gaming_content")
+            .get("block_gaming_content"))
         )
 
     async def async_set_block_gaming_content(self, value: bool) -> None:
         """Set block gaming content."""
-        await self.api.post(self.url_dns_policies, json={"block_gaming_content": value})
+        await self.api.post(cast("str", self.url_dns_policies), json={"block_gaming_content": value})
 
     @property
     def block_illegal_content(self) -> bool | None:
         """Block illegal content."""
         return (
-            self.data.get("unified_content_filters", {})
+            cast("bool | None", self.data.get("unified_content_filters", {})
             .get("dns_policies", {})
-            .get("block_illegal_content")
+            .get("block_illegal_content"))
         )
 
     async def async_set_block_illegal_content(self, value: bool) -> None:
         """Set block illegal content."""
-        await self.api.post(self.url_dns_policies, json={"block_illegal_content": value})
+        await self.api.post(cast("str", self.url_dns_policies), json={"block_illegal_content": value})
 
     @property
     def block_messaging_content(self) -> bool | None:
         """Block messaging content."""
         return (
-            self.data.get("unified_content_filters", {})
+            cast("bool | None", self.data.get("unified_content_filters", {})
             .get("dns_policies", {})
-            .get("block_messaging_content")
+            .get("block_messaging_content"))
         )
 
     async def async_set_block_messaging_content(self, value: bool) -> None:
         """Set block messaging content."""
-        await self.api.post(self.url_dns_policies, json={"block_messaging_content": value})
+        await self.api.post(cast("str", self.url_dns_policies), json={"block_messaging_content": value})
 
     @property
     def block_pornographic_content(self) -> bool | None:
         """Block pornographic content."""
         return (
-            self.data.get("unified_content_filters", {})
+            cast("bool | None", self.data.get("unified_content_filters", {})
             .get("dns_policies", {})
-            .get("block_pornographic_content")
+            .get("block_pornographic_content"))
         )
 
     async def async_set_block_pornographic_content(self, value: bool) -> None:
         """Set block pornographic content."""
-        await self.api.post(self.url_dns_policies, json={"block_pornographic_content": value})
+        await self.api.post(cast("str", self.url_dns_policies), json={"block_pornographic_content": value})
 
     @property
     def block_shopping_content(self) -> bool | None:
         """Block shopping content."""
         return (
-            self.data.get("unified_content_filters", {})
+            cast("bool | None", self.data.get("unified_content_filters", {})
             .get("dns_policies", {})
-            .get("block_shopping_content")
+            .get("block_shopping_content"))
         )
 
     async def async_set_block_shopping_content(self, value: bool) -> None:
         """Set block shopping content."""
-        await self.api.post(self.url_dns_policies, json={"block_shopping_content": value})
+        await self.api.post(cast("str", self.url_dns_policies), json={"block_shopping_content": value})
 
     @property
     def block_social_content(self) -> bool | None:
         """Block social content."""
         return (
-            self.data.get("unified_content_filters", {})
+            cast("bool | None", self.data.get("unified_content_filters", {})
             .get("dns_policies", {})
-            .get("block_social_content")
+            .get("block_social_content"))
         )
 
     async def async_set_block_social_content(self, value: bool) -> None:
         """Set block social content."""
-        await self.api.post(self.url_dns_policies, json={"block_social_content": value})
+        await self.api.post(cast("str", self.url_dns_policies), json={"block_social_content": value})
 
     @property
     def block_streaming_content(self) -> bool | None:
         """Block streaming content."""
         return (
-            self.data.get("unified_content_filters", {})
+            cast("bool | None", self.data.get("unified_content_filters", {})
             .get("dns_policies", {})
-            .get("block_streaming_content")
+            .get("block_streaming_content"))
         )
 
     async def async_set_block_streaming_content(self, value: bool) -> None:
         """Set block streaming content."""
-        await self.api.post(self.url_dns_policies, json={"block_streaming_content": value})
+        await self.api.post(cast("str", self.url_dns_policies), json={"block_streaming_content": value})
 
     @property
     def block_violent_content(self) -> bool | None:
         """Block violent content."""
         return (
-            self.data.get("unified_content_filters", {})
+            cast("bool | None", self.data.get("unified_content_filters", {})
             .get("dns_policies", {})
-            .get("block_violent_content")
+            .get("block_violent_content"))
         )
 
     async def async_set_block_violent_content(self, value: bool) -> None:
         """Set block violent content."""
-        await self.api.post(self.url_dns_policies, json={"block_violent_content": value})
+        await self.api.post(cast("str", self.url_dns_policies), json={"block_violent_content": value})
 
     @property
     def blocked_applications(self) -> list[str]:
         """Blocked applications."""
-        return self.data.get("premium_dns", {}).get("blocked_applications", [])
+        return cast("list[str]", self.data.get("premium_dns", {}).get("blocked_applications", []))
 
     @property
     def blocked_applications_count(self) -> int:
         """Blocked applications count."""
         return len(self.blocked_applications)
 
-    async def async_set_blocked_applications(self, blocked_applications: list) -> None:
+    async def async_set_blocked_applications(self, blocked_applications: list[str]) -> None:
         """Set blocked applications."""
         await self.api.call(
             self.api.sdk.dns_policies.set_profile_blocked_applications(
-                self.network.id, self.id, list(blocked_applications)
+                self.network.sdk_id, self.sdk_id, list(blocked_applications)
             ),
             name=f"{self.url_dns_policies}/applications/blocked",
         )
@@ -362,7 +370,9 @@ class EeroProfile(EeroResource):
     @property
     def connected_clients_names(self) -> list[str]:
         """Connected clients names."""
-        return [client.name for client in self.clients if client.connected]
+        return cast(
+            "list[str]", [client.name for client in self.clients if client.connected]
+        )
 
     @property
     def data_usage_day(self) -> tuple[int | None, int | None]:
@@ -456,22 +466,22 @@ class EeroProfile(EeroResource):
     async def async_set_paused(self, value: bool) -> None:
         """Pause or resume the profile."""
         await self.api.call(
-            self.api.sdk.profiles.pause_profile(self.network.id, self.id, value),
-            name=self.url,
+            self.api.sdk.profiles.pause_profile(self.network.sdk_id, self.sdk_id, value),
+            name=self.sdk_url,
         )
 
     @property
     def safe_search_enabled(self) -> bool | None:
         """Safe search enabled."""
         return (
-            self.data.get("unified_content_filters", {})
+            cast("bool | None", self.data.get("unified_content_filters", {})
             .get("dns_policies", {})
-            .get("safe_search_enabled")
+            .get("safe_search_enabled"))
         )
 
     async def async_set_safe_search_enabled(self, value: bool) -> None:
         """Set safe search enabled."""
-        await self.api.post(self.url_dns_policies, json={"safe_search_enabled": value})
+        await self.api.post(cast("str", self.url_dns_policies), json={"safe_search_enabled": value})
 
     @property
     def url_dns_policies(self) -> str | None:
@@ -487,14 +497,14 @@ class EeroProfile(EeroResource):
     def youtube_restricted(self) -> bool | None:
         """YouTube restricted."""
         return (
-            self.data.get("unified_content_filters", {})
+            cast("bool | None", self.data.get("unified_content_filters", {})
             .get("dns_policies", {})
-            .get("youtube_restricted")
+            .get("youtube_restricted"))
         )
 
     async def async_set_youtube_restricted(self, value: bool) -> None:
         """Set youtube restricted."""
-        await self.api.post(self.url_dns_policies, json={"youtube_restricted": value})
+        await self.api.post(cast("str", self.url_dns_policies), json={"youtube_restricted": value})
 
     @cached_property
     def clients(self) -> list[EeroClient]:

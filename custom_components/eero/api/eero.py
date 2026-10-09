@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import time
+from typing import TYPE_CHECKING, Any, cast
 
 from .const import (
     STATE_AMBIENT,
@@ -12,9 +13,14 @@ from .const import (
 from .firmware import EeroFirmware
 from .resource import EeroResource
 
+if TYPE_CHECKING:
+    from .network import EeroNetwork
+
 
 class EeroDevice(EeroResource):
     """EeroDevice."""
+
+    network: EeroNetwork
 
     @property
     def connected_clients_count(self) -> int | None:
@@ -24,11 +30,14 @@ class EeroDevice(EeroResource):
     @property
     def connected_clients_names(self) -> list[str]:
         """Connected clients names."""
-        return [
-            client.name
-            for client in self.network.clients
-            if client.source_location == self.name
-        ]
+        return cast(
+            "list[str]",
+            [
+                client.name
+                for client in self.network.clients
+                if client.source_location == self.name
+            ],
+        )
 
     @property
     def current_firmware(self) -> EeroFirmware:
@@ -119,7 +128,7 @@ class EeroDevice(EeroResource):
     async def async_reboot(self) -> None:
         """Reboot this eero."""
         await self.api.call(
-            self.api.sdk.eeros.reboot_eero(self.network.id, self.id),
+            self.api.sdk.eeros.reboot_eero(self.network.sdk_id, self.sdk_id),
             name=f"{self.url}/reboot",
         )
 
@@ -132,7 +141,7 @@ class EeroDevice(EeroResource):
         """Turn the status light on or off."""
         await self.api.call(
             self.api.sdk.eeros.set_led(
-                self.network.id, self.id, value, parent=self.data
+                self.network.sdk_id, self.sdk_id, value, parent=self.data
             ),
             name=f"{self.url}/led",
         )
@@ -144,7 +153,7 @@ class EeroDevice(EeroResource):
             return
         await self.api.call(
             self.api.sdk.eeros.set_led_brightness(
-                self.network.id, self.id, int(value), parent=self.data
+                self.network.sdk_id, self.sdk_id, int(value), parent=self.data
             ),
             name=f"{self.url}/led",
         )
@@ -167,12 +176,12 @@ class EeroDevice(EeroResource):
     @property
     def support_expiration_string(self) -> str | None:
         """Support expiration string."""
-        return self.data.get("update_status", {}).get("support_expiration_string")
+        return cast("str | None", self.data.get("update_status", {}).get("support_expiration_string"))
 
     @property
     def support_expired(self) -> bool | None:
         """Support expired."""
-        return self.data.get("update_status", {}).get("support_expired")
+        return cast("bool | None", self.data.get("update_status", {}).get("support_expired"))
 
     @property
     def target_firmware(self) -> EeroFirmware:
@@ -189,15 +198,15 @@ class EeroDevice(EeroResource):
     @property
     def url_led(self) -> str | None:
         """URL led."""
-        return self.data.get("resources", {}).get("led_action")
+        return cast("str | None", self.data.get("resources", {}).get("led_action"))
 
     @property
     def url_reboot(self) -> str | None:
         """URL reboot."""
-        return self.data.get("resources", {}).get("reboot")
+        return cast("str | None", self.data.get("resources", {}).get("reboot"))
 
     @property
-    def ports(self) -> list[dict]:
+    def ports(self) -> list[dict[str, Any]]:
         """This eero's port interfaces, from the daily-tier connections read.
 
         eeros.get_connections has no dedicated "list ports" reader in the
@@ -222,7 +231,7 @@ class EeroDevice(EeroResource):
         disruptive to whatever is connected to that port.
         """
         await self.api.call(
-            self.api.sdk.eeros.port_action(self.id, str(interface_number), action),
+            self.api.sdk.eeros.port_action(self.sdk_id, str(interface_number), action),
             name=f"{self.url}/ports/{interface_number}/action",
         )
 
@@ -240,7 +249,7 @@ class EeroDeviceBeacon(EeroDevice):
     @property
     def nightlight_brightness_percentage(self) -> int | None:
         """Nightlight brightness percentage."""
-        return self.data.get("nightlight", {}).get("brightness_percentage")
+        return cast("int | None", self.data.get("nightlight", {}).get("brightness_percentage"))
 
     async def async_set_nightlight_brightness_percentage(self, value: float) -> None:
         """Set nightlight brightness."""
@@ -249,7 +258,7 @@ class EeroDeviceBeacon(EeroDevice):
     @property
     def nightlight_enabled(self) -> bool | None:
         """Nightlight enabled."""
-        return self.data.get("nightlight", {}).get("enabled")
+        return cast("bool | None", self.data.get("nightlight", {}).get("enabled"))
 
     @property
     def nightlight_mode(self) -> str:
@@ -285,7 +294,7 @@ class EeroDeviceBeacon(EeroDevice):
     @property
     def nightlight_schedule_enabled(self) -> bool | None:
         """Nightlight schedule enabled."""
-        return self.data.get("nightlight", {}).get("schedule", {}).get("enabled")
+        return cast("bool | None", self.data.get("nightlight", {}).get("schedule", {}).get("enabled"))
 
     @property
     def nightlight_schedule_off(self) -> time:
@@ -305,12 +314,12 @@ class EeroDeviceBeacon(EeroDevice):
     @property
     def nightlight_schedule_off_hour(self) -> str:
         """Nightlight schedule off hour."""
-        return self.nightlight_schedule[1].split(":")[0]
+        return cast("str", self.nightlight_schedule[1]).split(":")[0]
 
     @property
     def nightlight_schedule_off_minute(self) -> str:
         """Nightlight schedule off minute."""
-        return self.nightlight_schedule[1].split(":")[1]
+        return cast("str", self.nightlight_schedule[1]).split(":")[1]
 
     @property
     def nightlight_schedule_on(self) -> time:
@@ -330,17 +339,17 @@ class EeroDeviceBeacon(EeroDevice):
     @property
     def nightlight_schedule_on_hour(self) -> str:
         """Nightlight schedule on hour."""
-        return self.nightlight_schedule[0].split(":")[0]
+        return cast("str", self.nightlight_schedule[0]).split(":")[0]
 
     @property
     def nightlight_schedule_on_minute(self) -> str:
         """Nightlight schedule on minute."""
-        return self.nightlight_schedule[0].split(":")[1]
+        return cast("str", self.nightlight_schedule[0]).split(":")[1]
 
-    async def _set_nightlight(self, **settings) -> None:
+    async def _set_nightlight(self, **settings: Any) -> None:
         await self.api.call(
             self.api.sdk.eeros.set_nightlight(
-                self.network.id, self.id, parent=self.data, **settings
+                self.network.sdk_id, self.sdk_id, parent=self.data, **settings
             ),
             name=f"{self.url}/nightlight",
         )

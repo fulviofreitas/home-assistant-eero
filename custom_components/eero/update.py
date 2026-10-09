@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 from homeassistant.components.update import (
     UpdateDeviceClass,
@@ -72,13 +72,13 @@ class EeroUpdateEntity(EeroEntity, UpdateEntity):
     def installed_version(self) -> str | None:
         """Version installed and in use."""
         if os_version := self.resource.current_firmware.os_version:
-            return os_version
-        return self.resource.os_version
+            return cast("str | None", os_version)
+        return cast("str | None", self.resource.os_version)
 
     @property
     def latest_version(self) -> str | None:
         """Latest version available for install."""
-        return self.resource.target_firmware.os_version
+        return cast("str | None", self.resource.target_firmware.os_version)
 
     @property
     def release_summary(self) -> str | None:
@@ -123,7 +123,7 @@ class EeroUpdateEntity(EeroEntity, UpdateEntity):
         This helps to differentiate between the device or entity name
         versus the title of the software installed.
         """
-        return self.resource.target_firmware.title
+        return cast("str | None", self.resource.target_firmware.title)
 
     async def async_install(
         self, version: str | None, backup: bool, **kwargs: Any

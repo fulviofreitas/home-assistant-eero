@@ -2,11 +2,18 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, cast
+
 from .resource import EeroResource
+
+if TYPE_CHECKING:
+    from .network import EeroNetwork
 
 
 class EeroBackupNetwork(EeroResource):
     """EeroBackupNetwork."""
+
+    network: EeroNetwork
 
     @property
     def auto_join_enabled(self) -> bool | None:
@@ -17,24 +24,24 @@ class EeroBackupNetwork(EeroResource):
         """Set auto-join, re-sending SSID and password as the API expects."""
         await self.api.call(
             self.api.sdk.backup_access_points.update(
-                self.network.id,
-                self.uuid,
+                self.network.sdk_id,
+                cast("str", self.uuid),
                 enabled=value,
                 ssid=self.ssid,
                 password=self.password,
             ),
-            name=self.url,
+            name=self.sdk_url,
         )
 
     @property
     def backup_access_point_id(self) -> str | None:
         """Backup access point."""
-        return self.data.get("connectivity", {}).get("backup_access_point_id")
+        return cast("str | None", self.data.get("connectivity", {}).get("backup_access_point_id"))
 
     @property
     def checked(self) -> str | None:
         """Checked."""
-        return self.data.get("connectivity", {}).get("checked")
+        return cast("str | None", self.data.get("connectivity", {}).get("checked"))
 
     @property
     def created(self) -> str | None:
@@ -44,7 +51,7 @@ class EeroBackupNetwork(EeroResource):
     @property
     def failure_reason(self) -> str | None:
         """Failure reason."""
-        return self.data.get("connectivity", {}).get("failure_reason")
+        return cast("str | None", self.data.get("connectivity", {}).get("failure_reason"))
 
     @property
     def id(self) -> str | None:
@@ -74,7 +81,7 @@ class EeroBackupNetwork(EeroResource):
     @property
     def status(self) -> str | None:
         """Status."""
-        return self.data.get("connectivity", {}).get("status")
+        return cast("str | None", self.data.get("connectivity", {}).get("status"))
 
     @property
     def uuid(self) -> str | None:

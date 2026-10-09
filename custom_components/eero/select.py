@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 from dataclasses import dataclass
 
 from homeassistant.components.select import SelectEntity, SelectEntityDescription
@@ -86,7 +88,7 @@ class EeroSelectEntity(EeroEntity, SelectEntity):
         """
         if self.resource is None:
             return []
-        return getattr(self.resource, self.entity_description.options)
+        return cast("list[str]", getattr(self.resource, self.entity_description.options))
 
     @property
     def current_option(self) -> str | None:
