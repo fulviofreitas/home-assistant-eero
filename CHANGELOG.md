@@ -9,18 +9,7 @@ This file covers two forks:
 
 # fulviofreitas/home-assistant-eero
 
-## [2.0.0](https://github.com/fulviofreitas/home-assistant-eero/compare/v1.9.3...v2.0.0) (2026-10-09)
-
-
-### ⚠ BREAKING CHANGES
-
-* requires Home Assistant 2026.8.0 and the eero-api package. Activity sensors refresh hourly; Thread, backup network and firmware data daily or right after a change. The request timeout is capped at 30 seconds.
-
-### Features
-
-* move to the eero-api SDK with tiered polling ([#1](https://github.com/fulviofreitas/home-assistant-eero/issues/1)) ([669786c](https://github.com/fulviofreitas/home-assistant-eero/commit/669786cf11940fba1484a20f01d3d25f2b51d658))
-
-## 2.0.0
+## [2.0.0](https://github.com/fulviofreitas/home-assistant-eero/releases/tag/v2.0.0) (2026-10-09)
 
 The integration now uses the [`eero-api`](https://pypi.org/project/eero-api/)
 package instead of its own `requests` client, and splits polling into three
