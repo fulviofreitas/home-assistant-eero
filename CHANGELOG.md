@@ -250,6 +250,17 @@ UPnP, WPA3 and DDNS go through the SDK's methods, which send the same requests
   read-compare-skip discipline treats as mandatory for exactly this kind
   of settings write. Revisit once either is confirmed against a live
   network or the SDK adds a reader.
+- **Gap:** Per-port status sensors and port action buttons (`eeros.
+  port_action`) are not implemented this phase. `eeros.get_ports` does
+  not exist, and the SDK has no other read for "the eero's own port
+  listing" `port_action`'s docstring refers callers to for a valid
+  `interface_number` -- only the write. Building either a status sensor
+  or an action button per port requires knowing how many ports an eero
+  has and their interface numbers first, and there is no fixture or
+  live-verified shape to build that read from (embedded on the eero
+  envelope, or a raw GET on `eeros/{id}/ports`) without guessing. Revisit
+  once a real eero envelope or a documented `ports` shape is available to
+  confirm against.
 
 ### Since 1.9.3, also in this release
 
