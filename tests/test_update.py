@@ -207,6 +207,33 @@ async def test_client_profile_assignment_reads_and_moves_between_profiles() -> N
     ) in sdk.calls
 
 
+async def test_client_profile_assignment_is_none_when_no_profiles_configured() -> None:
+    """No profile configured on the network -> profiles never fetched -> None, not 'Unassigned'.
+
+    The fast tier only fetches profiles when at least one is configured
+    (EeroUpdateConfig.get_profiles); a client's profile_assignment must stay
+    honest about that rather than reporting a false "unassigned" state.
+    """
+    sdk = FakeSDK(
+        {
+            "networks.get_network": fixture("network"),
+            "devices.get_devices": fixture("devices"),
+            "eeros.get_eeros": [],
+        }
+    )
+    hub = build_hub(sdk=sdk)
+    config = eero_api.EeroUpdateConfig(get_devices=True)
+    assert config.get_profiles is False
+
+    fast = await hub.fetch_fast(NETWORK_ID, config)
+    account = hub.assemble(None, {NETWORK_ID: fast}, {}, {})
+    client = account.networks[0].clients[0]
+
+    assert "profiles" not in account.networks[0].data
+    assert client.profile_assignment is None
+    assert client.profile_assignment_options == []
+
+
 async def test_network_without_a_thread_resource() -> None:
     """A network with no Thread border router must not raise KeyError (H4)."""
     sdk = FakeSDK(

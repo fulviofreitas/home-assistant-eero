@@ -32,6 +32,7 @@ SELECT_DESCRIPTIONS: list[EeroSelectEntityDescription] = [
         key="profile_assignment",
         translation_key="profile_assignment",
         options="profile_assignment_options",
+        requires_profiles=True,
     ),
     EeroSelectEntityDescription(
         key="nightlight_mode",

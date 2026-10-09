@@ -72,6 +72,12 @@ class EeroEntityDescription(EntityDescription):
     activity_type: bool = False
     wireless_only: bool = False
     check_support: bool = True
+    # True only for entities that read the fast tier's profiles payload
+    # (e.g. a client's profile_assignment select): that payload is only
+    # fetched for a network with at least one profile configured, so an
+    # entity gated on this is skipped on a network with none, rather than
+    # being created and reporting a false "unassigned" for every client.
+    requires_profiles: bool = False
 
 
 def iter_resources(
@@ -121,6 +127,11 @@ def build_entities[EntityT: "EeroEntity"](
                     continue
                 if description.wireless_only and not getattr(
                     resource, "wireless", False
+                ):
+                    continue
+                if (
+                    description.requires_profiles
+                    and not runtime.update_config[network.id].get_profiles
                 ):
                     continue
                 if description.check_support and not resource_supports(

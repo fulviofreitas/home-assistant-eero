@@ -409,6 +409,42 @@ async def test_select_profile_assignment_moves_a_client(hass, sdk_factory) -> No
     ) in sdk.calls
 
 
+async def test_select_profile_assignment_not_created_without_a_configured_profile(
+    hass, sdk_factory
+) -> None:
+    """No profile configured on the network -> no profile_assignment select at all."""
+    mac = "aa:bb:cc:dd:ee:ff"
+    device = {
+        "url": f"{NETWORK_URL}/devices/{mac}",
+        "mac": mac,
+        "wireless": False,
+        "nickname": "TestClient",
+    }
+    sdk_factory(
+        {
+            "networks.get_network": network_envelope(),
+            "eeros.get_eeros": [],
+            "devices.get_devices": [device],
+            "entitlements.get_features": {"features": []},
+            "updates.get_updates": {},
+            "blacklist.get_blacklist": [],
+        }
+    )
+    entry = make_entry(hass, **client_entry_data())
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    from homeassistant.helpers import entity_registry as er
+
+    registry = er.async_get(hass)
+    assert (
+        registry.async_get_entity_id(
+            "select", DOMAIN, f"{NETWORK_ID}-{mac}-profile_assignment"
+        )
+        is None
+    )
+
+
 async def test_diagnostics_redacts_the_token(hass, sdk_factory) -> None:
     """The config entry diagnostics never leak the session token."""
     sdk_factory()

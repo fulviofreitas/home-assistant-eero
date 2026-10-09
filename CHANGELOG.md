@@ -158,7 +158,9 @@ UPnP, WPA3 and DDNS go through the SDK's methods, which send the same requests
   profile reference. Writes go through `profiles.set_profile_devices`, which
   replaces a profile's whole device list, so changing the assignment issues
   one write to the previous profile (device removed) and one to the new
-  profile (device added).
+  profile (device added). Only offered when at least one profile is
+  configured on that network: the fast tier only fetches profiles in that
+  case, so without it there is nothing honest to report the assignment from.
 
 ### Since 1.9.3, also in this release
 

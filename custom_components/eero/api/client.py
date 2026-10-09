@@ -328,13 +328,18 @@ class EeroClient(EeroResource):
         )
 
     @property
-    def profile_assignment(self) -> str:
+    def profile_assignment(self) -> str | None:
         """Name of the profile this client is currently assigned to.
 
         Resolved by scanning the network's profiles for one whose device
         list includes this client: the device envelope itself carries no
-        reliable profile reference. UNASSIGNED_PROFILE when none does.
+        reliable profile reference. UNASSIGNED_PROFILE when none does, or
+        None if the network's profiles were never fetched (no profile
+        configured on this network -- the entity is not created in that
+        case, but the property stays honest if ever called anyway).
         """
+        if "profiles" not in self.network.data:
+            return None
         for profile in self.network.profiles:
             if any(_same_client(self, assigned) for assigned in profile.clients):
                 return profile.name or UNASSIGNED_PROFILE
@@ -343,6 +348,8 @@ class EeroClient(EeroResource):
     @property
     def profile_assignment_options(self) -> list[str]:
         """Every selectable profile name, plus the unassigned sentinel."""
+        if "profiles" not in self.network.data:
+            return []
         return [
             UNASSIGNED_PROFILE,
             *[profile.name for profile in self.network.profiles if profile.name],
