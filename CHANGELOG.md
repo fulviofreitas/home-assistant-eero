@@ -287,6 +287,14 @@ UPnP, WPA3 and DDNS go through the SDK's methods, which send the same requests
   two buttons that set an icon in code (speed test, internet backup test)
   take it from `icons.json` instead. The ad blocking status sensor's
   `profile` state, and the DNS mode sensor's states, are now translated.
+- Reconfigure: the integration's "Reconfigure" menu entry changes the
+  polling interval, request timeout and save-responses setting without
+  going through the whole options flow, and reloads the entry. Every config
+  flow field now has a description under it.
+- Releases are cut by release-please from the conventional commits on
+  `main`: it keeps a release pull request open that bumps `manifest.json`
+  and this file, and merging it tags the release, publishes it, and attaches
+  the `eero.zip` HACS installs.
 
 ### Since 1.9.3, also in this release
 

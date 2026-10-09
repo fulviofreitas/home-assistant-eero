@@ -30,6 +30,8 @@ Custom component to allow control of Eero networks in [Home Assistant](https://h
 - Networks, resources, and activity metrics can be updated via integration options.
 - The inclusion method for clients can be toggled between whitelisting (include only selected clients) or blacklisting (exclude only selected clients).
 - An Advanced step is always offered at the end of setup and of the options flow: polling interval, request timeout, and response logging, each with a default. Before 1.9.3 this step appeared only when `Advanced Mode` was enabled on the user profile.
+- **Reconfigure** (from the integration's menu) changes just the polling interval, request timeout (at most 30 seconds) and response logging, then reloads the entry.
+- Optional activity metrics, all off by default: unprofiled-device and per-eero daily data usage, an app event entity, and an unread-notifications sensor.
 
 ## Notes
 - This integration does not support login via Amazon account. A workaround is to create a new account without Amazon login and add that account as another network admin. Refer to this [post](https://github.com/schmittx/home-assistant-eero/issues/77#issuecomment-1960875926) for step-by-step instructions.
@@ -50,6 +52,14 @@ Custom component to allow control of Eero networks in [Home Assistant](https://h
 - Set blocked apps for profiles (requires Eero Plus subscription)
 - Update entities for Eero device firmware management (firmware data refreshed daily)
 - Control backup networks (requires Eero Plus subscription; refreshed daily)
+- Block or unblock a client, and move a client to a different profile
+- Profile bedtime schedules: on/off plus weekday and weekend start and end times
+- New clients get their entities as they appear, without reloading the integration (respecting the include/exclude filter)
+- Guest network name, and a write-only guest password (the password is never shown as state)
+- Power saving and fast transition switches, and MLO mode where the network supports it
+- Per-port connection status and speed for each eero, and port action buttons (disabled by default)
+- Actions to create and delete DHCP reservations and port forwards, and to set custom DNS (a DNS change makes every eero reboot a few minutes later)
+- English and Brazilian Portuguese translations
 
 ## Coming Soon
 - TBD, feature requests are welcome.
