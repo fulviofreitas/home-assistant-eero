@@ -24,7 +24,7 @@ from .entity import (
     KIND_PROFILES,
     EeroEntity,
     EeroEntityDescription,
-    build_entities,
+    async_setup_platform_entities,
 )
 
 PARALLEL_UPDATES = 1
@@ -203,13 +203,12 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up an Eero switch entity based on a config entry."""
-    async_add_entities(
-        build_entities(
-            config_entry.runtime_data,
-            SWITCH_DESCRIPTIONS,
-            EeroSwitchEntity,
-            (KIND_NETWORK, KIND_BACKUP_NETWORKS, KIND_PROFILES, KIND_CLIENTS),
-        )
+    async_setup_platform_entities(
+        config_entry,
+        SWITCH_DESCRIPTIONS,
+        EeroSwitchEntity,
+        (KIND_NETWORK, KIND_BACKUP_NETWORKS, KIND_PROFILES, KIND_CLIENTS),
+        async_add_entities,
     )
 
 

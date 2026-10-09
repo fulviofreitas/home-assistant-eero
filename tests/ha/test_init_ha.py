@@ -484,6 +484,64 @@ async def test_token_persistence_updates_entry_without_reload(hass, sdk_factory)
     assert reloads == 0
 
 
+async def test_new_client_gets_entities_without_a_reload(hass, sdk_factory) -> None:
+    """A client that joins after setup gets entities on the next fast-tier poll.
+
+    No config entry reload is involved: only coordinator.async_refresh().
+    """
+    mac = "aa:bb:cc:dd:ee:ff"
+    device = {
+        "url": f"{NETWORK_URL}/devices/{mac}",
+        "mac": mac,
+        "wireless": False,
+        "nickname": "TestClient",
+    }
+    sdk = sdk_factory(
+        {
+            "networks.get_network": network_envelope(),
+            "eeros.get_eeros": [],
+            "devices.get_devices": [],
+            "entitlements.get_features": {"features": []},
+            "updates.get_updates": {},
+            "blacklist.get_blacklist": [],
+        }
+    )
+    entry = make_entry(hass, **client_entry_data())
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    from homeassistant.helpers import entity_registry as er
+
+    registry = er.async_get(hass)
+    unique_id = f"{NETWORK_ID}-{mac}-blocked"
+    assert registry.async_get_entity_id("switch", DOMAIN, unique_id) is None
+
+    reloads = 0
+    original_reload = hass.config_entries.async_reload
+
+    async def counting_reload(entry_id):
+        nonlocal reloads
+        reloads += 1
+        return await original_reload(entry_id)
+
+    hass.config_entries.async_reload = counting_reload
+
+    sdk.set_route("devices.get_devices", [device])
+    await entry.runtime_data.coordinator(TIER_FAST).async_refresh()
+    await hass.async_block_till_done()
+
+    entity_id = registry.async_get_entity_id("switch", DOMAIN, unique_id)
+    assert entity_id is not None
+    assert hass.states.get(entity_id) is not None
+    assert reloads == 0
+
+    # A second poll with the same client must not add it again.
+    added_before = len(er.async_entries_for_config_entry(registry, entry.entry_id))
+    await entry.runtime_data.coordinator(TIER_FAST).async_refresh()
+    await hass.async_block_till_done()
+    assert len(er.async_entries_for_config_entry(registry, entry.entry_id)) == added_before
+
+
 async def test_unload_entry(hass, sdk_factory) -> None:
     """The entry unloads cleanly."""
     sdk_factory()

@@ -44,7 +44,7 @@ from .entity import (
     KIND_PROFILES,
     EeroEntity,
     EeroEntityDescription,
-    build_entities,
+    async_setup_platform_entities,
 )
 from .util import resource_supports
 
@@ -300,13 +300,12 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up an Eero sensor entity based on a config entry."""
-    async_add_entities(
-        build_entities(
-            config_entry.runtime_data,
-            SENSOR_DESCRIPTIONS,
-            EeroSensorEntity,
-            (KIND_NETWORK, KIND_BACKUP_NETWORKS, KIND_EEROS, KIND_PROFILES, KIND_CLIENTS),
-        )
+    async_setup_platform_entities(
+        config_entry,
+        SENSOR_DESCRIPTIONS,
+        EeroSensorEntity,
+        (KIND_NETWORK, KIND_BACKUP_NETWORKS, KIND_EEROS, KIND_PROFILES, KIND_CLIENTS),
+        async_add_entities,
     )
 
 

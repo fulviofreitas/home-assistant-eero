@@ -162,6 +162,17 @@ UPnP, WPA3 and DDNS go through the SDK's methods, which send the same requests
   configured on that network: the fast tier only fetches profiles in that
   case, so without it there is nothing honest to report the assignment from.
 
+### Dynamic client discovery
+
+- A client that joins the network after the entry is set up gets its
+  entities (every platform that builds client entities: binary_sensor,
+  device_tracker, select, sensor, switch) on the next fast-tier poll,
+  without a config entry reload. `async_setup_platform_entities` rebuilds
+  the platform's entity list on every fast-tier update and adds only the
+  unique IDs not already added; this respects the same include/exclude
+  client filter as initial setup, since it is the same `build_entities`
+  doing the filtering both times.
+
 ### Since 1.9.3, also in this release
 
 - Config entry diagnostics: the API payload, with tokens, secrets and contact

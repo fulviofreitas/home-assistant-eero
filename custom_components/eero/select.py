@@ -16,7 +16,7 @@ from .entity import (
     KIND_NETWORK,
     EeroEntity,
     EeroEntityDescription,
-    build_entities,
+    async_setup_platform_entities,
 )
 
 
@@ -55,13 +55,12 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up an Eero select entity based on a config entry."""
-    async_add_entities(
-        build_entities(
-            config_entry.runtime_data,
-            SELECT_DESCRIPTIONS,
-            EeroSelectEntity,
-            (KIND_NETWORK, KIND_EEROS, KIND_CLIENTS),
-        )
+    async_setup_platform_entities(
+        config_entry,
+        SELECT_DESCRIPTIONS,
+        EeroSelectEntity,
+        (KIND_NETWORK, KIND_EEROS, KIND_CLIENTS),
+        async_add_entities,
     )
 
 

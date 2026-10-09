@@ -7,9 +7,11 @@ from dataclasses import dataclass
 import logging
 from typing import Any
 
+from homeassistant.core import callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.entity import EntityDescription
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import UNDEFINED
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -36,7 +38,7 @@ from .const import (
     TIER_DAILY,
     TIER_FAST,
 )
-from .coordinator import EeroRuntime, EeroTierCoordinator
+from .coordinator import EeroConfigEntry, EeroRuntime, EeroTierCoordinator
 from .util import client_allowed, resource_supports
 
 _LOGGER = logging.getLogger(__name__)
@@ -150,6 +152,50 @@ def build_entities[EntityT: "EeroEntity"](
                     )
                 )
     return entities
+
+
+def async_setup_platform_entities[EntityT: "EeroEntity"](
+    config_entry: EeroConfigEntry,
+    descriptions: list[Any],
+    entity_class: type[EntityT],
+    kinds: tuple[str, ...],
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Build this platform's entities, and add new ones as they appear.
+
+    Every platform that builds client entities calls this instead of
+    build_entities()+async_add_entities() directly, so a client that joins
+    the network after setup (or a profile added through the options flow
+    without a reload) gets its entities without reloading the config entry.
+    Respects the same include/exclude filter as initial setup, since it is
+    build_entities() doing the filtering both times: an exclude filter means
+    a new client is picked up automatically, an include filter means only
+    already-listed clients ever get entities.
+
+    Only wired to the fast tier, which is what reports clients (and
+    profiles): a kind with nothing dynamic about it (the network itself, its
+    eeros) simply never produces anything new, so the listener is a no-op
+    for platforms that only build those.
+    """
+    runtime = config_entry.runtime_data
+    added: set[str] = set()
+
+    def _new_entities() -> list[EntityT]:
+        entities = build_entities(runtime, descriptions, entity_class, kinds)
+        fresh = [entity for entity in entities if entity.unique_id not in added]
+        added.update(entity.unique_id for entity in fresh)
+        return fresh
+
+    async_add_entities(_new_entities())
+
+    @callback
+    def _check_for_new_entities() -> None:
+        if fresh := _new_entities():
+            async_add_entities(fresh)
+
+    config_entry.async_on_unload(
+        runtime.coordinator(TIER_FAST).async_add_listener(_check_for_new_entities)
+    )
 
 
 class EeroEntity(CoordinatorEntity[EeroTierCoordinator]):

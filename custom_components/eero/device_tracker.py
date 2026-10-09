@@ -24,7 +24,7 @@ from .entity import (
     KIND_PROFILES,
     EeroEntity,
     EeroEntityDescription,
-    build_entities,
+    async_setup_platform_entities,
 )
 
 
@@ -53,13 +53,12 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up an Eero device tracker entity based on a config entry."""
-    async_add_entities(
-        build_entities(
-            config_entry.runtime_data,
-            DEVICE_TRACKER_DESCRIPTIONS,
-            EeroDeviceTrackerEntity,
-            (KIND_PROFILES, KIND_CLIENTS),
-        )
+    async_setup_platform_entities(
+        config_entry,
+        DEVICE_TRACKER_DESCRIPTIONS,
+        EeroDeviceTrackerEntity,
+        (KIND_PROFILES, KIND_CLIENTS),
+        async_add_entities,
     )
 
 
