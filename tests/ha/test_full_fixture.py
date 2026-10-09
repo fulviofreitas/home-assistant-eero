@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import time as _time
 
-import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.eero import binary_sensor, button, device_tracker, event
@@ -12,7 +11,6 @@ from custom_components.eero import light, number, select, sensor, switch, text
 from custom_components.eero import time as eero_time
 from custom_components.eero import update
 from custom_components.eero.api.const import (
-    ACTIVITY_APP_EVENTS,
     MODEL_BEACON,
 )
 from custom_components.eero.const import (
@@ -353,9 +351,7 @@ async def test_every_writable_entity_reaches_the_sdk(hass, sdk_factory) -> None:
             continue
         domain = entity.domain
         eid = entity.entity_id
-        if domain == "switch":
-            service, data = ("turn_off" if state.state == "on" else "turn_on"), {}
-        elif domain == "light":
+        if domain == "switch" or domain == "light":
             service, data = ("turn_off" if state.state == "on" else "turn_on"), {}
         elif domain == "button":
             service, data = "press", {}

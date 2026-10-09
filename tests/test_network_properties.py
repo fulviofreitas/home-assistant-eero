@@ -201,7 +201,7 @@ def test_simple_getters_against_a_fully_populated_envelope() -> None:
     assert network.mlo_mode == "single"
     assert network.manifest_resource == "manifest"
     assert network.nickname == "Home"
-    assert 'TestNetwork "Home" (Chicago, Illinois)' == network.name_unique
+    assert network.name_unique == 'TestNetwork "Home" (Chicago, Illinois)'
     assert network.notifications_has_unread is True
     assert network.password == "wifipw"
     assert network.pause_5g_enabled is True

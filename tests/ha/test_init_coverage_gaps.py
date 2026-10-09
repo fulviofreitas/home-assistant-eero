@@ -11,7 +11,6 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.eero import async_migrate_entry, async_remove_config_entry_device
 from custom_components.eero.const import (
-    CONF_ACTIVITY,
     CONF_BACKUP_NETWORKS,
     CONF_CONSIDER_HOME,
     CONF_EEROS,
@@ -28,8 +27,6 @@ from custom_components.eero.const import (
     CONF_WIRELESS_CLIENTS,
     CONF_WIRELESS_CLIENTS_FILTER,
     DOMAIN,
-    MODEL_CLIENT_WIRED,
-    MODEL_NETWORK,
 )
 
 from conftest import NETWORK_ID, NETWORK_URL, entry_data, network_envelope
