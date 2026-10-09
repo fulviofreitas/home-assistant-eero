@@ -42,18 +42,6 @@ jobs:
       - uses: hacs/action@d556e736723344f83838d08488c983a15381059a  # 22.5.0
         with:
           category: integration
-          # hacs/action's `ignore` input is a space-separated list of check
-          # names (see hacs/integration custom_components/hacs/validate/).
-          # - brands: no local brand assets and the repo isn't registered in
-          #   home-assistant/brands; that's a submission to a different repo,
-          #   not something this repo's settings/code can satisfy.
-          # - issues: GitHub issues are currently disabled on this repo (a
-          #   repo setting, not code). manifest.json's issue_tracker points
-          #   at this repo's /issues, so enabling them is the real fix; drop
-          #   this ignore when that happens.
-          # - topics: the repo has no GitHub topics set; a repo setting, not
-          #   code, and out of scope for this housekeeping pass.
-          ignore: brands issues topics
 
   pytest:
     name: Pytest (3.13)

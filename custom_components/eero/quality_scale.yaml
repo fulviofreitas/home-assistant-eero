@@ -13,10 +13,11 @@ rules:
       Thread, backup networks, entitlements and firmware daily. A rate-limited
       tier backs its own interval off.
   brands:
-    status: todo
+    status: done
     comment: >-
-      No eero entry in home-assistant/brands (core_integrations or
-      custom_integrations).
+      Brand images ship with the integration in brand/ (icon.png and
+      logo.png), which Home Assistant serves for custom integrations and
+      HACS validation accepts.
   common-modules:
     status: done
     comment: >-
