@@ -368,9 +368,11 @@ SETTER_CASES = [
     _case(
         "network.set_custom_dns.ipv4_and_ipv6",
         {"dns.set_custom_dns_ipv4": {}, "dns.set_custom_dns_ipv6": {}},
-        lambda hub: make_network(hub).async_set_custom_dns(
-            ipv4=["1.1.1.1"], ipv6=["2606:4700:4700::1111"]
-        ),
+        lambda hub: make_network(
+            hub,
+            dns={"mode": "custom", "custom": {"ips": ["9.9.9.9"]}},
+            ipv6={"name_servers": {"mode": "automatic", "custom": []}},
+        ).async_set_custom_dns(ipv4=["1.1.1.1"], ipv6=["2606:4700:4700::1111"]),
         lambda sdk: (
             any(
                 d == "dns" and m == "set_custom_dns_ipv4" and a[1] == ["1.1.1.1"]
@@ -387,7 +389,11 @@ SETTER_CASES = [
     _case(
         "network.set_custom_dns.automatic",
         {"dns.set_dns_mode": {}},
-        lambda hub: make_network(hub).async_set_custom_dns(automatic=True),
+        lambda hub: make_network(
+            hub,
+            dns={"mode": "custom"},
+            ipv6={"name_servers": {"mode": "automatic"}},
+        ).async_set_custom_dns(automatic=True),
         lambda sdk: any(
             d == "dns" and m == "set_dns_mode" and a[1] == "automatic"
             for d, m, a, _kw in sdk.calls
@@ -675,6 +681,114 @@ async def test_setter_maps_to_expected_sdk_call(routes, act, check) -> None:
     await act(hub)
 
     assert check(sdk), sdk.calls
+
+
+# -- read-compare-skip: DNS, reservations, port forwards ---------------------
+
+
+async def test_set_custom_dns_skips_a_write_that_already_matches() -> None:
+    """DNS writes reboot the mesh: a family already at the target state is never written."""
+    hub = build_hub(sdk=FakeSDK({}))
+    network = make_network(
+        hub,
+        dns={"mode": "custom", "custom": {"ips": ["1.1.1.1", "1.0.0.1"]}},
+        ipv6={
+            "name_servers": {
+                "mode": "custom",
+                # Fully-expanded, as the API stores it; the caller supplies
+                # the compressed form below.
+                "custom": ["2606:4700:4700:0:0:0:0:1111"],
+            }
+        },
+    )
+
+    # Order-insensitive, and IPv6 compares through ipaddress, not by string.
+    await network.async_set_custom_dns(
+        ipv4=["1.0.0.1", "1.1.1.1"], ipv6=["2606:4700:4700::1111"]
+    )
+
+    assert hub.sdk.calls == []
+
+
+async def test_set_custom_dns_automatic_skips_when_both_families_already_automatic() -> (
+    None
+):
+    """automatic=True is a no-op once both families already report automatic."""
+    hub = build_hub(sdk=FakeSDK({}))
+    network = make_network(
+        hub,
+        dns={"mode": "automatic"},
+        ipv6={"name_servers": {"mode": "automatic"}},
+    )
+
+    await network.async_set_custom_dns(automatic=True)
+
+    assert hub.sdk.calls == []
+
+
+async def test_set_custom_dns_reads_once_when_not_on_the_envelope() -> None:
+    """Missing dns/ipv6 on the envelope triggers exactly one get_dns_settings read."""
+    sdk = FakeSDK(
+        {
+            "dns.get_dns_settings": {
+                "dns": {"mode": "automatic"},
+                "ipv6": {"name_servers": {"mode": "automatic"}},
+            }
+        }
+    )
+    hub = build_hub(sdk=sdk)
+    network = make_network(hub)
+
+    await network.async_set_custom_dns(automatic=True)
+
+    assert ("dns", "get_dns_settings", (NETWORK_ID,), {}) in sdk.calls
+    assert not any(m == "set_dns_mode" for _d, m, _a, _kw in sdk.calls)
+
+
+async def test_create_reservation_skips_an_identical_existing_entry() -> None:
+    """A reservation with the same IP and MAC already on the daily-tier read is not recreated."""
+    hub = build_hub(sdk=FakeSDK({}))
+    network = make_network(
+        hub,
+        reservations={
+            "data": [{"ip": "192.168.4.100", "mac": "aa:bb:cc:dd:ee:ff"}]
+        },
+    )
+
+    await network.async_create_reservation(
+        {"ip": "192.168.4.100", "mac": "aa:bb:cc:dd:ee:ff"}
+    )
+
+    assert hub.sdk.calls == []
+
+
+async def test_create_port_forward_skips_an_identical_existing_entry() -> None:
+    """A forward with the same ip/client_port/gateway_port/protocol is not recreated."""
+    hub = build_hub(sdk=FakeSDK({}))
+    network = make_network(
+        hub,
+        forwards={
+            "data": [
+                {
+                    "ip": "192.168.4.100",
+                    "client_port": 8080,
+                    "gateway_port": 8080,
+                    "protocol": "tcp",
+                }
+            ]
+        },
+    )
+
+    await network.async_create_port_forward(
+        {
+            "ip": "192.168.4.100",
+            "client_port": 8080,
+            "gateway_port": 8080,
+            "protocol": "tcp",
+        }
+    )
+
+    assert hub.sdk.calls == []
 
 
 async def test_raw_verb_writes_use_an_absolute_url_with_network_id() -> None:

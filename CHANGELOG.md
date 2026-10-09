@@ -225,6 +225,14 @@ UPnP, WPA3 and DDNS go through the SDK's methods, which send the same requests
   and forwards have no per-network opt-in, since the daily tier already
   costs one poll a day) and `sensor.<network>_dns_mode` (no extra request:
   already published on the network envelope the fast tier fetches).
+  `set_custom_dns` follows read-compare-skip strictly: each family's write
+  is skipped when the network already reports the target servers/mode
+  (compared order-insensitively, and through `ipaddress` for IPv6 so a
+  compressed literal matches the API's fully-expanded stored form), using
+  the network envelope's own `dns`/`ipv6` fields and falling back to one
+  `dns.get_dns_settings` read only when those are absent.
+  `create_reservation`/`create_port_forward` also skip creating an exact
+  duplicate of an entry the daily-tier read already reports.
 
 ### Since 1.9.3, also in this release
 

@@ -221,6 +221,10 @@ async def test_reservation_forward_and_dns_services_call_the_sdk(hass, sdk_facto
     )
     assert any(d == "forwards" and m == "delete_forward" for d, m, _a, _kw in sdk.calls)
 
+    sdk.set_route(
+        "dns.get_dns_settings",
+        {"dns": {"mode": "automatic"}, "ipv6": {"name_servers": {"mode": "automatic"}}},
+    )
     sdk.set_route("dns.set_custom_dns_ipv4", {})
     await hass.services.async_call(
         DOMAIN,

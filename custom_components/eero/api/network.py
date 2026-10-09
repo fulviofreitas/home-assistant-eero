@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from ipaddress import ip_address
+import logging
+
 from .backup_network import EeroBackupNetwork
 from .client import EeroClient
 from .const import (
@@ -21,11 +24,30 @@ from .profile import EeroProfile
 from .resource import EeroResource
 from .util import premium_ok
 
+_LOGGER = logging.getLogger(__name__)
+
 # The no-SDK-method writes below (DNS-policy settings, hide_5g, preferred
 # update hour, ipv6_upstream on its own, the Thread enable path) go through
 # the SDK's public put/post/delete with the exact request the integration has
 # always sent: eero-api has no reader-verified method for them, or its method
 # sends a different request (see CHANGELOG 2.0.0).
+
+
+def _same_dns_servers(current: list, target: list) -> bool:
+    """Compare DNS server lists order-insensitively.
+
+    Normalizes through ipaddress so a stored, fully-expanded IPv6 literal
+    (``2606:4700:4700:0:0:0:0:1111``) compares equal to the compressed form
+    (``2606:4700:4700::1111``) a caller is more likely to supply.
+    """
+
+    def _normalize(value: str) -> str:
+        try:
+            return str(ip_address(value))
+        except ValueError:
+            return value
+
+    return {_normalize(v) for v in current} == {_normalize(v) for v in target}
 
 
 class EeroNetwork(EeroResource):
@@ -445,6 +467,23 @@ class EeroNetwork(EeroResource):
         """
         return self.data.get("dns", {}).get("mode")
 
+    async def _current_dns(self) -> dict:
+        """Return the DNS settings to compare against before a write.
+
+        The network envelope the fast tier fetches already carries these
+        (dns.get_dns_settings's own docstring: "DNS settings are part of
+        the network resource"), so this only issues a request when that is
+        somehow missing -- never unconditionally.
+        """
+        if "dns" in self.data or "ipv6" in self.data:
+            return self.data
+        return (
+            await self.api.call(
+                self.api.sdk.dns.get_dns_settings(self.id), name=f"{self.url}/settings"
+            )
+            or {}
+        )
+
     async def async_set_custom_dns(
         self,
         ipv4: list[str] | None = None,
@@ -453,27 +492,51 @@ class EeroNetwork(EeroResource):
     ) -> None:
         """Set custom DNS servers, or switch back to automatic.
 
-        Every DNS write reboots the entire mesh a few minutes later. Each
-        family is written independently (a family not supplied is left
-        untouched), except automatic=True, which switches both families
-        back in a single write and ignores ipv4/ipv6.
+        Every DNS write reboots the entire mesh a few minutes later, so
+        read-compare-skip is mandatory here, not just good practice: each
+        family's write is skipped when the network already reports the
+        target state. Each family is written independently (a family not
+        supplied is left untouched), except automatic=True, which switches
+        both families back in a single write and ignores ipv4/ipv6.
         """
+        current = await self._current_dns()
         if automatic:
+            ipv4_mode = current.get("dns", {}).get("mode")
+            ipv6_mode = current.get("ipv6", {}).get("name_servers", {}).get("mode")
+            if ipv4_mode == "automatic" and ipv6_mode == "automatic":
+                _LOGGER.debug("Skipping set_custom_dns(automatic): already automatic")
+                return
             await self.api.call(
                 self.api.sdk.dns.set_dns_mode(self.id, "automatic", parent=self.data),
                 name=f"{self.url}/settings",
             )
             return
         if ipv4 is not None:
-            await self.api.call(
-                self.api.sdk.dns.set_custom_dns_ipv4(self.id, ipv4, parent=self.data),
-                name=f"{self.url}/settings",
-            )
+            dns = current.get("dns", {})
+            if dns.get("mode") == "custom" and _same_dns_servers(
+                dns.get("custom", {}).get("ips") or [], ipv4
+            ):
+                _LOGGER.debug("Skipping set_custom_dns ipv4: already set")
+            else:
+                await self.api.call(
+                    self.api.sdk.dns.set_custom_dns_ipv4(
+                        self.id, ipv4, parent=self.data
+                    ),
+                    name=f"{self.url}/settings",
+                )
         if ipv6 is not None:
-            await self.api.call(
-                self.api.sdk.dns.set_custom_dns_ipv6(self.id, ipv6, parent=self.data),
-                name=f"{self.url}/settings",
-            )
+            name_servers = current.get("ipv6", {}).get("name_servers", {})
+            if name_servers.get("mode") == "custom" and _same_dns_servers(
+                name_servers.get("custom") or [], ipv6
+            ):
+                _LOGGER.debug("Skipping set_custom_dns ipv6: already set")
+            else:
+                await self.api.call(
+                    self.api.sdk.dns.set_custom_dns_ipv6(
+                        self.id, ipv6, parent=self.data
+                    ),
+                    name=f"{self.url}/settings",
+                )
 
     @property
     def reservation_count(self) -> int | None:
@@ -484,7 +547,22 @@ class EeroNetwork(EeroResource):
         return reservations.get("count")
 
     async def async_create_reservation(self, reservation_data: dict) -> None:
-        """Create a DHCP reservation. Fields: description, ip, mac, public_static_ip."""
+        """Create a DHCP reservation. Fields: description, ip, mac, public_static_ip.
+
+        Skipped when the daily-tier reservations read already shows an
+        entry with this exact IP and MAC.
+        """
+        existing = (self.data.get("reservations") or {}).get("data") or []
+        for entry in existing:
+            if (
+                isinstance(entry, dict)
+                and entry.get("ip") == reservation_data.get("ip")
+                and entry.get("mac") == reservation_data.get("mac")
+            ):
+                _LOGGER.debug(
+                    "Skipping create_reservation: an identical reservation exists"
+                )
+                return
         await self.api.call(
             self.api.sdk.reservations.create_reservation(self.id, reservation_data),
             name=f"{self.url}/reservations",
@@ -515,7 +593,22 @@ class EeroNetwork(EeroResource):
 
         Fields: client_port, description, enabled, gateway_port, ip,
         protocol.
+
+        Skipped when the daily-tier forwards read already shows an entry
+        with this exact IP, client port, gateway port and protocol.
         """
+        existing = (self.data.get("forwards") or {}).get("data") or []
+        for entry in existing:
+            if not isinstance(entry, dict):
+                continue
+            if all(
+                entry.get(field) == forward_data.get(field)
+                for field in ("ip", "client_port", "gateway_port", "protocol")
+            ):
+                _LOGGER.debug(
+                    "Skipping create_port_forward: an identical forward exists"
+                )
+                return
         await self.api.call(
             self.api.sdk.forwards.create_forward(self.id, forward_data),
             name=f"{self.url}/forwards",
