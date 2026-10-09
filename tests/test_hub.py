@@ -78,6 +78,36 @@ async def test_activity_uses_query_params_never_json_body() -> None:
             )
 
 
+async def test_unprofiled_and_eeros_summary_route_to_their_sdk_methods() -> None:
+    """The two new activity keys call get_unprofiled_summary/get_eeros_summary, not get_data_usage."""
+    sdk = FakeSDK(
+        {
+            "data_usage.get_unprofiled_summary": [
+                {"type": "download", "sum": 10},
+                {"type": "upload", "sum": 2},
+            ],
+            "data_usage.get_eeros_summary": [
+                {"type": "download", "sum": 30},
+                {"type": "upload", "sum": 4},
+            ],
+        }
+    )
+    hub = build_hub(sdk=sdk)
+
+    unprofiled = await hub.update_activity(
+        "unprofiled_data_usage_day", NETWORK_ID, "network", "UTC"
+    )
+    eeros_summary = await hub.update_activity(
+        "eeros_data_usage_summary_day", NETWORK_ID, "network", "UTC"
+    )
+
+    assert unprofiled == [{"type": "download", "sum": 10}, {"type": "upload", "sum": 2}]
+    assert eeros_summary == [{"type": "download", "sum": 30}, {"type": "upload", "sum": 4}]
+    assert not any(d == "data_usage" and m == "get_data_usage" for d, m, _a, _kw in sdk.calls)
+    assert any(d == "data_usage" and m == "get_unprofiled_summary" for d, m, _a, _kw in sdk.calls)
+    assert any(d == "data_usage" and m == "get_eeros_summary" for d, m, _a, _kw in sdk.calls)
+
+
 # -- _optional -----------------------------------------------------------
 
 

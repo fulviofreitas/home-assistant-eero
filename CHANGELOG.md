@@ -180,6 +180,16 @@ UPnP, WPA3 and DDNS go through the SDK's methods, which send the same requests
   accepts it, nothing ever surfaces it), and requires at least 8
   characters. Writes go through `networks.set_guest_network` (name, keeping
   the current enabled state) and `networks.set_guest_password`.
+- `sensor.<network>_unprofiled_data_usage_day` and
+  `sensor.<network>_eeros_data_usage_summary_day`: today's hourly data usage
+  for unprofiled devices and summed across all eeros
+  (`data_usage.get_unprofiled_summary`/`get_eeros_summary`, hourly tier).
+  Both are new activity choices in the config/options flow's activity step,
+  selectable but never pre-selected, so existing entries' request counts do
+  not grow on upgrade. The response shape is assumed identical to the
+  existing `data_usage_day` series (a list of `{"type", "sum"}` entries):
+  the SDK does not document either method as live-verified against a real
+  network, which is a gap worth confirming before relying on these.
 
 ### Since 1.9.3, also in this release
 

@@ -16,6 +16,9 @@ ACTIVITY_INSPECTED_DAY = "inspected_day"
 ACTIVITY_INSPECTED_WEEK = "inspected_week"
 ACTIVITY_INSPECTED_MONTH = "inspected_month"
 
+ACTIVITY_UNPROFILED_DATA_USAGE_DAY = "unprofiled_data_usage_day"
+ACTIVITY_EEROS_DATA_USAGE_SUMMARY_DAY = "eeros_data_usage_summary_day"
+
 API_ENDPOINT = "https://api-user.e2ro.com"
 
 # A single float, seconds: passed straight to asyncio.timeout() by
@@ -204,6 +207,20 @@ ACTIVITY_MAP = {
         "{}/data_usage",
         None,
         PERIOD_WEEK,
+    ],
+    # Routed to data_usage.get_unprofiled_summary/get_eeros_summary by
+    # EeroHub.update_activity, which checks for these two activity keys
+    # before falling back to the generic family/resource branching below;
+    # the family/insight_type placeholders here are unused in that path.
+    ACTIVITY_UNPROFILED_DATA_USAGE_DAY: [
+        "{}/data_usage",
+        None,
+        PERIOD_DAY,
+    ],
+    ACTIVITY_EEROS_DATA_USAGE_SUMMARY_DAY: [
+        "{}/data_usage",
+        None,
+        PERIOD_DAY,
     ],
     ACTIVITY_INSPECTED_DAY: [
         "{}/insights",

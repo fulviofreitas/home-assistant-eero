@@ -16,6 +16,14 @@
                 }
             }
         },
+        "sensor": {
+            "unprofiled_data_usage_day": {
+                "default": "mdi:help-network-outline"
+            },
+            "eeros_data_usage_summary_day": {
+                "default": "mdi:router-network"
+            }
+        },
         "select": {
             "profile_assignment": {
                 "default": "mdi:account-group"

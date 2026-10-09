@@ -377,6 +377,26 @@ class EeroNetwork(EeroResource):
         """DDNS enabled."""
         return self.data.get("ddns", {}).get("enabled")
 
+    @property
+    def eeros_data_usage_summary_day(self) -> tuple[int | None, int | None]:
+        """Today's hourly data usage summed across all eeros.
+
+        Shape assumed identical to data_usage_day's list of {"type", "sum"}
+        entries: data_usage.get_eeros_summary is not documented as
+        live-verified against this shape by the SDK.
+        """
+        down, up = None, None
+        for series in (
+            self.data.get("activity", {})
+            .get("network", {})
+            .get("eeros_data_usage_summary_day", [])
+        ):
+            if series["type"] == "download":
+                down = series["sum"]
+            elif series["type"] == "upload":
+                up = series["sum"]
+        return (down, up)
+
     async def async_set_ddns_enabled(self, value: bool) -> None:
         """Set dynamic DNS."""
         ddns = self.api.sdk.ddns
@@ -764,6 +784,26 @@ class EeroNetwork(EeroResource):
     def thread_xpan_id(self) -> str | None:
         """Thread XPAN ID."""
         return self.data.get("thread", {}).get("xpan_id")
+
+    @property
+    def unprofiled_data_usage_day(self) -> tuple[int | None, int | None]:
+        """Today's hourly data usage summed across unprofiled devices.
+
+        Shape assumed identical to data_usage_day's list of {"type", "sum"}
+        entries: data_usage.get_unprofiled_summary is not documented as
+        live-verified against this shape by the SDK.
+        """
+        down, up = None, None
+        for series in (
+            self.data.get("activity", {})
+            .get("network", {})
+            .get("unprofiled_data_usage_day", [])
+        ):
+            if series["type"] == "download":
+                down = series["sum"]
+            elif series["type"] == "upload":
+                up = series["sum"]
+        return (down, up)
 
     async def async_install_firmware_update(self) -> None:
         """Trigger a firmware update for every eero on this network."""

@@ -40,7 +40,9 @@ from eero.exceptions import (
 
 from .account import EeroAccount
 from .const import (
+    ACTIVITY_EEROS_DATA_USAGE_SUMMARY_DAY,
     ACTIVITY_MAP,
+    ACTIVITY_UNPROFILED_DATA_USAGE_DAY,
     CADENCE_DAILY,
     CADENCE_HOURLY,
     DEFAULT_REQUEST_TIMEOUT,
@@ -371,7 +373,17 @@ class EeroHub:
         start, end, cadence = self.define_period(period=period, timezone=timezone)
         window = {"start": start, "end": end, "cadence": cadence}
         name = f"/2.2/networks/{network_id}/{family}/{resource}"
-        if family == "data_usage":
+        if activity == ACTIVITY_UNPROFILED_DATA_USAGE_DAY:
+            request = self.sdk.data_usage.get_unprofiled_summary(
+                network_id, timezone=timezone, **window
+            )
+            name = f"/2.2/networks/{network_id}/data_usage/unprofiled/summary"
+        elif activity == ACTIVITY_EEROS_DATA_USAGE_SUMMARY_DAY:
+            request = self.sdk.data_usage.get_eeros_summary(
+                network_id, timezone=timezone, **window
+            )
+            name = f"/2.2/networks/{network_id}/data_usage/eeros/summary"
+        elif family == "data_usage":
             if resource == "network":
                 request = self.sdk.data_usage.get_data_usage(
                     network_id, timezone=timezone, **window

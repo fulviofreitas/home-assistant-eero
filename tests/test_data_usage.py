@@ -167,3 +167,21 @@ def test_name_unique_without_geo_ip() -> None:
 
     assert account.networks[0].name_unique == "TestNetwork"
     assert account.networks[1].name_unique == "Other (Elgin, Illinois)"
+
+
+def test_unprofiled_and_eeros_summary_sum_like_data_usage_day() -> None:
+    """The two new network properties parse the same {type, sum} list shape."""
+    network = network_with_activity(
+        {
+            "unprofiled_data_usage_day": [
+                {"type": "download", "sum": 10},
+                {"type": "upload", "sum": 2},
+            ],
+            "eeros_data_usage_summary_day": [{"type": "download", "sum": 30}],
+        }
+    )
+
+    assert network.unprofiled_data_usage_day == (10, 2)
+    assert sum_data_usage(network, "unprofiled_data_usage_day") == 12
+    assert network.eeros_data_usage_summary_day == (30, None)
+    assert sum_data_usage(network, "eeros_data_usage_summary_day") == 30

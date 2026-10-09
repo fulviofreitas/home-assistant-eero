@@ -183,7 +183,9 @@
                 "inspected_month": "Scans (Month)",
                 "blocked_day": "Threat Blocks (Day)",
                 "blocked_week": "Threat Blocks (Week)",
-                "blocked_month": "Threat Blocks (Month)"
+                "blocked_month": "Threat Blocks (Month)",
+                "unprofiled_data_usage_day": "Unprofiled Data Usage Day",
+                "eeros_data_usage_summary_day": "Eeros Data Usage Summary Day"
             }
         }
     },
@@ -289,6 +291,12 @@
                         "name": "Subnet mask"
                     }
                 }
+            },
+            "unprofiled_data_usage_day": {
+                "name": "Unprofiled data usage"
+            },
+            "eeros_data_usage_summary_day": {
+                "name": "Eeros data usage summary"
             }
         },
         "switch": {
