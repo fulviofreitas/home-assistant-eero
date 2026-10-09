@@ -7,6 +7,8 @@ from eero.exceptions import EeroAuthenticationException, EeroRateLimitException
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.eero.const import (
+    CONF_ACTIVITY,
+    CONF_ACTIVITY_NETWORK,
     CONF_BACKUP_NETWORKS,
     CONF_EEROS,
     CONF_FILTER_EXCLUDE,
@@ -540,6 +542,50 @@ async def test_new_client_gets_entities_without_a_reload(hass, sdk_factory) -> N
     await entry.runtime_data.coordinator(TIER_FAST).async_refresh()
     await hass.async_block_till_done()
     assert len(er.async_entries_for_config_entry(registry, entry.entry_id)) == added_before
+
+
+async def test_sensor_unprofiled_data_usage_has_a_tz_aware_last_reset(
+    hass, sdk_factory
+) -> None:
+    """The new TOTAL sensor reports last_reset as the start of today, tz-aware."""
+    from datetime import datetime
+
+    from homeassistant.helpers.entity_platform import async_get_platforms
+
+    sdk_factory(
+        {
+            "networks.get_network": network_envelope(timezone={"value": "UTC"}),
+            "eeros.get_eeros": [],
+            "entitlements.get_features": {"features": []},
+            "updates.get_updates": {},
+            "data_usage.get_unprofiled_summary": [
+                {"type": "download", "sum": 10},
+                {"type": "upload", "sum": 2},
+            ],
+        }
+    )
+    entry = make_entry(
+        hass,
+        **{
+            CONF_ACTIVITY: {
+                NETWORK_ID: {CONF_ACTIVITY_NETWORK: ["unprofiled_data_usage_day"]}
+            }
+        },
+    )
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    entity_id = "sensor.testnetwork_unprofiled_data_usage"
+    assert hass.states.get(entity_id) is not None, hass.states.async_entity_ids("sensor")
+
+    platform = next(
+        p for p in async_get_platforms(hass, DOMAIN) if entity_id in p.entities
+    )
+    entity = platform.entities[entity_id]
+    assert isinstance(entity.last_reset, datetime)
+    assert entity.last_reset.tzinfo is not None
+    assert entity.last_reset.hour == 0
+    assert entity.last_reset.minute == 0
 
 
 async def test_text_guest_network_name_and_write_only_password(hass, sdk_factory) -> None:

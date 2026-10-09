@@ -6,6 +6,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -28,6 +29,7 @@ from .api.const import (
     DEVICE_CATEGORY_ENTERTAINMENT,
     DEVICE_CATEGORY_HOME,
     DEVICE_CATEGORY_OTHER,
+    PERIOD_DAY,
     STATE_DISABLED,
     STATE_FAILURE,
     STATE_NETWORK,
@@ -72,6 +74,11 @@ class EeroSensorEntityDescription(EeroEntityDescription, SensorEntityDescription
 
     native_value: Callable = lambda resource, key: getattr(resource, key)
     entity_category: EntityCategory | None = EntityCategory.DIAGNOSTIC
+    # Only set for a SensorStateClass.TOTAL sensor: the period its value
+    # resets at the start of, in the network's own timezone. A resource
+    # with a known, well-defined start (the current day) can use TOTAL
+    # instead of TOTAL_INCREASING, which has no reset point at all.
+    last_reset_period: str | None = None
 
 
 SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
@@ -175,7 +182,8 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
         key="unprofiled_data_usage_day",
         translation_key="unprofiled_data_usage_day",
         device_class=SensorDeviceClass.DATA_SIZE,
-        state_class=SensorStateClass.TOTAL_INCREASING,
+        state_class=SensorStateClass.TOTAL,
+        last_reset_period=PERIOD_DAY,
         native_value=sum_data_usage,
         native_unit_of_measurement=UnitOfInformation.BYTES,
         activity_type=True,
@@ -185,7 +193,8 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
         key="eeros_data_usage_summary_day",
         translation_key="eeros_data_usage_summary_day",
         device_class=SensorDeviceClass.DATA_SIZE,
-        state_class=SensorStateClass.TOTAL_INCREASING,
+        state_class=SensorStateClass.TOTAL,
+        last_reset_period=PERIOD_DAY,
         native_value=sum_data_usage,
         native_unit_of_measurement=UnitOfInformation.BYTES,
         activity_type=True,
@@ -338,6 +347,21 @@ class EeroSensorEntity(EeroEntity, SensorEntity):
         return self.entity_description.native_value(
             self.resource, self.entity_description.key
         )
+
+    @property
+    def last_reset(self) -> datetime | None:
+        """Return when this TOTAL sensor's value last reset.
+
+        Only meaningful for a description that names its reset period: the
+        start of that period (today, midnight) in the network's own
+        timezone, the same window EeroHub.define_period(PERIOD_DAY) fetches
+        the value over.
+        """
+        if not self.entity_description.last_reset_period or self.resource is None:
+            return None
+        timezone = (self.resource.data.get("timezone") or {}).get("value") or "UTC"
+        now = datetime.now(tz=ZoneInfo(timezone))
+        return now.replace(hour=0, minute=0, second=0, microsecond=0)
 
     @property
     def native_unit_of_measurement(self) -> str | None:

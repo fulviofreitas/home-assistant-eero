@@ -189,7 +189,13 @@ UPnP, WPA3 and DDNS go through the SDK's methods, which send the same requests
   not grow on upgrade. The response shape is assumed identical to the
   existing `data_usage_day` series (a list of `{"type", "sum"}` entries):
   the SDK does not document either method as live-verified against a real
-  network, which is a gap worth confirming before relying on these.
+  network, which is a gap worth confirming before relying on these. Both
+  use `state_class: total` with `last_reset` set to the start of the
+  current day in the network's own timezone (the same window the hourly
+  tier fetches the value over), rather than `total_increasing`: the
+  existing `data_usage_day`/`week`/`month` and `adblock_*`/`blocked_*`/
+  `inspected_*` sensors are left on `total_increasing` unchanged, so as
+  not to disturb users' existing long-term statistics.
 
 ### Since 1.9.3, also in this release
 
