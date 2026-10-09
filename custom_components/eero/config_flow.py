@@ -10,6 +10,7 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_NAME, CONF_SCAN_INTERVAL, UnitOfTime
 from homeassistant.core import callback
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
     BooleanSelector,
     NumberSelector,
@@ -22,7 +23,7 @@ from homeassistant.helpers.selector import (
     TextSelectorType,
 )
 
-from .api import EeroAPI, EeroException
+from .api import EeroException, EeroHub
 from .const import (
     ACTIVITIES_DATA_USAGE_DEFAULT,
     ACTIVITIES_DATA_USAGE_PREMIUM,
@@ -51,7 +52,6 @@ from .const import (
     CONF_WIRED_CLIENTS_FILTER,
     CONF_WIRELESS_CLIENTS,
     CONF_WIRELESS_CLIENTS_FILTER,
-    DATA_API,
     DEFAULT_CONSIDER_HOME,
     DEFAULT_PREFIX_NETWORK_NAME,
     DEFAULT_SAVE_RESPONSES,
@@ -89,7 +89,6 @@ class EeroConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self.response = None
         self.user_input = {}
         self.reauth_login = None
-        self.reauth_token = None
 
     @property
     def config_title(self) -> str:
@@ -101,20 +100,14 @@ class EeroConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
 
         if user_input:
-            self.api = EeroAPI()
+            self.api = EeroHub(session=async_get_clientsession(self.hass))
             try:
-                self.response = await self.hass.async_add_executor_job(
-                    self.api.login,
-                    user_input[CONF_LOGIN],
-                )
-            except EeroException as exception:
-                _LOGGER.error(
-                    "Status: %s, Error Message: %s", exception.code, exception.error
-                )
+                await self.api.login(user_input[CONF_LOGIN])
+            except (EeroException, TimeoutError) as exception:
+                _LOGGER.error("Login failed: %s", type(exception).__name__)
                 errors["base"] = "invalid_login"
             else:
                 self.user_input[CONF_LOGIN] = user_input[CONF_LOGIN]
-                self.user_input[CONF_USER_TOKEN] = self.response["user_token"]
                 return await self.async_step_verify()
 
         return self.async_show_form(
@@ -140,20 +133,23 @@ class EeroConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input:
             try:
-                self.response = await self.hass.async_add_executor_job(
-                    self.api.login_verify,
-                    user_input[CONF_CODE],
-                )
-            except EeroException as exception:
-                _LOGGER.error(
-                    "Status: %s, Error Message: %s", exception.code, exception.error
-                )
+                account = await self.api.login_verify(user_input[CONF_CODE])
+            except (EeroException, TimeoutError) as exception:
+                _LOGGER.error("Verification failed: %s", type(exception).__name__)
                 errors["base"] = "invalid_code"
             else:
-                await self.async_set_unique_id(self.response["log_id"].lower())
+                await self.async_set_unique_id(account["log_id"].lower())
                 self._abort_if_unique_id_configured()
-                self.user_input[CONF_NAME] = self.response["name"]
-                self.response = await self.hass.async_add_executor_job(self.api.update)
+                self.user_input[CONF_NAME] = account["name"]
+                self.user_input[CONF_USER_TOKEN] = self.api.user_token
+                try:
+                    self.response = await self.api.snapshot(account)
+                except (EeroException, TimeoutError) as exception:
+                    _LOGGER.error(
+                        "Could not read the account's networks: %s",
+                        type(exception).__name__,
+                    )
+                    return self.async_abort(reason="cannot_connect")
                 return await self.async_step_networks()
 
         return self.async_show_form(
@@ -536,6 +532,88 @@ class EeroConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
+    async def async_step_reconfigure(self, user_input=None):
+        """Let the user change polling interval, timeout and save-responses.
+
+        These are the Advanced step's values. Options take precedence over
+        data for them (see async_setup_entry), so a prior options flow run
+        may already carry an override; writing options too (not just data)
+        here ensures the new values actually take effect regardless of
+        whether that override exists.
+        """
+        errors = {}
+        reconfigure_entry = self._get_reconfigure_entry()
+        data = reconfigure_entry.data
+        options = reconfigure_entry.options
+
+        if user_input:
+            conf_scan_interval = user_input[CONF_SCAN_INTERVAL]
+            conf_timeout = user_input[CONF_TIMEOUT]
+
+            invalid_scan_interval_timeout = timedelta(
+                seconds=conf_scan_interval
+            ) <= timedelta(seconds=conf_timeout)
+
+            if invalid_scan_interval_timeout:
+                errors["base"] = "invalid_scan_interval_timeout"
+            else:
+                updates = {
+                    CONF_SAVE_RESPONSES: user_input[CONF_SAVE_RESPONSES],
+                    CONF_SCAN_INTERVAL: conf_scan_interval,
+                    CONF_TIMEOUT: conf_timeout,
+                }
+                return self.async_update_reload_and_abort(
+                    reconfigure_entry,
+                    data_updates=updates,
+                    options={**options, **updates},
+                )
+
+        conf_save_responses = options.get(
+            CONF_SAVE_RESPONSES,
+            data.get(CONF_SAVE_RESPONSES, DEFAULT_SAVE_RESPONSES),
+        )
+        conf_scan_interval = max(
+            MIN_SCAN_INTERVAL,
+            options.get(
+                CONF_SCAN_INTERVAL,
+                data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
+            ),
+        )
+        conf_timeout = min(
+            MAX_TIMEOUT,
+            options.get(CONF_TIMEOUT, data.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)),
+        )
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_SAVE_RESPONSES, default=conf_save_responses
+                    ): BooleanSelector(),
+                    vol.Optional(
+                        CONF_SCAN_INTERVAL, default=conf_scan_interval
+                    ): NumberSelector(
+                        NumberSelectorConfig(
+                            min=MIN_SCAN_INTERVAL,
+                            max=MAX_SCAN_INTERVAL,
+                            step=STEP_SCAN_INTERVAL,
+                            unit_of_measurement=UnitOfTime.SECONDS,
+                        )
+                    ),
+                    vol.Optional(CONF_TIMEOUT, default=conf_timeout): NumberSelector(
+                        NumberSelectorConfig(
+                            min=MIN_TIMEOUT,
+                            max=MAX_TIMEOUT,
+                            step=STEP_TIMEOUT,
+                            unit_of_measurement=UnitOfTime.SECONDS,
+                        )
+                    ),
+                }
+            ),
+            errors=errors,
+        )
+
     async def async_step_reauth(self, entry_data: Mapping[str, Any]):
         """Handle re-authentication when the Eero session can no longer be refreshed."""
         self.reauth_login = entry_data.get(CONF_LOGIN)
@@ -546,20 +624,14 @@ class EeroConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
 
         if user_input:
-            self.api = EeroAPI()
+            self.api = EeroHub(session=async_get_clientsession(self.hass))
             try:
-                self.response = await self.hass.async_add_executor_job(
-                    self.api.login,
-                    user_input[CONF_LOGIN],
-                )
-            except EeroException as exception:
-                _LOGGER.error(
-                    "Status: %s, Error Message: %s", exception.code, exception.error
-                )
+                await self.api.login(user_input[CONF_LOGIN])
+            except (EeroException, TimeoutError) as exception:
+                _LOGGER.error("Login failed: %s", type(exception).__name__)
                 errors["base"] = "invalid_login"
             else:
                 self.reauth_login = user_input[CONF_LOGIN]
-                self.reauth_token = self.response["user_token"]
                 return await self.async_step_reauth_verify()
 
         return self.async_show_form(
@@ -584,14 +656,9 @@ class EeroConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input:
             try:
-                response = await self.hass.async_add_executor_job(
-                    self.api.login_verify,
-                    user_input[CONF_CODE],
-                )
-            except EeroException as exception:
-                _LOGGER.error(
-                    "Status: %s, Error Message: %s", exception.code, exception.error
-                )
+                response = await self.api.login_verify(user_input[CONF_CODE])
+            except (EeroException, TimeoutError) as exception:
+                _LOGGER.error("Verification failed: %s", type(exception).__name__)
                 errors["base"] = "invalid_code"
             else:
                 # The initial flow treats log_id as mandatory, so its absence
@@ -607,7 +674,7 @@ class EeroConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         self._get_reauth_entry(),
                         data_updates={
                             CONF_LOGIN: self.reauth_login,
-                            CONF_USER_TOKEN: self.reauth_token,
+                            CONF_USER_TOKEN: self.api.user_token,
                         },
                         # This entry has an update listener, which owns the
                         # reload. Asking for one here as well is deprecated and
@@ -659,8 +726,21 @@ class EeroOptionsFlowHandler(config_entries.OptionsFlow):
 
     async def async_step_init(self, user_input=None):
         """Manage the options."""
-        self.api = self.hass.data[DOMAIN][self.config_entry.entry_id][DATA_API]
-        self.response = await self.hass.async_add_executor_job(self.api.update)
+        try:
+            if self.config_entry.state is config_entries.ConfigEntryState.LOADED:
+                self.api = self.config_entry.runtime_data.hub
+            else:
+                # Not loaded, e.g. because a configured network is gone:
+                # the options flow is how that network gets deselected, so
+                # it must work without the running entry.
+                self.api = EeroHub(session=async_get_clientsession(self.hass))
+                await self.api.async_set_token(self.data[CONF_USER_TOKEN])
+            self.response = await self.api.snapshot()
+        except (EeroException, TimeoutError) as exception:
+            _LOGGER.error(
+                "Could not read the account's networks: %s", type(exception).__name__
+            )
+            return self.async_abort(reason="cannot_connect")
         return await self.async_step_networks()
 
     async def async_step_networks(self, user_input=None):

@@ -9,24 +9,26 @@ from homeassistant.components.button import (
     ButtonEntity,
     ButtonEntityDescription,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from . import EeroEntity, EeroEntityDescription
-from .const import (
-    CONF_EEROS,
-    CONF_MISCELLANEOUS,
-    CONF_NETWORKS,
-    CONF_RESOURCES,
-    DATA_COORDINATOR,
-    DOMAIN as EERO_DOMAIN,
+from .api.const import PORT_ACTIONS
+from .const import TIER_DAILY
+from .coordinator import EeroConfigEntry
+from .entity import (
+    KIND_EEROS,
+    KIND_NETWORK,
+    EeroEntity,
+    EeroEntityDescription,
+    EeroPortEntity,
+    async_call_mapped,
+    async_setup_port_entities,
+    build_entities,
 )
-from .util import resource_supports
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class EeroButtonEntityDescription(EeroEntityDescription, ButtonEntityDescription):
     """Class to describe an Eero button entity."""
 
@@ -36,84 +38,103 @@ class EeroButtonEntityDescription(EeroEntityDescription, ButtonEntityDescription
 BUTTON_DESCRIPTIONS: list[EeroButtonEntityDescription] = [
     EeroButtonEntityDescription(
         key="reboot",
-        name="Reboot",
+        translation_key="reboot",
+        support_key="async_reboot",
         device_class=ButtonDeviceClass.RESTART,
         request_refresh=False,
     ),
     EeroButtonEntityDescription(
         key="run_internet_backup_test",
-        name="Run Internet Backup Test",
-        icon="mdi:web",
+        translation_key="run_internet_backup_test",
+        support_key="async_run_internet_backup_test",
         premium_type=True,
         request_refresh=False,
     ),
     EeroButtonEntityDescription(
         key="run_speed_test",
-        name="Run Speed Test",
-        icon="mdi:speedometer",
+        translation_key="run_speed_test",
+        support_key="async_run_speed_test",
         request_refresh=False,
     ),
 ]
 
+PARALLEL_UPDATES = 1
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: ConfigEntry,
+    config_entry: EeroConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up an Eero button entity based on a config entry."""
-    entry = hass.data[EERO_DOMAIN][config_entry.entry_id]
-    coordinator = entry[DATA_COORDINATOR]
-    entities: list[EeroButtonEntity] = []
-
-    SUPPORTED_KEYS = {
-        description.key: description for description in BUTTON_DESCRIPTIONS
-    }
-
-    for network in coordinator.data.networks:
-        if network.id in entry[CONF_NETWORKS]:
-            for key, description in SUPPORTED_KEYS.items():
-                if description.premium_type and not network.premium_enabled:
-                    continue
-                if resource_supports(network, key):
-                    entities.append(
-                        EeroButtonEntity(
-                            coordinator,
-                            network.id,
-                            None,
-                            description,
-                            entry[CONF_MISCELLANEOUS][network.id],
-                        )
-                    )
-
-            for eero in network.eeros:
-                if eero.id in entry[CONF_RESOURCES][network.id][CONF_EEROS]:
-                    for key, description in SUPPORTED_KEYS.items():
-                        if description.premium_type and not network.premium_enabled:
-                            continue
-                        if resource_supports(eero, key):
-                            entities.append(
-                                EeroButtonEntity(
-                                    coordinator,
-                                    network.id,
-                                    eero.id,
-                                    description,
-                                    entry[CONF_MISCELLANEOUS][network.id],
-                                )
-                            )
-
-    async_add_entities(entities)
+    async_add_entities(
+        build_entities(
+            config_entry.runtime_data,
+            BUTTON_DESCRIPTIONS,
+            EeroButtonEntity,
+            (KIND_NETWORK, KIND_EEROS,),
+        )
+    )
+    async_setup_port_entities(
+        config_entry,
+        lambda runtime, network_id, eero_id, port: [
+            EeroPortButtonEntity(
+                runtime, network_id, eero_id, port["interface_number"], action
+            )
+            for action in port.get("actions", [])
+            if isinstance(action, dict) and action.get("type") in PORT_ACTIONS
+        ],
+        async_add_entities,
+    )
 
 
 class EeroButtonEntity(EeroEntity, ButtonEntity):
     """Representation of an Eero button entity."""
 
-    def press(self) -> None:
+    async def async_press(self) -> None:
         """Press the button."""
-        getattr(self.resource, self.entity_description.key)()
+        await self.async_write(f"async_{self.entity_description.key}")
+
+
+class EeroPortButtonEntity(EeroPortEntity, ButtonEntity):
+    """Representation of one port-level action button on one eero.
+
+    Disruptive (power-cycles the port or disables data/PoE/the port
+    itself) and unconfirmed against a live network: disabled by default,
+    a CONFIG entity, never auto-enabled.
+    """
+
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_entity_registry_enabled_default = False
+
+    def __init__(
+        self,
+        runtime,
+        network_id: str,
+        eero_id: str,
+        interface_number: int,
+        action: dict,
+    ) -> None:
+        """Initialize."""
+        super().__init__(runtime, network_id, eero_id, interface_number)
+        self._action = action["type"]
+        self._attr_translation_key = f"port_action_{self._action.lower()}"
+
+    @property
+    def unique_id(self) -> str:
+        """Return a unique ID."""
+        return (
+            f"{self.network_id}-{self.eero_id}-port_{self.interface_number}"
+            f"_action_{self._action.lower()}"
+        )
 
     async def async_press(self) -> None:
         """Press the button."""
-        await super().async_press()
-        if self.entity_description.request_refresh:
-            await self.coordinator.async_request_refresh()
+        if (eero := self.eero) is None:
+            return
+        await async_call_mapped(
+            self.hass,
+            self.runtime,
+            eero.async_port_action(self.interface_number, self._action),
+        )
+        await self.runtime.coordinator(TIER_DAILY).async_request_refresh()

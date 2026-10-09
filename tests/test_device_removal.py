@@ -15,11 +15,25 @@ CLIENTS = ("Client (Wired)", "Client (Wireless)")
 
 
 def test_disconnected_client_can_go():
-    assert dr.can_remove_device("Client (Wireless)", {(DOMAIN, "client-1")}, DOMAIN, CLIENTS, {"client-2"}) is True
+    assert (
+        dr.can_remove_device(
+            "Client (Wireless)", {(DOMAIN, "client-1")}, DOMAIN, CLIENTS, {"client-2"}
+        )
+        is True
+    )
 
 
 def test_connected_client_stays():
-    assert dr.can_remove_device("Client (Wireless)", {(DOMAIN, "client-1")}, DOMAIN, CLIENTS, {"client-1", "client-2"}) is False
+    assert (
+        dr.can_remove_device(
+            "Client (Wireless)",
+            {(DOMAIN, "client-1")},
+            DOMAIN,
+            CLIENTS,
+            {"client-1", "client-2"},
+        )
+        is False
+    )
 
 
 def test_eero_network_and_profile_devices_are_never_removable():
@@ -28,5 +42,8 @@ def test_eero_network_and_profile_devices_are_never_removable():
 
 
 def test_foreign_identifiers_do_not_count():
-    assert dr.can_remove_device("Client (Wired)", {("other", "client-1")}, DOMAIN, CLIENTS, set()) is False
+    assert (
+        dr.can_remove_device("Client (Wired)", {("other", "client-1")}, DOMAIN, CLIENTS, set())
+        is False
+    )
     assert dr.can_remove_device("Client (Wired)", set(), DOMAIN, CLIENTS, set()) is False

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from helpers import eero_api
+import pytest
+
+from helpers import build_hub, eero_api
 
 sum_data_usage = eero_api.util.sum_data_usage
 
@@ -17,7 +19,7 @@ class Usage:
 
 def network_with_activity(activity: dict):
     """Return an EeroNetwork carrying the given network activity block."""
-    api = eero_api.EeroAPI()
+    api = build_hub()
     account = eero_api.EeroAccount(
         api,
         {
@@ -90,7 +92,7 @@ def test_network_with_both_series() -> None:
 
 def test_release_notes_key_present_but_null() -> None:
     """get_release_notes returns None for a network with no manifest (H7)."""
-    api = eero_api.EeroAPI()
+    api = build_hub()
     account = eero_api.EeroAccount(
         api,
         {
@@ -112,7 +114,7 @@ def test_release_notes_key_present_but_null() -> None:
 
 def test_preferred_update_hour_outside_the_map() -> None:
     """An unexpected hour returns None rather than raising ValueError (L7)."""
-    api = eero_api.EeroAPI()
+    api = build_hub()
     account = eero_api.EeroAccount(
         api,
         {
@@ -132,7 +134,7 @@ def test_preferred_update_hour_outside_the_map() -> None:
 
 def test_client_signal_formats() -> None:
     """An unexpected signal string is (None, None), not an IndexError (L8)."""
-    api = eero_api.EeroAPI()
+    api = build_hub()
     network = eero_api.EeroAccount(api, {}).networks
 
     def client(signal):
@@ -148,7 +150,7 @@ def test_client_signal_formats() -> None:
 
 def test_name_unique_without_geo_ip() -> None:
     """A network with no geo_ip must not render None into the label (L6)."""
-    api = eero_api.EeroAPI()
+    api = build_hub()
     account = eero_api.EeroAccount(
         api,
         {
@@ -167,3 +169,79 @@ def test_name_unique_without_geo_ip() -> None:
 
     assert account.networks[0].name_unique == "TestNetwork"
     assert account.networks[1].name_unique == "Other (Elgin, Illinois)"
+
+
+def test_unprofiled_and_eeros_summary_sum_like_data_usage_day() -> None:
+    """The two new network properties parse the same {type, sum} list shape."""
+    network = network_with_activity(
+        {
+            "unprofiled_data_usage_day": [
+                {"type": "download", "sum": 10},
+                {"type": "upload", "sum": 2},
+            ],
+            "eeros_data_usage_summary_day": [{"type": "download", "sum": 30}],
+        }
+    )
+
+    assert network.unprofiled_data_usage_day == (10, 2)
+    assert sum_data_usage(network, "unprofiled_data_usage_day") == 12
+    assert network.eeros_data_usage_summary_day == (30, None)
+    assert sum_data_usage(network, "eeros_data_usage_summary_day") == 30
+
+
+def test_app_events_and_notifications_has_unread_properties() -> None:
+    """EeroNetwork reads both straight from the hourly activity payload."""
+    network = network_with_activity(
+        {
+            "app_events": [{"id": "1", "message": "device connected"}],
+            "notifications_has_unread": {"has_unread": True},
+        }
+    )
+    assert network.app_events == [{"id": "1", "message": "device connected"}]
+    assert network.notifications_has_unread is True
+
+    empty_network = network_with_activity({})
+    assert empty_network.app_events == []
+    assert empty_network.notifications_has_unread is None
+
+
+def test_power_saving_enabled_reads_the_plain_top_level_boolean() -> None:
+    """power_saving is a plain top-level boolean on the network envelope, not nested."""
+    api = build_hub()
+    network = eero_api.network.EeroNetwork(
+        api, None, {"url": "/2.2/networks/1234567", "name": "TestNetwork", "power_saving": True}
+    )
+    assert network.power_saving_enabled is True
+
+    off_network = eero_api.network.EeroNetwork(
+        api, None, {"url": "/2.2/networks/1234567", "name": "TestNetwork", "power_saving": False}
+    )
+    assert off_network.power_saving_enabled is False
+
+
+def test_mlo_mode_requires_capability_and_a_parseable_value() -> None:
+    """mlo_mode raises (so the select is never created) when not capable or unparseable."""
+    api = build_hub()
+
+    def _network(**overrides):
+        data = {"url": "/2.2/networks/1234567", "name": "TestNetwork"}
+        data.update(overrides)
+        return eero_api.network.EeroNetwork(api, None, data)
+
+    capable = {"capabilities": {"mlo_mode": {"capable": True}}}
+
+    not_capable = _network(mlo_mode="disabled")
+    with pytest.raises(AttributeError):
+        _ = not_capable.mlo_mode
+
+    unparseable = _network(mlo_mode="bogus", **capable)
+    with pytest.raises(AttributeError):
+        _ = unparseable.mlo_mode
+
+    string_shaped = _network(mlo_mode="single", **capable)
+    assert string_shaped.mlo_mode == "single"
+
+    dict_shaped = _network(mlo_mode={"mode": "multi"}, **capable)
+    assert dict_shaped.mlo_mode == "multi"
+
+    assert string_shaped.mlo_mode_options == ["disabled", "single", "multi"]

@@ -11,25 +11,26 @@ from homeassistant.components.switch import (
     SwitchEntity,
     SwitchEntityDescription,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from . import EeroEntity, EeroEntityDescription
-from .const import (
-    CONF_BACKUP_NETWORKS,
-    CONF_MISCELLANEOUS,
-    CONF_NETWORKS,
-    CONF_PROFILES,
-    CONF_RESOURCES,
-    DATA_COORDINATOR,
-    DOMAIN as EERO_DOMAIN,
+from .const import TIER_DAILY, TIER_FAST
+from .coordinator import EeroConfigEntry
+from .entity import (
+    KIND_BACKUP_NETWORKS,
+    KIND_CLIENTS,
+    KIND_NETWORK,
+    KIND_PROFILES,
+    EeroEntity,
+    EeroEntityDescription,
+    async_setup_platform_entities,
 )
-from .util import client_allowed, resource_supports
+
+PARALLEL_UPDATES = 1
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class EeroSwitchEntityDescription(EeroEntityDescription, SwitchEntityDescription):
     """Class to describe an Eero switch entity."""
 
@@ -40,71 +41,88 @@ class EeroSwitchEntityDescription(EeroEntityDescription, SwitchEntityDescription
 SWITCH_DESCRIPTIONS: list[EeroSwitchEntityDescription] = [
     EeroSwitchEntityDescription(
         key="ad_block",
-        name="Ad Blocking",
+        translation_key="ad_block",
         premium_type=True,
     ),
     EeroSwitchEntityDescription(
         key="auto_join_enabled",
-        name="Auto-Join Enabled",
+        translation_key="auto_join_enabled",
         premium_type=True,
     ),
     EeroSwitchEntityDescription(
         key="backup_internet_enabled",
-        name="Backup Internet Enabled",
+        translation_key="backup_internet_enabled",
         premium_type=True,
+        extra_tiers=(TIER_DAILY,),
+        refresh_tiers=(TIER_FAST, TIER_DAILY),
     ),
     EeroSwitchEntityDescription(
         key="band_steering",
-        name="Band Steering",
+        translation_key="band_steering",
+    ),
+    EeroSwitchEntityDescription(
+        key="bedtime_enabled",
+        translation_key="bedtime_enabled",
+        tier=TIER_DAILY,
+        requires_value=True,
+    ),
+    EeroSwitchEntityDescription(
+        key="blocked",
+        translation_key="blocked",
+        tier=TIER_DAILY,
+        # Blocking removes the device from the network entirely: the fast
+        # tier's device list changes too, not just the daily-tier blacklist.
+        refresh_tiers=(TIER_FAST, TIER_DAILY),
+        requires_value=True,
     ),
     EeroSwitchEntityDescription(
         key="block_gaming_content",
-        name="Gaming Content Filter",
+        translation_key="block_gaming_content",
         premium_type=True,
     ),
     EeroSwitchEntityDescription(
         key="block_illegal_content",
-        name="Illegal or Criminal Content Filter",
+        translation_key="block_illegal_content",
         premium_type=True,
     ),
     EeroSwitchEntityDescription(
         key="block_malware",
-        name="Advanced Security",
+        translation_key="block_malware",
         premium_type=True,
     ),
     EeroSwitchEntityDescription(
         key="block_messaging_content",
-        name="Chat and Messaging Content Filter",
+        translation_key="block_messaging_content",
         premium_type=True,
     ),
     EeroSwitchEntityDescription(
         key="block_pornographic_content",
-        name="Adult Content Filter",
+        translation_key="block_pornographic_content",
         premium_type=True,
     ),
     EeroSwitchEntityDescription(
         key="block_shopping_content",
-        name="Shopping Content Filter",
+        translation_key="block_shopping_content",
         premium_type=True,
     ),
     EeroSwitchEntityDescription(
         key="block_social_content",
-        name="Social Media Content Filter",
+        translation_key="block_social_content",
         premium_type=True,
     ),
     EeroSwitchEntityDescription(
         key="block_streaming_content",
-        name="Streaming Content Filter",
+        translation_key="block_streaming_content",
         premium_type=True,
     ),
     EeroSwitchEntityDescription(
         key="block_violent_content",
-        name="Violent Content Filter",
+        translation_key="block_violent_content",
         premium_type=True,
     ),
     EeroSwitchEntityDescription(
         key="ddns_enabled",
-        name="Dynamic DNS",
+        translation_key="ddns_enabled",
         premium_type=True,
         extra_attrs={
             "domain": lambda resource: resource.ddns_subdomain,
@@ -112,12 +130,24 @@ SWITCH_DESCRIPTIONS: list[EeroSwitchEntityDescription] = [
     ),
     EeroSwitchEntityDescription(
         key="dns_caching",
-        name="Local DNS Caching",
+        translation_key="dns_caching",
+        # A DNS write reboots every eero on the network a few minutes later.
         request_refresh=False,
     ),
     EeroSwitchEntityDescription(
+        key="fast_transition_enabled",
+        translation_key="fast_transition_enabled",
+        tier=TIER_DAILY,
+        # Unconfirmed write: may reboot every eero. Re-reading the daily
+        # tier afterwards is a GET, and without it the switch would show
+        # the old state for a day and read-compare-skip would compare
+        # against it.
+        refresh_tiers=(TIER_DAILY,),
+        requires_value=True,
+    ),
+    EeroSwitchEntityDescription(
         key="guest_network_enabled",
-        name="Guest Network",
+        translation_key="guest_network_enabled",
         extra_attrs={
             "guest_network_name": lambda resource: resource.guest_network_name,
             "connected_guest_clients": lambda resource: resource.connected_guest_clients_count,
@@ -125,37 +155,45 @@ SWITCH_DESCRIPTIONS: list[EeroSwitchEntityDescription] = [
     ),
     EeroSwitchEntityDescription(
         key="ipv6_upstream",
-        name="IPv6 Enabled",
+        translation_key="ipv6_upstream",
         request_refresh=False,
     ),
     EeroSwitchEntityDescription(
         key="pause_5g_enabled",
-        name="5 GHz Band Paused",
+        translation_key="pause_5g_enabled",
         extra_attrs={
             "expiration": lambda resource: resource.pause_5g_expiration,
         },
     ),
     EeroSwitchEntityDescription(
         key="paused",
-        name="Paused",
+        translation_key="paused",
+    ),
+    EeroSwitchEntityDescription(
+        key="power_saving_enabled",
+        translation_key="power_saving_enabled",
+        # Unconfirmed write: may reboot every eero. Re-read afterwards (a
+        # GET) so the state, and read-compare-skip, are not left stale.
+        requires_value=True,
     ),
     EeroSwitchEntityDescription(
         key="safe_search_enabled",
-        name="SafeSearch Content Filter",
+        translation_key="safe_search_enabled",
         premium_type=True,
     ),
     EeroSwitchEntityDescription(
         key="secondary_wan_allow_access",
-        name="Allow Internet Backup",
+        translation_key="secondary_wan_allow_access",
         premium_type=True,
     ),
     EeroSwitchEntityDescription(
         key="sqm",
-        name="Smart Queue Management",
+        translation_key="sqm",
     ),
     EeroSwitchEntityDescription(
         key="thread_enabled",
-        name="Thread Enabled",
+        translation_key="thread_enabled",
+        tier=TIER_DAILY,
         extra_attrs={
             "thread_network_name": lambda resource: resource.thread_name,
             "channel": lambda resource: resource.thread_channel,
@@ -165,15 +203,15 @@ SWITCH_DESCRIPTIONS: list[EeroSwitchEntityDescription] = [
     ),
     EeroSwitchEntityDescription(
         key="upnp",
-        name="UPnP",
+        translation_key="upnp",
     ),
     EeroSwitchEntityDescription(
         key="wpa3",
-        name="WPA3",
+        translation_key="wpa3",
     ),
     EeroSwitchEntityDescription(
         key="youtube_restricted",
-        name="YouTube Restricted Content Filter",
+        translation_key="youtube_restricted",
         premium_type=True,
     ),
 ]
@@ -181,84 +219,17 @@ SWITCH_DESCRIPTIONS: list[EeroSwitchEntityDescription] = [
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: ConfigEntry,
+    config_entry: EeroConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up an Eero switch entity based on a config entry."""
-    entry = hass.data[EERO_DOMAIN][config_entry.entry_id]
-    coordinator = entry[DATA_COORDINATOR]
-    entities: list[EeroSwitchEntity] = []
-
-    SUPPORTED_KEYS = {
-        description.key: description for description in SWITCH_DESCRIPTIONS
-    }
-
-    for network in coordinator.data.networks:
-        if network.id in entry[CONF_NETWORKS]:
-            for key, description in SUPPORTED_KEYS.items():
-                if description.premium_type and not network.premium_enabled:
-                    continue
-                if resource_supports(network, key):
-                    entities.append(
-                        EeroSwitchEntity(
-                            coordinator,
-                            network.id,
-                            None,
-                            description,
-                            entry[CONF_MISCELLANEOUS][network.id],
-                        )
-                    )
-
-            for backup_network in network.backup_networks:
-                if (
-                    backup_network.id
-                    in entry[CONF_RESOURCES][network.id][CONF_BACKUP_NETWORKS]
-                ):
-                    for key, description in SUPPORTED_KEYS.items():
-                        if resource_supports(backup_network, key):
-                            entities.append(
-                                EeroSwitchEntity(
-                                    coordinator,
-                                    network.id,
-                                    backup_network.id,
-                                    description,
-                                    entry[CONF_MISCELLANEOUS][network.id],
-                                )
-                            )
-
-            for profile in network.profiles:
-                if profile.id in entry[CONF_RESOURCES][network.id][CONF_PROFILES]:
-                    for key, description in SUPPORTED_KEYS.items():
-                        if description.premium_type and not network.premium_enabled:
-                            continue
-                        if resource_supports(profile, key):
-                            entities.append(
-                                EeroSwitchEntity(
-                                    coordinator,
-                                    network.id,
-                                    profile.id,
-                                    description,
-                                    entry[CONF_MISCELLANEOUS][network.id],
-                                )
-                            )
-
-            for client in network.clients:
-                if client_allowed(client, entry[CONF_RESOURCES][network.id]):
-                    for key, description in SUPPORTED_KEYS.items():
-                        if description.premium_type and not network.premium_enabled:
-                            continue
-                        if resource_supports(client, key):
-                            entities.append(
-                                EeroSwitchEntity(
-                                    coordinator,
-                                    network.id,
-                                    client.id,
-                                    description,
-                                    entry[CONF_MISCELLANEOUS][network.id],
-                                )
-                            )
-
-    async_add_entities(entities)
+    async_setup_platform_entities(
+        config_entry,
+        SWITCH_DESCRIPTIONS,
+        EeroSwitchEntity,
+        (KIND_NETWORK, KIND_BACKUP_NETWORKS, KIND_PROFILES, KIND_CLIENTS),
+        async_add_entities,
+    )
 
 
 class EeroSwitchEntity(EeroEntity, SwitchEntity):
@@ -266,38 +237,32 @@ class EeroSwitchEntity(EeroEntity, SwitchEntity):
 
     @property
     def is_on(self) -> bool | None:
-        """Return True if entity is on."""
-        return bool(getattr(self.resource, self.entity_description.key))
+        """Return True if entity is on; None when the state is not known."""
+        if (value := getattr(self.resource, self.entity_description.key, None)) is None:
+            return None
+        return bool(value)
 
     @property
     def extra_state_attributes(self) -> Mapping[str, Any] | None:
-        """Return entity specific state attributes.
-
-        Implemented by platform classes. Convention for attribute names
-        is lowercase snake_case.
-        """
+        """Return entity specific state attributes."""
         attrs = {}
         if self.entity_description.extra_attrs and self.is_on:
             for key, func in self.entity_description.extra_attrs.items():
                 attrs[key] = func(self.resource)
         return attrs
 
-    def turn_on(self, **kwargs: Any) -> None:
-        """Turn the entity on."""
-        setattr(self.resource, self.entity_description.key, True)
+    async def _async_set(self, value: bool) -> None:
+        await self.async_write(
+            f"async_set_{self.entity_description.key}",
+            value,
+            current=self.is_on,
+            target=value,
+        )
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the entity on."""
-        await super().async_turn_on()
-        if self.entity_description.request_refresh:
-            await self.coordinator.async_request_refresh()
-
-    def turn_off(self, **kwargs: Any) -> None:
-        """Turn the entity off."""
-        setattr(self.resource, self.entity_description.key, False)
+        await self._async_set(True)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the entity off."""
-        await super().async_turn_off()
-        if self.entity_description.request_refresh:
-            await self.coordinator.async_request_refresh()
+        await self._async_set(False)

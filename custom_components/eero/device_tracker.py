@@ -11,31 +11,28 @@ from homeassistant.components.device_tracker import (
     BaseScannerEntity,
     SourceType,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_MANUFACTURER
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 
-from . import EeroEntity, EeroEntityDescription
-from .const import (
-    CONF_CONSIDER_HOME,
-    CONF_MISCELLANEOUS,
-    CONF_NETWORKS,
-    CONF_PROFILES,
-    CONF_RESOURCES,
-    DATA_COORDINATOR,
-    DOMAIN as EERO_DOMAIN,
+from .const import CONF_CONSIDER_HOME
+from .coordinator import EeroConfigEntry, EeroRuntime
+from .entity import (
+    KIND_CLIENTS,
+    KIND_PROFILES,
+    EeroEntity,
+    EeroEntityDescription,
+    async_setup_platform_entities,
 )
-from .util import client_allowed
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class EeroDeviceTrackerEntityDescription(EeroEntityDescription):
     """Class to describe an Eero device tracker entity."""
 
+    check_support: bool = False
     entity_category: EntityCategory | None = EntityCategory.DIAGNOSTIC
     source_type: SourceType = SourceType.ROUTER
 
@@ -47,53 +44,22 @@ DEVICE_TRACKER_DESCRIPTIONS: list[EeroDeviceTrackerEntityDescription] = [
 ]
 
 
+PARALLEL_UPDATES = 0
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: ConfigEntry,
+    config_entry: EeroConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up an Eero device tracker entity based on a config entry."""
-    entry = hass.data[EERO_DOMAIN][config_entry.entry_id]
-    coordinator = entry[DATA_COORDINATOR]
-    entities: list[EeroDeviceTrackerEntity] = []
-
-    SUPPORTED_KEYS = {
-        description.key: description for description in DEVICE_TRACKER_DESCRIPTIONS
-    }
-
-    for network in coordinator.data.networks:
-        if network.id in entry[CONF_NETWORKS]:
-            for profile in network.profiles:
-                if profile.id in entry[CONF_RESOURCES][network.id][CONF_PROFILES]:
-                    for description in SUPPORTED_KEYS.values():
-                        if description.premium_type and not network.premium_enabled:
-                            continue
-                        entities.append(
-                            EeroDeviceTrackerEntity(
-                                coordinator,
-                                network.id,
-                                profile.id,
-                                description,
-                                entry[CONF_MISCELLANEOUS][network.id],
-                            )
-                        )
-
-            for client in network.clients:
-                if client_allowed(client, entry[CONF_RESOURCES][network.id]):
-                    for description in SUPPORTED_KEYS.values():
-                        if description.premium_type and not network.premium_enabled:
-                            continue
-                        entities.append(
-                            EeroDeviceTrackerEntity(
-                                coordinator,
-                                network.id,
-                                client.id,
-                                description,
-                                entry[CONF_MISCELLANEOUS][network.id],
-                            )
-                        )
-
-    async_add_entities(entities)
+    async_setup_platform_entities(
+        config_entry,
+        DEVICE_TRACKER_DESCRIPTIONS,
+        EeroDeviceTrackerEntity,
+        (KIND_PROFILES, KIND_CLIENTS),
+        async_add_entities,
+    )
 
 
 class EeroDeviceTrackerEntity(EeroEntity, BaseScannerEntity):
@@ -103,22 +69,16 @@ class EeroDeviceTrackerEntity(EeroEntity, BaseScannerEntity):
 
     def __init__(
         self,
-        coordinator: DataUpdateCoordinator,
+        runtime: EeroRuntime,
         network_id: str,
-        resource_id: str,
+        resource_id: str | None,
         description: EeroDeviceTrackerEntityDescription,
-        miscellaneous: dict[str, Any],
+        tier: str | None = None,
     ) -> None:
         """Initialize device."""
-        super().__init__(
-            coordinator,
-            network_id,
-            resource_id,
-            description,
-            miscellaneous,
-        )
+        super().__init__(runtime, network_id, resource_id, description, tier)
         self.consider_home: timedelta = timedelta(
-            minutes=miscellaneous[CONF_CONSIDER_HOME]
+            minutes=runtime.miscellaneous[network_id][CONF_CONSIDER_HOME]
         )
         self.last_seen: datetime | None = None
 
@@ -168,7 +128,9 @@ class EeroDeviceTrackerEntity(EeroEntity, BaseScannerEntity):
         Implemented by platform classes. Convention for attribute names
         is lowercase snake_case.
         """
-        attrs = {}
+        attrs: dict[str, Any] = {}
+        if self.resource is None or self.network is None:
+            return attrs
         if self.is_connected and self.resource.is_client:
             attrs["connected_to"] = self.resource.source_location
             attrs["connection_type"] = self.resource.connection_type

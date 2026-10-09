@@ -4,19 +4,30 @@ from .api.const import (
     ACTIVITY_ADBLOCK_DAY,
     ACTIVITY_ADBLOCK_MONTH,
     ACTIVITY_ADBLOCK_WEEK,
+    ACTIVITY_APP_EVENTS,
     ACTIVITY_BLOCKED_DAY,
     ACTIVITY_BLOCKED_MONTH,
     ACTIVITY_BLOCKED_WEEK,
     ACTIVITY_DATA_USAGE_DAY,
     ACTIVITY_DATA_USAGE_MONTH,
     ACTIVITY_DATA_USAGE_WEEK,
+    ACTIVITY_EEROS_DATA_USAGE_SUMMARY_DAY,
     ACTIVITY_INSPECTED_DAY,
     ACTIVITY_INSPECTED_MONTH,
     ACTIVITY_INSPECTED_WEEK,
+    ACTIVITY_NOTIFICATIONS_UNREAD,
+    ACTIVITY_UNPROFILED_DATA_USAGE_DAY,
 )
 
 ACTIVITIES_DEFAULT = [
     ACTIVITY_DATA_USAGE_WEEK,
+    # Opt-in: selectable, but never pre-selected (the activity step's
+    # SelectSelector default is always []), so existing users' request
+    # counts do not grow just because this version shipped.
+    ACTIVITY_UNPROFILED_DATA_USAGE_DAY,
+    ACTIVITY_EEROS_DATA_USAGE_SUMMARY_DAY,
+    ACTIVITY_APP_EVENTS,
+    ACTIVITY_NOTIFICATIONS_UNREAD,
 ]
 ACTIVITIES_PREMIUM = [
     ACTIVITY_ADBLOCK_DAY,
@@ -31,6 +42,10 @@ ACTIVITIES_PREMIUM = [
     ACTIVITY_BLOCKED_DAY,
     ACTIVITY_BLOCKED_WEEK,
     ACTIVITY_BLOCKED_MONTH,
+    ACTIVITY_UNPROFILED_DATA_USAGE_DAY,
+    ACTIVITY_EEROS_DATA_USAGE_SUMMARY_DAY,
+    ACTIVITY_APP_EVENTS,
+    ACTIVITY_NOTIFICATIONS_UNREAD,
 ]
 
 ACTIVITIES_DATA_USAGE_DEFAULT = [
@@ -42,7 +57,21 @@ ACTIVITIES_DATA_USAGE_PREMIUM = [
     ACTIVITY_DATA_USAGE_MONTH,
 ]
 
+ATTR_AUTOMATIC = "automatic"
 ATTR_BLOCKED_APPS = "blocked_apps"
+ATTR_CLIENT_PORT = "client_port"
+ATTR_DELETE_FORWARDS = "delete_forwards"
+ATTR_DESCRIPTION = "description"
+ATTR_ENABLED = "enabled"
+ATTR_FORWARD = "forward"
+ATTR_GATEWAY_PORT = "gateway_port"
+ATTR_IP = "ip"
+ATTR_IPV4 = "ipv4"
+ATTR_IPV6 = "ipv6"
+ATTR_MAC = "mac"
+ATTR_PROTOCOL = "protocol"
+ATTR_PUBLIC_STATIC_IP = "public_static_ip"
+ATTR_RESERVATION = "reservation"
 ATTR_TARGET_NETWORK = "target_network"
 ATTR_TARGET_PROFILE = "target_profile"
 
@@ -68,11 +97,6 @@ CONF_WIRED_CLIENTS_FILTER = "wired_clients_filter"
 CONF_WIRELESS_CLIENTS = "wireless_clients"
 CONF_WIRELESS_CLIENTS_FILTER = "wireless_clients_filter"
 
-DATA_API = "api"
-DATA_COORDINATOR = "coordinator"
-DATA_OPTIONS = "options"
-DATA_UPDATE_LISTENER = "update_listener"
-
 DOMAIN = "eero"
 
 MANUFACTURER = "eero"
@@ -88,7 +112,12 @@ RELEASE_URL = (
     "https://support.eero.com/hc/en-us/articles/209636523-eero-Software-Release-Notes"
 )
 
+SERVICE_CREATE_PORT_FORWARD = "create_port_forward"
+SERVICE_CREATE_RESERVATION = "create_reservation"
+SERVICE_DELETE_PORT_FORWARD = "delete_port_forward"
+SERVICE_DELETE_RESERVATION = "delete_reservation"
 SERVICE_SET_BLOCKED_APPS = "set_blocked_apps"
+SERVICE_SET_CUSTOM_DNS = "set_custom_dns"
 
 CONF_MISCELLANEOUS = "miscellaneous"
 CONF_PREFIX_NETWORK_NAME = "prefix_network_name"
@@ -108,7 +137,9 @@ MAX_SCAN_INTERVAL: int = 600
 STEP_SCAN_INTERVAL: int = 30
 
 MIN_TIMEOUT: int = 10
-MAX_TIMEOUT: int = 60
+# eero-api gives every request ClientTimeout(total=30, sock_read=10) and does
+# not let a caller raise it, so a longer timeout could never take effect.
+MAX_TIMEOUT: int = 30
 STEP_TIMEOUT: int = 5
 
 DEFAULT_CONSIDER_HOME: int = 0
@@ -120,3 +151,7 @@ DEFAULT_SUFFIX_CONNECTION_TYPE: bool = True
 DEFAULT_TIMEOUT: int = 30
 DEFAULT_WIRED_CLIENTS_FILTER: str = CONF_FILTER_INCLUDE
 DEFAULT_WIRELESS_CLIENTS_FILTER: str = CONF_FILTER_INCLUDE
+
+TIER_FAST = "fast"
+TIER_HOURLY = "hourly"
+TIER_DAILY = "daily"

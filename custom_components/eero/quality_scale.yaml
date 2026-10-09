@@ -1,0 +1,255 @@
+rules:
+  # Bronze
+  action-setup:
+    status: done
+    comment: >-
+      Every action (set_blocked_apps, create/delete_reservation,
+      create/delete_port_forward, set_custom_dns) is registered in
+      async_setup, whether or not anything is configured, and the handlers
+      skip entries that are not loaded.
+  appropriate-polling:
+    status: done
+    comment: >-
+      Cloud polling in three tiers: the fast tier at the scan interval
+      (default 300 s, 60 to 600 s in the Advanced step), activity hourly, and
+      Thread, backup networks, entitlements and firmware daily. A rate-limited
+      tier backs its own interval off.
+  brands:
+    status: done
+    comment: >-
+      Brand images ship with the integration in brand/ (icon.png and
+      logo.png), which Home Assistant serves for custom integrations and
+      HACS validation accepts.
+  common-modules:
+    status: done
+    comment: >-
+      The coordinators and the per-entry runtime live in coordinator.py, the
+      base entity in entity.py.
+  config-flow:
+    status: done
+    comment: >-
+      UI config flow with options flow; every step's fields now have a
+      data_description in strings.json/translations/en.json.
+  config-flow-test-coverage:
+    status: done
+    comment: >-
+      tests/ha/test_config_flow_ha.py covers the user flow happy path,
+      invalid_login/invalid_code, already_configured, reauth (success and
+      wrong_account), reconfigure (success, overriding an existing options
+      value, and the validation error) and the options flow (happy path, and
+      running while the entry is not loaded). config_flow.py itself measures 89% line coverage (see
+      test-coverage below).
+  dependency-transparency:
+    status: done
+    comment: >-
+      eero-api==8.0.6 from PyPI, MIT-licensed, source at
+      github.com/fulviofreitas/eero-api with tagged releases. Its release.yml
+      builds and publishes to PyPI from GitHub Actions via trusted publishing;
+      PyPI attestations are turned off, so the files carry no provenance.
+  docs-actions:
+    status: done
+    comment: 'README "Actions" documents all six actions, their fields and an example each.'
+  docs-conditions:
+    status: exempt
+    comment: The integration provides no conditions.
+  docs-high-level-description:
+    status: done
+  docs-installation-instructions:
+    status: done
+  docs-removal-instructions:
+    status: done
+    comment: 'README "Removing the integration".'
+  docs-triggers:
+    status: exempt
+    comment: The integration provides no triggers.
+  entity-event-setup:
+    status: done
+    comment: >-
+      Entities are CoordinatorEntity subclasses; none subscribe to events
+      themselves.
+  entity-unique-id:
+    status: done
+    comment: >-
+      network_id[-resource_id]-key, built from configured IDs, not live data.
+  has-entity-name:
+    status: done
+  runtime-data:
+    status: done
+    comment: The per-entry EeroRuntime is stored in ConfigEntry.runtime_data.
+  test-before-configure:
+    status: done
+    comment: >-
+      The user and verify steps call the Eero login API and show
+      invalid_login / invalid_code on failure.
+  test-before-setup:
+    status: done
+    comment: >-
+      async_config_entry_first_refresh; an expired session raises
+      ConfigEntryAuthFailed, other API errors UpdateFailed (not ready).
+  unique-config-entry:
+    status: done
+    comment: Unique ID is the account log_id; duplicates abort.
+
+  # Silver
+  action-exceptions:
+    status: done
+    comment: >-
+      Entity actions go through EeroEntity.async_write and the set_blocked_apps
+      action maps SDK errors the same way: HomeAssistantError with a
+      translation key, and reauthentication on an expired session.
+  config-entry-unloading:
+    status: done
+    comment: >-
+      async_unload_entry unloads the platforms and clears the entry's repair
+      issues; the update listener is removed through async_on_unload. The
+      aiohttp session is Home Assistant's shared one and is not closed.
+  docs-configuration-parameters:
+    status: done
+    comment: 'README "Configuration options" (Configure and Reconfigure), parameters in "Setup parameters".'
+  docs-installation-parameters:
+    status: done
+    comment: 'README "Setup parameters", step by step with defaults and limits.'
+  entity-unavailable:
+    status: done
+    comment: >-
+      available is false when the last poll failed or the resource is no
+      longer reported.
+  integration-owner:
+    status: done
+    comment: codeowners is @fulviofreitas in manifest.json.
+  log-when-unavailable:
+    status: done
+    comment: >-
+      Failures surface as UpdateFailed from the DataUpdateCoordinator, which
+      logs once when it becomes unavailable and once when it recovers.
+      Entities do not log on their own.
+  parallel-updates:
+    status: done
+    comment: >-
+      Every platform sets PARALLEL_UPDATES: 0 for the read-only platforms
+      (sensor, binary_sensor, device_tracker), 1 for the ones that write.
+  reauthentication-flow:
+    status: done
+    comment: >-
+      reauth_confirm / reauth_verify; the account must match (wrong_account
+      abort).
+  test-coverage:
+    status: done
+    comment: >-
+      `pytest --cov=custom_components.eero -o addopts="" tests tests/ha`
+      (3.14 venv, standalone + HA suites combined) measures 97% line
+      coverage (3456 statements, 115 missed). Every api module is at or near
+      100%; the lowest are config_flow.py 89% (per-network loop edges and
+      the multi-network "next network" branches), __init__.py 91%
+      and device_tracker.py 88%. tests/ha/test_full_fixture.py also asserts
+      that every description key of every platform produces an entity on a
+      fully-featured network and that every writable entity reaches the SDK.
+
+  # Gold
+  devices:
+    status: done
+    comment: >-
+      One device per network, eero, profile, client and backup network,
+      linked to the network with via_device_id.
+  diagnostics:
+    status: done
+    comment: >-
+      Config entry diagnostics with the API payload, redacting tokens,
+      secrets and contact details.
+  discovery:
+    status: exempt
+    comment: >-
+      Cloud-account integration; the eero account cannot be discovered on
+      the local network.
+  discovery-update-info:
+    status: exempt
+    comment: No discovery; the integration talks only to the cloud API.
+  docs-data-update:
+    status: done
+    comment: 'README "Data updates" (fast, hourly and daily tiers, backoff).'
+  docs-examples:
+    status: done
+    comment: 'README "Examples" (automation YAML).'
+  docs-known-limitations:
+    status: done
+    comment: 'README "Known limitations".'
+  docs-supported-devices:
+    status: done
+    comment: 'README "Supported devices".'
+  docs-supported-functions:
+    status: done
+    comment: 'README "Supported functions", entity tables per device type.'
+  docs-troubleshooting:
+    status: done
+    comment: 'README "Troubleshooting".'
+  docs-use-cases:
+    status: done
+    comment: 'README "Use cases".'
+  dynamic-devices:
+    status: done
+    comment: >-
+      async_setup_platform_entities (entity.py) listens to the fast tier and
+      adds entities for a client that joins after setup, without a reload,
+      within the include/exclude client filter; new eero ports are added
+      the same way from the daily tier.
+  entity-category:
+    status: done
+  entity-device-class:
+    status: done
+  entity-disabled-by-default:
+    status: done
+    comment: >-
+      The port action buttons (EeroPortButtonEntity in button.py) are
+      disruptive and set entity_registry_enabled_default to False.
+  entity-translations:
+    status: done
+    comment: >-
+      Every entity description sets a translation_key; names, states and
+      state attributes come from the entity section of strings.json (port
+      entities pass their port number as a translation placeholder). The
+      device tracker is named after its device alone. Translated into pt-BR.
+  exception-translations:
+    status: done
+    comment: >-
+      Action errors and coordinator failures (UpdateFailed,
+      ConfigEntryAuthFailed) use translation keys from the exceptions section
+      of strings.json.
+  icon-translations:
+    status: done
+    comment: >-
+      No entity sets icon=; entity and service icons come from icons.json,
+      keyed by translation_key. Entities without an entry there use their
+      device class or platform default icon.
+  reconfiguration-flow:
+    status: done
+    comment: >-
+      async_step_reconfigure lets the user change the polling interval,
+      timeout and save-responses setting (same fields and validation as the
+      Advanced step), writing both data and options so the change takes
+      effect even if an options flow run already overrides them. Network
+      and resource selection stays in the options flow (Configure), which
+      already covers that ground.
+  repair-issues:
+    status: done
+    comment: >-
+      premium_required / feature_unavailable issues for a tier read the
+      account is not entitled to or the network lacks; cleared when the read
+      succeeds again and on unload.
+  stale-devices:
+    status: done
+    comment: >-
+      Deselected resources are removed on setup, and
+      async_remove_config_entry_device lets the user delete a client the eero
+      no longer reports as connected.
+
+  # Platinum
+  async-dependency:
+    status: done
+    comment: eero-api is asyncio/aiohttp-based; no executor jobs remain.
+  inject-websession:
+    status: done
+    comment: >-
+      EeroHub hands Home Assistant's shared session
+      (async_get_clientsession) to the SDK.
+  strict-typing:
+    status: todo

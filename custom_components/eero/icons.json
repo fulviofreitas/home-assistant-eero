@@ -1,7 +1,148 @@
 {
+    "entity": {
+        "switch": {
+            "blocked": {
+                "default": "mdi:account-cancel",
+                "state": {
+                    "on": "mdi:account-cancel",
+                    "off": "mdi:account-check"
+                }
+            },
+            "bedtime_enabled": {
+                "default": "mdi:sleep",
+                "state": {
+                    "on": "mdi:sleep",
+                    "off": "mdi:sleep-off"
+                }
+            },
+            "fast_transition_enabled": {
+                "default": "mdi:transit-connection-variant"
+            },
+            "power_saving_enabled": {
+                "default": "mdi:leaf"
+            }
+        },
+        "binary_sensor": {
+            "notifications_has_unread": {
+                "default": "mdi:bell-outline",
+                "state": {
+                    "on": "mdi:bell-ring",
+                    "off": "mdi:bell-outline"
+                }
+            }
+        },
+        "event": {
+            "app_events": {
+                "default": "mdi:bell-alert-outline"
+            }
+        },
+        "button": {
+            "run_internet_backup_test": {
+                "default": "mdi:web"
+            },
+            "run_speed_test": {
+                "default": "mdi:speedometer"
+            },
+            "port_action_enable_data": {
+                "default": "mdi:ethernet"
+            },
+            "port_action_disable_data": {
+                "default": "mdi:ethernet-off"
+            },
+            "port_action_enable_poe": {
+                "default": "mdi:power-plug"
+            },
+            "port_action_disable_poe": {
+                "default": "mdi:power-plug-off"
+            },
+            "port_action_enable_port": {
+                "default": "mdi:ethernet"
+            },
+            "port_action_disable_port": {
+                "default": "mdi:ethernet-off"
+            },
+            "port_action_restart_power": {
+                "default": "mdi:restart"
+            },
+            "port_action_enable_port_security": {
+                "default": "mdi:shield-lock"
+            },
+            "port_action_disable_port_security": {
+                "default": "mdi:shield-off"
+            }
+        },
+        "sensor": {
+            "port_connection_status": {
+                "default": "mdi:ethernet"
+            },
+            "port_negotiated_speed": {
+                "default": "mdi:speedometer"
+            },
+            "unprofiled_data_usage_day": {
+                "default": "mdi:help-network-outline"
+            },
+            "eeros_data_usage_summary_day": {
+                "default": "mdi:router-network"
+            },
+            "dns_mode": {
+                "default": "mdi:dns"
+            },
+            "reservation_count": {
+                "default": "mdi:ip-network"
+            },
+            "forward_count": {
+                "default": "mdi:router-network"
+            }
+        },
+        "select": {
+            "profile_assignment": {
+                "default": "mdi:account-group"
+            },
+            "mlo_mode": {
+                "default": "mdi:wifi-arrow-up-down"
+            }
+        },
+        "text": {
+            "guest_network_name": {
+                "default": "mdi:wifi"
+            },
+            "guest_network_password": {
+                "default": "mdi:wifi-lock"
+            }
+        },
+        "time": {
+            "bedtime_weekday_start": {
+                "default": "mdi:bed-clock"
+            },
+            "bedtime_weekday_end": {
+                "default": "mdi:bed-clock"
+            },
+            "bedtime_weekend_start": {
+                "default": "mdi:bed-clock"
+            },
+            "bedtime_weekend_end": {
+                "default": "mdi:bed-clock"
+            }
+        }
+    },
     "services": {
         "set_blocked_apps": {
             "service": "mdi:account-cancel"
+        },
+        "create_reservation": {
+            "service": "mdi:ip-network-outline"
+        },
+        "delete_reservation": {
+            "service": "mdi:ip-network-outline"
+        },
+        "create_port_forward": {
+            "service": "mdi:router-network"
+        },
+        "delete_port_forward": {
+            "service": "mdi:router-network"
+        },
+        "set_custom_dns": {
+            "service": "mdi:dns"
         }
     }
 }

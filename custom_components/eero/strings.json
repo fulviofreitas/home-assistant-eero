@@ -3,7 +3,9 @@
         "abort": {
             "already_configured": "The desired network is already configured",
             "reauth_successful": "Re-authentication was successful",
-            "wrong_account": "The verified account is not the account this entry was set up with"
+            "reconfigure_successful": "The entry was reconfigured successfully",
+            "wrong_account": "The verified account is not the account this entry was set up with",
+            "cannot_connect": "Could not read the account's networks from the eero API. Try again later."
         },
         "error": {
             "invalid_code": "Invalid code",
@@ -15,12 +17,18 @@
                 "data": {
                     "login": "Login (email or SMS phone number)"
                 },
+                "data_description": {
+                    "login": "The email address or SMS phone number (including country code) you use to sign in to the Eero app."
+                },
                 "description": "Enter the email address or SMS phone number (including country code) associated with your account.",
                 "title": "Login to Eero account"
             },
             "verify": {
                 "data": {
                     "code": "Verification code"
+                },
+                "data_description": {
+                    "code": "The one-time code Eero texted or emailed to {login}."
                 },
                 "description": "Enter the verification code that was sent to {login}.",
                 "title": "Verify Eero account"
@@ -29,6 +37,9 @@
                 "data": {
                     "login": "Login (email or SMS phone number)"
                 },
+                "data_description": {
+                    "login": "The email address or SMS phone number (including country code) you use to sign in to the Eero app."
+                },
                 "description": "The Eero session has expired. Enter the email address or SMS phone number (including country code) associated with your account to sign in again.",
                 "title": "Reauthenticate Eero account"
             },
@@ -36,12 +47,18 @@
                 "data": {
                     "code": "Verification code"
                 },
+                "data_description": {
+                    "code": "The one-time code Eero texted or emailed to {login}."
+                },
                 "description": "Enter the verification code that was sent to {login}.",
                 "title": "Verify Eero account"
             },
             "networks": {
                 "data": {
                     "networks": "Networks"
+                },
+                "data_description": {
+                    "networks": "The Eero networks on this account to set up. Unselected networks are not added."
                 },
                 "description": "Select the desired Eero network(s).",
                 "title": "Select Eero networks"
@@ -56,6 +73,15 @@
                     "wireless_clients_filter": "Wireless clients filter behavior",
                     "backup_networks": "Backup Networks"
                 },
+                "data_description": {
+                    "eeros": "Eero hardware units to create a device and entities for.",
+                    "profiles": "Profiles to create a device and entities for.",
+                    "wired_clients": "Wired clients to create a device and entities for when the filter behavior is set to include.",
+                    "wired_clients_filter": "Include: only the selected wired clients get entities. Exclude: every wired client gets entities except the selected ones.",
+                    "wireless_clients": "Wireless clients to create a device and entities for when the filter behavior is set to include.",
+                    "wireless_clients_filter": "Include: only the selected wireless clients get entities. Exclude: every wireless client gets entities except the selected ones.",
+                    "backup_networks": "Other networks on the account eligible to back this one up over the internet."
+                },
                 "description": "Network: {network}\n\nA new device entry and all applicable entities will be created within Home Assistant for each selected resource (the behavior can be inverted for clients by changing the filter method). Individual entities can then be disabled as desired.",
                 "title": "Select network resources"
             },
@@ -66,6 +92,12 @@
                     "profiles": "Profiles",
                     "clients": "Clients"
                 },
+                "data_description": {
+                    "network": "Network-wide activity metrics to create sensors for.",
+                    "eeros": "Per-eero data usage metrics to create sensors for.",
+                    "profiles": "Per-profile activity metrics to create sensors for.",
+                    "clients": "Per-client activity metrics to create sensors for."
+                },
                 "description": "Network: {network}\n\nEach metric requires an exclusive call to the eero API and you may encounter timeout errors if selecting multiple metrics.",
                 "title": "Select activity metrics"
             },
@@ -74,6 +106,11 @@
                     "consider_home": "Consider home interval (applicable to device tracker entities only)",
                     "prefix_network_name": "Add network name as a prefix for all non-network entities",
                     "suffix_connection_type": "Add connection type (wired or wireless) as a suffix for all client devices and entities"
+                },
+                "data_description": {
+                    "consider_home": "How long a device tracker stays home after it stops reporting as connected.",
+                    "prefix_network_name": "Helps tell entities apart when more than one network is configured.",
+                    "suffix_connection_type": "Helps tell a client's wired and wireless presence apart when both exist."
                 },
                 "description": "Network: {network}",
                 "title": "Miscellaneous options"
@@ -84,7 +121,26 @@
                     "scan_interval": "Polling interval",
                     "timeout": "Polling timeout"
                 },
+                "data_description": {
+                    "save_responses": "Mainly useful for troubleshooting and bug reports; tokens and other secrets are redacted.",
+                    "scan_interval": "How often the fast-tier data (network, clients, eeros) is polled.",
+                    "timeout": "How long to wait for the eero API to respond before giving up on a request."
+                },
                 "title": "Advanced options"
+            },
+            "reconfigure": {
+                "data": {
+                    "save_responses": "Save redacted server responses to .storage/eero_responses",
+                    "scan_interval": "Polling interval",
+                    "timeout": "Polling timeout"
+                },
+                "data_description": {
+                    "save_responses": "Mainly useful for troubleshooting and bug reports; tokens and other secrets are redacted.",
+                    "scan_interval": "How often the fast-tier data (network, clients, eeros) is polled.",
+                    "timeout": "How long to wait for the eero API to respond before giving up on a request."
+                },
+                "description": "Change the polling interval, polling timeout and save-responses setting for this entry. To change which networks or resources are set up, use the Configure option instead.",
+                "title": "Reconfigure Eero"
             }
         }
     },
@@ -140,6 +196,9 @@
                 },
                 "title": "Advanced options"
             }
+        },
+        "abort": {
+            "cannot_connect": "Could not read the account's networks from the eero API. Try again later."
         }
     },
     "services": {
@@ -160,6 +219,120 @@
                     "description": "(Optional) Name(s) or ID(s) of network(s) in which desired profile(s) are located. Defaults to all networks if not specified."
                 }
             }
+        },
+        "create_reservation": {
+            "name": "Create reservation",
+            "description": "Create a DHCP reservation on a network.",
+            "fields": {
+                "target_network": {
+                    "name": "Target network(s)",
+                    "description": "(Required) Name(s) or ID(s) of network(s) to create the reservation on."
+                },
+                "ip": {
+                    "name": "IP address",
+                    "description": "(Required) The reserved IP address."
+                },
+                "mac": {
+                    "name": "MAC address",
+                    "description": "(Required) The device's MAC address."
+                },
+                "description": {
+                    "name": "Description",
+                    "description": "(Optional) A label for the reservation."
+                },
+                "public_static_ip": {
+                    "name": "Public static IP",
+                    "description": "(Optional) Whether this reservation also has a public static IP."
+                }
+            }
+        },
+        "delete_reservation": {
+            "name": "Delete reservation",
+            "description": "Delete a DHCP reservation from a network.",
+            "fields": {
+                "target_network": {
+                    "name": "Target network(s)",
+                    "description": "(Required) Name(s) or ID(s) of network(s) to delete the reservation from."
+                },
+                "reservation": {
+                    "name": "Reservation",
+                    "description": "(Required) The reservation's own ID, as reported by the eero API."
+                },
+                "delete_forwards": {
+                    "name": "Delete forwards",
+                    "description": "(Optional) Whether to also delete port forwards referencing this reservation's IP."
+                }
+            }
+        },
+        "create_port_forward": {
+            "name": "Create port forward",
+            "description": "Create a port forward on a network.",
+            "fields": {
+                "target_network": {
+                    "name": "Target network(s)",
+                    "description": "(Required) Name(s) or ID(s) of network(s) to create the forward on."
+                },
+                "ip": {
+                    "name": "IP address",
+                    "description": "(Required) The internal IP address to forward to."
+                },
+                "client_port": {
+                    "name": "Client port",
+                    "description": "(Required) The internal port to forward to."
+                },
+                "gateway_port": {
+                    "name": "Gateway port",
+                    "description": "(Required) The external port to forward from."
+                },
+                "protocol": {
+                    "name": "Protocol",
+                    "description": "(Required) The protocol, e.g. tcp or udp."
+                },
+                "description": {
+                    "name": "Description",
+                    "description": "(Optional) A label for the forward."
+                },
+                "enabled": {
+                    "name": "Enabled",
+                    "description": "(Optional) Whether the forward is active. Defaults to true."
+                }
+            }
+        },
+        "delete_port_forward": {
+            "name": "Delete port forward",
+            "description": "Delete a port forward from a network.",
+            "fields": {
+                "target_network": {
+                    "name": "Target network(s)",
+                    "description": "(Required) Name(s) or ID(s) of network(s) to delete the forward from."
+                },
+                "forward": {
+                    "name": "Forward",
+                    "description": "(Required) The forward's own ID, as reported by the eero API."
+                }
+            }
+        },
+        "set_custom_dns": {
+            "name": "Set custom DNS",
+            "description": "Set custom DNS servers for a network, or switch it back to automatic. Warning: every DNS write reboots the entire mesh a few minutes later.",
+            "fields": {
+                "target_network": {
+                    "name": "Target network(s)",
+                    "description": "(Required) Name(s) or ID(s) of network(s) to set custom DNS for."
+                },
+                "ipv4": {
+                    "name": "IPv4 servers",
+                    "description": "(Optional) IPv4 DNS server addresses. A family not supplied is left untouched."
+                },
+                "ipv6": {
+                    "name": "IPv6 servers",
+                    "description": "(Optional) IPv6 DNS server addresses. A family not supplied is left untouched."
+                },
+                "automatic": {
+                    "name": "Automatic",
+                    "description": "(Optional) Switch both families back to automatic (ISP-provided) DNS, ignoring ipv4/ipv6. Defaults to false."
+                }
+            }
         }
     },
     "selector": {
@@ -178,13 +351,21 @@
                 "inspected_month": "Scans (Month)",
                 "blocked_day": "Threat Blocks (Day)",
                 "blocked_week": "Threat Blocks (Week)",
-                "blocked_month": "Threat Blocks (Month)"
+                "blocked_month": "Threat Blocks (Month)",
+                "unprofiled_data_usage_day": "Unprofiled Data Usage Day",
+                "eeros_data_usage_summary_day": "Eeros Data Usage Summary Day",
+                "app_events": "App Events",
+                "notifications_has_unread": "Unread Notifications"
             }
         }
     },
     "entity": {
         "binary_sensor": {
-            "all": {
+            "block_apps_enabled": {
+                "name": "Block Apps"
+            },
+            "connected": {
+                "name": "Connected",
                 "state_attributes": {
                     "bandwidth_receive": {
                         "name": "Bandwidth receive"
@@ -199,6 +380,47 @@
                         "name": "Operating band"
                     }
                 }
+            },
+            "notifications_has_unread": {
+                "name": "Unread notifications"
+            }
+        },
+        "button": {
+            "port_action_disable_data": {
+                "name": "Disable port {port_number} data"
+            },
+            "port_action_disable_poe": {
+                "name": "Disable port {port_number} PoE"
+            },
+            "port_action_disable_port": {
+                "name": "Disable port {port_number}"
+            },
+            "port_action_disable_port_security": {
+                "name": "Disable port {port_number} security"
+            },
+            "port_action_enable_data": {
+                "name": "Enable port {port_number} data"
+            },
+            "port_action_enable_poe": {
+                "name": "Enable port {port_number} PoE"
+            },
+            "port_action_enable_port": {
+                "name": "Enable port {port_number}"
+            },
+            "port_action_enable_port_security": {
+                "name": "Enable port {port_number} security"
+            },
+            "port_action_restart_power": {
+                "name": "Restart port {port_number} power"
+            },
+            "reboot": {
+                "name": "Reboot"
+            },
+            "run_internet_backup_test": {
+                "name": "Run Internet Backup Test"
+            },
+            "run_speed_test": {
+                "name": "Run Speed Test"
             }
         },
         "device_tracker": {
@@ -213,8 +435,35 @@
                 }
             }
         },
+        "event": {
+            "app_events": {
+                "name": "App events"
+            }
+        },
+        "light": {
+            "status_light_enabled": {
+                "name": "Status Light"
+            }
+        },
+        "number": {
+            "nightlight_brightness_percentage": {
+                "name": "Nightlight Brightness"
+            }
+        },
         "select": {
-            "all": {
+            "mlo_mode": {
+                "name": "MLO mode"
+            },
+            "nightlight_mode": {
+                "name": "Nightlight Mode",
+                "state": {
+                    "ambient": "Ambient",
+                    "disabled": "Disabled",
+                    "schedule": "Schedule"
+                }
+            },
+            "preferred_update_hour": {
+                "name": "Preferred Update Time",
                 "state": {
                     "12am_1am": "12 AM - 1 AM",
                     "1am_2am": "1 AM - 2 AM",
@@ -239,44 +488,158 @@
                     "8pm_9pm": "8 PM - 9 PM",
                     "9pm_10pm": "9 PM - 10 PM",
                     "10pm_11pm": "10 PM - 11 PM",
-                    "11pm_12am": "11 PM - 12 AM",
-                    "ambient": "Ambient",
-                    "disabled": "Disabled",
-                    "schedule": "Schedule"
+                    "11pm_12am": "11 PM - 12 AM"
                 }
+            },
+            "profile_assignment": {
+                "name": "Profile"
             }
         },
         "sensor": {
-            "all": {
+            "ad_block_status": {
+                "name": "Ad Blocking Status",
+                "state": {
+                    "disabled": "Disabled",
+                    "network": "Network",
+                    "profile": "Profiles"
+                }
+            },
+            "adblock_day": {
+                "name": "Ad Blocks Day"
+            },
+            "adblock_month": {
+                "name": "Ad Blocks Month"
+            },
+            "adblock_week": {
+                "name": "Ad Blocks Week"
+            },
+            "blocked_day": {
+                "name": "Threat Blocks Day"
+            },
+            "blocked_month": {
+                "name": "Threat Blocks Month"
+            },
+            "blocked_week": {
+                "name": "Threat Blocks Week"
+            },
+            "connected_clients_count": {
+                "name": "Connected Clients",
+                "state_attributes": {
+                    "computers_personal": {
+                        "name": "Computers and personal"
+                    }
+                }
+            },
+            "connected_guest_clients_count": {
+                "name": "Connected Guest Clients",
+                "state_attributes": {
+                    "computers_personal": {
+                        "name": "Computers and personal"
+                    }
+                }
+            },
+            "data_usage_day": {
+                "name": "Data Usage Day"
+            },
+            "data_usage_month": {
+                "name": "Data Usage Month"
+            },
+            "data_usage_week": {
+                "name": "Data Usage Week"
+            },
+            "dns_mode": {
+                "name": "DNS mode",
+                "state": {
+                    "automatic": "Automatic",
+                    "custom": "Custom"
+                }
+            },
+            "eeros_data_usage_summary_day": {
+                "name": "Eeros data usage summary"
+            },
+            "forward_count": {
+                "name": "Port forwards"
+            },
+            "gateway_ip": {
+                "name": "Gateway IP",
+                "state_attributes": {
+                    "mac_address": {
+                        "name": "MAC address"
+                    },
+                    "name": {
+                        "name": "Name"
+                    }
+                }
+            },
+            "inspected_day": {
+                "name": "Scans Day"
+            },
+            "inspected_month": {
+                "name": "Scans Month"
+            },
+            "inspected_week": {
+                "name": "Scans Week"
+            },
+            "ip": {
+                "name": "IP Address"
+            },
+            "last_active": {
+                "name": "Last Active"
+            },
+            "port_connection_status": {
+                "name": "Port {port_number} connection status"
+            },
+            "port_negotiated_speed": {
+                "name": "Port {port_number} negotiated speed"
+            },
+            "public_ip": {
+                "name": "Public IP"
+            },
+            "reservation_count": {
+                "name": "Reservations"
+            },
+            "signal": {
+                "name": "Signal Strength"
+            },
+            "speed_down": {
+                "name": "Download Speed"
+            },
+            "speed_up": {
+                "name": "Upload Speed"
+            },
+            "status": {
+                "name": "Status",
                 "state": {
                     "blue": "Blue",
                     "connected": "Connected",
-                    "disabled": "Disabled",
                     "disconnected": "Disconnected",
                     "failure": "Failure",
                     "green": "Green",
-                    "network": "Network",
-                    "profiles": "Profiles",
                     "red": "Red",
                     "success": "Success",
                     "white": "White",
                     "yellow": "Yellow"
                 },
                 "state_attributes": {
-                    "computers_personal": {
-                        "name": "Computers and personal"
-                    },
                     "failure_reason": {
                         "state": {
                             "network_not_found": "Network not found"
                         }
-                    },
-                    "mac_address": {
-                        "name": "MAC address"
-                    },
-                    "name": {
-                        "name": "Name"
-                    },
+                    }
+                }
+            },
+            "unprofiled_data_usage_day": {
+                "name": "Unprofiled data usage"
+            },
+            "usage_down": {
+                "name": "Download Rate"
+            },
+            "usage_up": {
+                "name": "Upload Rate"
+            },
+            "wan_router_ip": {
+                "name": "WAN Router IP",
+                "state_attributes": {
                     "subnet_mask": {
                         "name": "Subnet mask"
                     }
@@ -284,7 +647,86 @@
             }
         },
         "switch": {
-            "all": {
+            "ad_block": {
+                "name": "Ad Blocking"
+            },
+            "auto_join_enabled": {
+                "name": "Auto-Join Enabled"
+            },
+            "backup_internet_enabled": {
+                "name": "Backup Internet Enabled"
+            },
+            "band_steering": {
+                "name": "Band Steering"
+            },
+            "bedtime_enabled": {
+                "name": "Bedtime"
+            },
+            "block_gaming_content": {
+                "name": "Gaming Content Filter"
+            },
+            "block_illegal_content": {
+                "name": "Illegal or Criminal Content Filter"
+            },
+            "block_malware": {
+                "name": "Advanced Security"
+            },
+            "block_messaging_content": {
+                "name": "Chat and Messaging Content Filter"
+            },
+            "block_pornographic_content": {
+                "name": "Adult Content Filter"
+            },
+            "block_shopping_content": {
+                "name": "Shopping Content Filter"
+            },
+            "block_social_content": {
+                "name": "Social Media Content Filter"
+            },
+            "block_streaming_content": {
+                "name": "Streaming Content Filter"
+            },
+            "block_violent_content": {
+                "name": "Violent Content Filter"
+            },
+            "blocked": {
+                "name": "Blocked"
+            },
+            "ddns_enabled": {
+                "name": "Dynamic DNS"
+            },
+            "dns_caching": {
+                "name": "Local DNS Caching"
+            },
+            "fast_transition_enabled": {
+                "name": "802.11r fast transition"
+            },
+            "guest_network_enabled": {
+                "name": "Guest Network"
+            },
+            "ipv6_upstream": {
+                "name": "IPv6 Enabled"
+            },
+            "pause_5g_enabled": {
+                "name": "5 GHz Band Paused"
+            },
+            "paused": {
+                "name": "Paused"
+            },
+            "power_saving_enabled": {
+                "name": "Power saving"
+            },
+            "safe_search_enabled": {
+                "name": "SafeSearch Content Filter"
+            },
+            "secondary_wan_allow_access": {
+                "name": "Allow Internet Backup"
+            },
+            "sqm": {
+                "name": "Smart Queue Management"
+            },
+            "thread_enabled": {
+                "name": "Thread Enabled",
                 "state_attributes": {
                     "thread_network_key": {
                         "name": "Thread network key"
@@ -308,7 +750,80 @@
                         "name": "Active operational dataset"
                     }
                 }
+            },
+            "upnp": {
+                "name": "UPnP"
+            },
+            "wpa3": {
+                "name": "WPA3"
+            },
+            "youtube_restricted": {
+                "name": "YouTube Restricted Content Filter"
             }
+        },
+        "text": {
+            "guest_network_name": {
+                "name": "Guest network name"
+            },
+            "guest_network_password": {
+                "name": "Guest network password"
+            }
+        },
+        "time": {
+            "bedtime_weekday_end": {
+                "name": "Bedtime weekday end"
+            },
+            "bedtime_weekday_start": {
+                "name": "Bedtime weekday start"
+            },
+            "bedtime_weekend_end": {
+                "name": "Bedtime weekend end"
+            },
+            "bedtime_weekend_start": {
+                "name": "Bedtime weekend start"
+            },
+            "nightlight_schedule_off": {
+                "name": "Nightlight Off"
+            },
+            "nightlight_schedule_on": {
+                "name": "Nightlight On"
+            }
+        },
+        "update": {
+            "firmware": {
+                "name": "Firmware"
+            }
+        }
+    },
+    "exceptions": {
+        "api_error": {
+            "message": "The eero API rejected the request: {error}"
+        },
+        "auth_failed": {
+            "message": "The eero session has expired. Sign in again from the integration page."
+        },
+        "resource_unavailable": {
+            "message": "This eero resource is no longer reported by the API."
+        },
+        "rate_limited": {
+            "message": "Rate limited by the eero API; the next poll is in {seconds} seconds."
+        },
+        "timeout": {
+            "message": "Timed out talking to the eero API."
+        }
+    },
+    "issues": {
+        "premium_required": {
+            "title": "eero Plus required for {feature}",
+            "description": "Network {network} is not entitled to {feature}: it needs an eero Plus subscription. The entities that depend on it are not created. This notice clears itself once the subscription is active."
+        },
+        "feature_unavailable": {
+            "title": "{feature} is not available",
+            "description": "Network {network} does not offer {feature} (the hardware or the account does not support it). The entities that depend on it are not created. This notice clears itself if the feature becomes available."
+        },
+        "network_unavailable": {
+            "title": "Network {network} is unavailable",
+            "description": "Network {network} is configured, but the eero API no longer finds it (it was removed from the account, or this account lost access to it). Its entities are unavailable. Remove it in the integration's options, or restore access; this notice clears itself once the network answers again."
         }
     }
 }

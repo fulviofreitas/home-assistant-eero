@@ -11,72 +11,53 @@ from homeassistant.components.update import (
     UpdateEntityDescription,
     UpdateEntityFeature,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from . import EeroEntity, EeroEntityDescription
-from .const import (
-    CONF_EEROS,
-    CONF_MISCELLANEOUS,
-    CONF_NETWORKS,
-    CONF_RESOURCES,
-    DATA_COORDINATOR,
-    DOMAIN as EERO_DOMAIN,
-    RELEASE_URL,
-)
+from .const import RELEASE_URL, TIER_DAILY
+from .coordinator import EeroConfigEntry
+from .entity import KIND_EEROS, EeroEntity, EeroEntityDescription, build_entities
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class EeroUpdateEntityDescription(EeroEntityDescription, UpdateEntityDescription):
     """Class to describe an Eero update entity."""
 
     entity_category: EntityCategory | None = EntityCategory.CONFIG
+    check_support: bool = False
+    # Firmware versions come with the eero (fast tier); the target version
+    # and release notes come with the network's updates (daily tier).
+    extra_tiers: tuple[str, ...] = (TIER_DAILY,)
 
 
 UPDATE_DESCRIPTIONS: list[EeroUpdateEntityDescription] = [
     EeroUpdateEntityDescription(
         key="firmware",
-        name="Firmware",
+        translation_key="firmware",
         device_class=UpdateDeviceClass.FIRMWARE,
         request_refresh=False,
     ),
 ]
 
 
+PARALLEL_UPDATES = 1
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: ConfigEntry,
+    config_entry: EeroConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up an Eero update entity based on a config entry."""
-    entry = hass.data[EERO_DOMAIN][config_entry.entry_id]
-    coordinator = entry[DATA_COORDINATOR]
-    entities: list[EeroUpdateEntity] = []
-
-    SUPPORTED_KEYS = {
-        description.key: description for description in UPDATE_DESCRIPTIONS
-    }
-
-    for network in coordinator.data.networks:
-        if network.id in entry[CONF_NETWORKS]:
-            for eero in network.eeros:
-                if eero.id in entry[CONF_RESOURCES][network.id][CONF_EEROS]:
-                    for description in SUPPORTED_KEYS.values():
-                        if description.premium_type and not network.premium_enabled:
-                            continue
-                        entities.append(
-                            EeroUpdateEntity(
-                                coordinator,
-                                network.id,
-                                eero.id,
-                                description,
-                                entry[CONF_MISCELLANEOUS][network.id],
-                            )
-                        )
-
-    async_add_entities(entities)
+    async_add_entities(
+        build_entities(
+            config_entry.runtime_data,
+            UPDATE_DESCRIPTIONS,
+            EeroUpdateEntity,
+            (KIND_EEROS,),
+        )
+    )
 
 
 class EeroUpdateEntity(EeroEntity, UpdateEntity):
@@ -144,11 +125,15 @@ class EeroUpdateEntity(EeroEntity, UpdateEntity):
         """
         return self.resource.target_firmware.title
 
-    def install(self, version: str | None, backup: bool, **kwargs: Any) -> None:
+    async def async_install(
+        self, version: str | None, backup: bool, **kwargs: Any
+    ) -> None:
         """Install the pending firmware.
 
         Eero updates every eero on the network at once, so version and backup
         are ignored; supported_features never offers SPECIFIC_VERSION or
-        BACKUP.
+        BACKUP. Sent to the network, not to this eero.
         """
-        self.network.install_firmware_update()
+        await self.async_write(
+            "async_install_firmware_update", resource=self.network
+        )

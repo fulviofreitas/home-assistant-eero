@@ -5,10 +5,24 @@ from __future__ import annotations
 from datetime import datetime
 import logging
 
-from .const import DEVICE_CATEGORY_TYPE_MAP, METHOD_PUT
+from eero.exceptions import EeroException
+
+from .const import DEVICE_CATEGORY_TYPE_MAP
 from .resource import EeroResource
 
 _LOGGER = logging.getLogger(__name__)
+
+#: The select option meaning "not assigned to any profile". Chosen so it
+#: cannot collide with a real eero profile name in practice; a profile
+#: actually named this would be indistinguishable from unassigned.
+UNASSIGNED_PROFILE = "Unassigned"
+
+
+def _same_client(a: EeroClient, b: EeroClient) -> bool:
+    """Whether two EeroClient views (network-level, profile-level) are the same device."""
+    if a.url and b.url and a.url == b.url:
+        return True
+    return bool(a.mac and b.mac and a.mac == b.mac)
 
 
 class EeroClient(EeroResource):
@@ -19,7 +33,7 @@ class EeroClient(EeroResource):
         """Adblock day."""
         for device in (
             self.network.data.get("activity", {})
-            .get("network", {})
+            .get("devices", {})
             .get("adblock_day", [])
         ):
             if device["insights_url"] == self.url_insights:
@@ -31,7 +45,7 @@ class EeroClient(EeroResource):
         """Adblock month."""
         for device in (
             self.network.data.get("activity", {})
-            .get("network", {})
+            .get("devices", {})
             .get("adblock_month", [])
         ):
             if device["insights_url"] == self.url_insights:
@@ -43,7 +57,7 @@ class EeroClient(EeroResource):
         """Adblock week."""
         for device in (
             self.network.data.get("activity", {})
-            .get("network", {})
+            .get("devices", {})
             .get("adblock_week", [])
         ):
             if device["insights_url"] == self.url_insights:
@@ -55,7 +69,7 @@ class EeroClient(EeroResource):
         """Blocked day."""
         for device in (
             self.network.data.get("activity", {})
-            .get("network", {})
+            .get("devices", {})
             .get("blocked_day", [])
         ):
             if device["insights_url"] == self.url_insights:
@@ -67,7 +81,7 @@ class EeroClient(EeroResource):
         """Blocked month."""
         for device in (
             self.network.data.get("activity", {})
-            .get("network", {})
+            .get("devices", {})
             .get("blocked_month", [])
         ):
             if device["insights_url"] == self.url_insights:
@@ -79,12 +93,43 @@ class EeroClient(EeroResource):
         """Blocked week."""
         for device in (
             self.network.data.get("activity", {})
-            .get("network", {})
+            .get("devices", {})
             .get("blocked_week", [])
         ):
             if device["insights_url"] == self.url_insights:
                 return device["sum"]
         return None
+
+    @property
+    def blocked(self) -> bool | None:
+        """Whether this client is on the network's block list.
+
+        Read from the daily-tier blacklist, matched by MAC: a blocked device
+        is removed from the network entirely, so the device envelope itself
+        carries no reliable flag for this (unlike paused). None until the
+        daily tier has been fetched at least once.
+        """
+        if (network := self.network) is None or "blacklist" not in network.data:
+            return None
+        mac = (self.mac or "").replace(":", "").lower()
+        for entry in network.data["blacklist"].get("data", []):
+            entry_mac = str(entry.get("mac") or entry.get("device_id") or "")
+            if entry_mac.replace(":", "").lower() == mac:
+                return True
+        return False
+
+    async def async_set_blocked(self, value: bool) -> None:
+        """Add or remove this client from the network's block list."""
+        if value:
+            await self.api.call(
+                self.api.sdk.blacklist.add_to_blacklist(self.network.id, self.mac),
+                name=f"/2.2/networks/{self.network.id}/blacklist",
+            )
+        else:
+            await self.api.call(
+                self.api.sdk.blacklist.remove_from_blacklist(self.network.id, self.mac),
+                name=f"/2.2/networks/{self.network.id}/blacklist",
+            )
 
     @property
     def channel(self) -> int | None:
@@ -277,29 +322,91 @@ class EeroClient(EeroResource):
         """Paused."""
         return self.data.get("paused")
 
-    @paused.setter
-    def paused(self, value: bool) -> None:
-        if not isinstance(value, bool):
-            return
-        self.api.call(
-            method=METHOD_PUT,
-            url=f"/2.3/networks/{self.network.id}/devices/{self.mac}",
-            json={"paused": value},
+    async def async_set_paused(self, value: bool) -> None:
+        """Pause or resume the client."""
+        await self.api.call(
+            self.api.sdk.devices.pause_device(self.network.id, self.mac, value),
+            name=f"/2.3/networks/{self.network.id}/devices",
         )
+
+    @property
+    def profile_assignment(self) -> str | None:
+        """Name of the profile this client is currently assigned to.
+
+        Resolved by scanning the network's profiles for one whose device
+        list includes this client: the device envelope itself carries no
+        reliable profile reference. UNASSIGNED_PROFILE when none does, or
+        None if the network's profiles were never fetched (no profile
+        configured on this network -- the entity is not created in that
+        case, but the property stays honest if ever called anyway).
+        """
+        if "profiles" not in self.network.data:
+            return None
+        for profile in self.network.profiles:
+            if any(_same_client(self, assigned) for assigned in profile.clients):
+                return profile.name or UNASSIGNED_PROFILE
+        return UNASSIGNED_PROFILE
+
+    @property
+    def profile_assignment_options(self) -> list[str]:
+        """Every selectable profile name, plus the unassigned sentinel."""
+        if "profiles" not in self.network.data:
+            return []
+        return [
+            UNASSIGNED_PROFILE,
+            *[profile.name for profile in self.network.profiles if profile.name],
+        ]
+
+    async def async_set_profile_assignment(self, value: str) -> None:
+        """Move this client to a different profile (or unassign it).
+
+        profiles.set_profile_devices replaces a profile's whole device
+        list, so this reads both the losing and gaining profile's current
+        list and rewrites each exactly once.
+        """
+        current = None
+        target = None
+        for profile in self.network.profiles:
+            if any(_same_client(self, assigned) for assigned in profile.clients):
+                current = profile
+            if value != UNASSIGNED_PROFILE and profile.name == value:
+                target = profile
+        for profile in (current, target):
+            if profile is not None and not isinstance(profile.data.get("devices"), list):
+                # set_profile_devices replaces the whole list: without the
+                # profile's current list, writing would drop its other clients.
+                raise EeroException(
+                    "The profile's current device list is unknown; not changing it"
+                )
+        if current is not None and current is not target:
+            urls = [
+                assigned.url
+                for assigned in current.clients
+                if not _same_client(self, assigned) and assigned.url
+            ]
+            await self.api.call(
+                self.api.sdk.profiles.set_profile_devices(self.network.id, current.id, urls),
+                name=current.url,
+            )
+        if target is not None and target is not current:
+            urls = [
+                assigned.url for assigned in target.clients if assigned.url
+            ] + ([self.url] if self.url else [])
+            await self.api.call(
+                self.api.sdk.profiles.set_profile_devices(self.network.id, target.id, urls),
+                name=target.url,
+            )
 
     @property
     def secondary_wan_allow_access(self) -> bool | None:
         """Whether this client may use the internet backup connection."""
         return not self.data.get("secondary_wan_deny_access")
 
-    @secondary_wan_allow_access.setter
-    def secondary_wan_allow_access(self, value: bool) -> None:
-        if not isinstance(value, bool):
-            return
-        self.api.call(
-            method=METHOD_PUT,
-            url=f"/2.3/networks/{self.network.id}/devices/{self.mac}",
-            json={"secondary_wan_deny_access": bool(not value)},
+    async def async_set_secondary_wan_allow_access(self, value: bool) -> None:
+        """Allow or deny this client the internet backup connection."""
+        await self.api.put(
+            f"/2.3/networks/{self.network.id}/devices/{self.mac}",
+            json={"secondary_wan_deny_access": not value},
         )
 
     @property

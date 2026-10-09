@@ -16,11 +16,21 @@ ACTIVITY_INSPECTED_DAY = "inspected_day"
 ACTIVITY_INSPECTED_WEEK = "inspected_week"
 ACTIVITY_INSPECTED_MONTH = "inspected_month"
 
+ACTIVITY_UNPROFILED_DATA_USAGE_DAY = "unprofiled_data_usage_day"
+ACTIVITY_EEROS_DATA_USAGE_SUMMARY_DAY = "eeros_data_usage_summary_day"
+
+# Neither takes a time window at all (events.get_app_events/
+# notifications.has_unread); routed around the generic family/resource
+# branching the same way as the two activities above.
+ACTIVITY_APP_EVENTS = "app_events"
+ACTIVITY_NOTIFICATIONS_UNREAD = "notifications_has_unread"
+
 API_ENDPOINT = "https://api-user.e2ro.com"
 
-CONNECT_TIMEOUT = 10
-READ_TIMEOUT = 30
-DEFAULT_REQUEST_TIMEOUT = (CONNECT_TIMEOUT, READ_TIMEOUT)
+# A single float, seconds: passed straight to asyncio.timeout() by
+# EeroHub.call(). The SDK's own per-request ClientTimeout(total=30,
+# sock_read=10) is the real floor/ceiling; this can only ever shorten it.
+DEFAULT_REQUEST_TIMEOUT = 30.0
 METHOD_DELETE = "DELETE"
 METHOD_GET = "GET"
 METHOD_POST = "POST"
@@ -145,8 +155,28 @@ REDACT_KEYS = frozenset(
 
 RESOURCE_MAP = {"clients": "devices"}
 
+#: Valid values for eeros.port_action's `action` field (eero-api's own
+#: `_PORT_ACTIONS`, duplicated here rather than importing a private name
+#: across the package boundary): used to filter a port's own `actions`
+#: list down to the ones the SDK will actually accept.
+PORT_ACTIONS = frozenset(
+    {
+        "ENABLE_DATA",
+        "DISABLE_DATA",
+        "ENABLE_POE",
+        "DISABLE_POE",
+        "ENABLE_PORT",
+        "DISABLE_PORT",
+        "RESTART_POWER",
+        "ENABLE_PORT_SECURITY",
+        "DISABLE_PORT_SECURITY",
+    }
+)
+
 STATE_ACTIVE = "active"
 STATE_AMBIENT = "ambient"
+STATE_AUTOMATIC = "automatic"
+STATE_CUSTOM = "custom"
 STATE_DISABLED = "disabled"
 STATE_ENABLED = "enabled"
 STATE_FAILURE = "failure"
@@ -203,6 +233,32 @@ ACTIVITY_MAP = {
         "{}/data_usage",
         None,
         PERIOD_WEEK,
+    ],
+    # Routed to data_usage.get_unprofiled_summary/get_eeros_summary by
+    # EeroHub.update_activity, which checks for these two activity keys
+    # before falling back to the generic family/resource branching below;
+    # the family/insight_type placeholders here are unused in that path.
+    ACTIVITY_UNPROFILED_DATA_USAGE_DAY: [
+        "{}/data_usage",
+        None,
+        PERIOD_DAY,
+    ],
+    ACTIVITY_EEROS_DATA_USAGE_SUMMARY_DAY: [
+        "{}/data_usage",
+        None,
+        PERIOD_DAY,
+    ],
+    # No time window at all; period/family placeholders unused, see
+    # EeroHub.update_activity.
+    ACTIVITY_APP_EVENTS: [
+        "{}/app_events",
+        None,
+        PERIOD_DAY,
+    ],
+    ACTIVITY_NOTIFICATIONS_UNREAD: [
+        "{}/notifications",
+        None,
+        PERIOD_DAY,
     ],
     ACTIVITY_INSPECTED_DAY: [
         "{}/insights",

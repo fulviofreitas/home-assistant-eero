@@ -1,4 +1,3 @@
-
 set_blocked_apps:
   fields:
     blocked_apps:
@@ -9,4 +8,77 @@ set_blocked_apps:
       example: John Doe or 1234567
     target_network:
       required: False
-      example: My Network or 1234567    
+      example: My Network or 1234567
+create_reservation:
+  fields:
+    target_network:
+      required: True
+      example: My Network or 1234567
+    ip:
+      required: True
+      example: 192.168.4.100
+    mac:
+      required: True
+      example: "aa:bb:cc:dd:ee:ff"
+    description:
+      required: False
+      example: Office printer
+    public_static_ip:
+      required: False
+      example: false
+delete_reservation:
+  fields:
+    target_network:
+      required: True
+      example: My Network or 1234567
+    reservation:
+      required: True
+      example: 192.168.4.100 or the reservation's own ID
+    delete_forwards:
+      required: False
+      example: false
+create_port_forward:
+  fields:
+    target_network:
+      required: True
+      example: My Network or 1234567
+    ip:
+      required: True
+      example: 192.168.4.100
+    client_port:
+      required: True
+      example: 8080
+    gateway_port:
+      required: True
+      example: 8080
+    protocol:
+      required: True
+      example: tcp
+    description:
+      required: False
+      example: Home server
+    enabled:
+      required: False
+      example: true
+delete_port_forward:
+  fields:
+    target_network:
+      required: True
+      example: My Network or 1234567
+    forward:
+      required: True
+      example: the forward's own ID
+set_custom_dns:
+  fields:
+    target_network:
+      required: True
+      example: My Network or 1234567
+    ipv4:
+      required: False
+      example: "1.1.1.1, 1.0.0.1"
+    ipv6:
+      required: False
+      example: "2606:4700:4700::1111"
+    automatic:
+      required: False
+      example: false

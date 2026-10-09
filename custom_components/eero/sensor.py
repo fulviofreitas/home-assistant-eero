@@ -6,6 +6,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -13,7 +14,6 @@ from homeassistant.components.sensor import (
     SensorEntityDescription,
     SensorStateClass,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
     UnitOfDataRate,
@@ -24,34 +24,95 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import StateType
 
-from . import EeroEntity, EeroEntityDescription
 from .api.const import (
     DEVICE_CATEGORY_COMPUTERS_PERSONAL,
     DEVICE_CATEGORY_ENTERTAINMENT,
     DEVICE_CATEGORY_HOME,
     DEVICE_CATEGORY_OTHER,
+    PERIOD_DAY,
+    STATE_AUTOMATIC,
+    STATE_CUSTOM,
     STATE_DISABLED,
     STATE_FAILURE,
     STATE_NETWORK,
     STATE_PROFILE,
 )
 from .api.util import sum_data_usage
-from .const import (
-    CONF_ACTIVITY,
-    CONF_ACTIVITY_CLIENTS,
-    CONF_ACTIVITY_EEROS,
-    CONF_ACTIVITY_NETWORK,
-    CONF_ACTIVITY_PROFILES,
-    CONF_BACKUP_NETWORKS,
-    CONF_EEROS,
-    CONF_MISCELLANEOUS,
-    CONF_NETWORKS,
-    CONF_PROFILES,
-    CONF_RESOURCES,
-    DATA_COORDINATOR,
-    DOMAIN as EERO_DOMAIN,
+from .const import TIER_DAILY, TIER_HOURLY
+from .coordinator import EeroConfigEntry
+from .entity import (
+    KIND_BACKUP_NETWORKS,
+    KIND_CLIENTS,
+    KIND_EEROS,
+    KIND_NETWORK,
+    KIND_PROFILES,
+    EeroEntity,
+    EeroEntityDescription,
+    EeroPortEntity,
+    async_setup_platform_entities,
+    async_setup_port_entities,
 )
-from .util import client_allowed, resource_supports
+from .util import resource_supports
+
+#: PhyRate enum (eero app's observed API schema) -> Mbit/s. Not documented
+#: or live-verified by eero-api itself, which has no reader for a port's
+#: speed at all.
+_PHY_RATE_MBPS = {
+    "P10": 10,
+    "P100": 100,
+    "P1000": 1000,
+    "P2500": 2500,
+    "P5000": 5000,
+    "P10000": 10000,
+    "P25000": 25000,
+}
+
+
+def _port_negotiated_speed(port: dict) -> int | None:
+    """Return a port's negotiated speed in Mbit/s, or None if unrecognised."""
+    return _PHY_RATE_MBPS.get(port.get("negotiated_speed"))
+
+
+def _port_connection_status(port: dict) -> str | None:
+    """Return a port's connection status.
+
+    PortConnectionStatus is an opaque object in the observed schema; this
+    stays defensive about it being a plain string in practice (as
+    PortConnectionPower/WirelessConnectionStatus siblings suggest for this
+    whole family) or a dict carrying the real value under "status"/"value".
+    """
+    status = port.get("connection_status")
+    if isinstance(status, dict):
+        return status.get("status") or status.get("value")
+    if isinstance(status, str):
+        return status
+    return None
+
+
+@dataclass(frozen=True, kw_only=True)
+class EeroPortSensorEntityDescription(SensorEntityDescription):
+    """Class to describe one per-port sensor field."""
+
+    value_fn: Callable[[dict], Any]
+    translation_key: str | None = None
+    entity_category: EntityCategory | None = EntityCategory.DIAGNOSTIC
+
+
+PORT_SENSOR_DESCRIPTIONS: tuple[EeroPortSensorEntityDescription, ...] = (
+    EeroPortSensorEntityDescription(
+        key="connection_status",
+        translation_key="port_connection_status",
+        value_fn=_port_connection_status,
+    ),
+    EeroPortSensorEntityDescription(
+        key="negotiated_speed",
+        translation_key="port_negotiated_speed",
+        device_class=SensorDeviceClass.DATA_RATE,
+        native_unit_of_measurement=UnitOfDataRate.MEGABITS_PER_SECOND,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=_port_negotiated_speed,
+    ),
+)
 
 DEVICE_CATEGORIES = [
     DEVICE_CATEGORY_COMPUTERS_PERSONAL,
@@ -71,117 +132,164 @@ SPEED_UNIT_MAP = {
 }
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class EeroSensorEntityDescription(EeroEntityDescription, SensorEntityDescription):
     """Class to describe an Eero sensor entity."""
 
     native_value: Callable = lambda resource, key: getattr(resource, key)
     entity_category: EntityCategory | None = EntityCategory.DIAGNOSTIC
-    activity_type: bool = False
-    wireless_only: bool = False
+    # Only set for a SensorStateClass.TOTAL sensor: the period its value
+    # resets at the start of, in the network's own timezone. A resource
+    # with a known, well-defined start (the current day) can use TOTAL
+    # instead of TOTAL_INCREASING, which has no reset point at all.
+    last_reset_period: str | None = None
 
 
 SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
     EeroSensorEntityDescription(
         key="ad_block_status",
-        name="Ad Blocking Status",
+        translation_key="ad_block_status",
         device_class=SensorDeviceClass.ENUM,
         options=[STATE_DISABLED, STATE_NETWORK, STATE_PROFILE],
         premium_type=True,
     ),
     EeroSensorEntityDescription(
         key="adblock_day",
-        name="Ad Blocks Day",
+        translation_key="adblock_day",
         native_unit_of_measurement="ads",
         state_class=SensorStateClass.TOTAL_INCREASING,
         activity_type=True,
+        tier=TIER_HOURLY,
     ),
     EeroSensorEntityDescription(
         key="adblock_week",
-        name="Ad Blocks Week",
+        translation_key="adblock_week",
         native_unit_of_measurement="ads",
         state_class=SensorStateClass.TOTAL_INCREASING,
         activity_type=True,
+        tier=TIER_HOURLY,
     ),
     EeroSensorEntityDescription(
         key="adblock_month",
-        name="Ad Blocks Month",
+        translation_key="adblock_month",
         native_unit_of_measurement="ads",
         state_class=SensorStateClass.TOTAL_INCREASING,
         activity_type=True,
+        tier=TIER_HOURLY,
     ),
     EeroSensorEntityDescription(
         key="blocked_day",
-        name="Threat Blocks Day",
+        translation_key="blocked_day",
         native_unit_of_measurement="threats",
         state_class=SensorStateClass.TOTAL_INCREASING,
         native_value=lambda resource, key: getattr(resource, key)["blocked"]
         if resource.is_network
         else getattr(resource, key),
         activity_type=True,
+        tier=TIER_HOURLY,
     ),
     EeroSensorEntityDescription(
         key="blocked_week",
-        name="Threat Blocks Week",
+        translation_key="blocked_week",
         native_unit_of_measurement="threats",
         state_class=SensorStateClass.TOTAL_INCREASING,
         native_value=lambda resource, key: getattr(resource, key)["blocked"]
         if resource.is_network
         else getattr(resource, key),
         activity_type=True,
+        tier=TIER_HOURLY,
     ),
     EeroSensorEntityDescription(
         key="blocked_month",
-        name="Threat Blocks Month",
+        translation_key="blocked_month",
         native_unit_of_measurement="threats",
         state_class=SensorStateClass.TOTAL_INCREASING,
         native_value=lambda resource, key: getattr(resource, key)["blocked"]
         if resource.is_network
         else getattr(resource, key),
         activity_type=True,
+        tier=TIER_HOURLY,
     ),
     EeroSensorEntityDescription(
         key="connected_clients_count",
-        name="Connected Clients",
+        translation_key="connected_clients_count",
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement="clients",
     ),
     EeroSensorEntityDescription(
         key="connected_guest_clients_count",
-        name="Connected Guest Clients",
+        translation_key="connected_guest_clients_count",
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement="clients",
     ),
     EeroSensorEntityDescription(
         key="data_usage_day",
-        name="Data Usage Day",
+        translation_key="data_usage_day",
         device_class=SensorDeviceClass.DATA_SIZE,
         state_class=SensorStateClass.TOTAL_INCREASING,
         native_value=sum_data_usage,
         native_unit_of_measurement=UnitOfInformation.BYTES,
         activity_type=True,
+        tier=TIER_HOURLY,
     ),
     EeroSensorEntityDescription(
         key="data_usage_week",
-        name="Data Usage Week",
+        translation_key="data_usage_week",
         device_class=SensorDeviceClass.DATA_SIZE,
         state_class=SensorStateClass.TOTAL_INCREASING,
         native_value=sum_data_usage,
         native_unit_of_measurement=UnitOfInformation.BYTES,
         activity_type=True,
+        tier=TIER_HOURLY,
+    ),
+    EeroSensorEntityDescription(
+        key="unprofiled_data_usage_day",
+        translation_key="unprofiled_data_usage_day",
+        device_class=SensorDeviceClass.DATA_SIZE,
+        state_class=SensorStateClass.TOTAL,
+        last_reset_period=PERIOD_DAY,
+        native_value=sum_data_usage,
+        native_unit_of_measurement=UnitOfInformation.BYTES,
+        activity_type=True,
+        tier=TIER_HOURLY,
+    ),
+    EeroSensorEntityDescription(
+        key="eeros_data_usage_summary_day",
+        translation_key="eeros_data_usage_summary_day",
+        device_class=SensorDeviceClass.DATA_SIZE,
+        state_class=SensorStateClass.TOTAL,
+        last_reset_period=PERIOD_DAY,
+        native_value=sum_data_usage,
+        native_unit_of_measurement=UnitOfInformation.BYTES,
+        activity_type=True,
+        tier=TIER_HOURLY,
     ),
     EeroSensorEntityDescription(
         key="data_usage_month",
-        name="Data Usage Month",
+        translation_key="data_usage_month",
         device_class=SensorDeviceClass.DATA_SIZE,
         state_class=SensorStateClass.TOTAL_INCREASING,
         native_value=sum_data_usage,
         native_unit_of_measurement=UnitOfInformation.BYTES,
         activity_type=True,
+        tier=TIER_HOURLY,
+    ),
+    EeroSensorEntityDescription(
+        key="dns_mode",
+        translation_key="dns_mode",
+        device_class=SensorDeviceClass.ENUM,
+        options=[STATE_CUSTOM, STATE_AUTOMATIC],
+    ),
+    EeroSensorEntityDescription(
+        key="forward_count",
+        translation_key="forward_count",
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement="forwards",
+        tier=TIER_DAILY,
     ),
     EeroSensorEntityDescription(
         key="gateway_ip",
-        name="Gateway IP",
+        translation_key="gateway_ip",
         extra_attrs={
             "mac_address": lambda resource: resource.gateway_mac_address,
             "name": lambda resource: resource.gateway_name,
@@ -189,41 +297,51 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
     ),
     EeroSensorEntityDescription(
         key="inspected_day",
-        name="Scans Day",
+        translation_key="inspected_day",
         native_unit_of_measurement="scans",
         state_class=SensorStateClass.TOTAL_INCREASING,
         activity_type=True,
+        tier=TIER_HOURLY,
     ),
     EeroSensorEntityDescription(
         key="inspected_week",
-        name="Scans Week",
+        translation_key="inspected_week",
         native_unit_of_measurement="scans",
         state_class=SensorStateClass.TOTAL_INCREASING,
         activity_type=True,
+        tier=TIER_HOURLY,
     ),
     EeroSensorEntityDescription(
         key="inspected_month",
-        name="Scans Month",
+        translation_key="inspected_month",
         native_unit_of_measurement="scans",
         state_class=SensorStateClass.TOTAL_INCREASING,
         activity_type=True,
+        tier=TIER_HOURLY,
     ),
     EeroSensorEntityDescription(
         key="ip",
-        name="IP Address",
+        translation_key="ip",
     ),
     EeroSensorEntityDescription(
         key="last_active",
-        name="Last Active",
+        translation_key="last_active",
         device_class=SensorDeviceClass.TIMESTAMP,
     ),
     EeroSensorEntityDescription(
         key="public_ip",
-        name="Public IP",
+        translation_key="public_ip",
+    ),
+    EeroSensorEntityDescription(
+        key="reservation_count",
+        translation_key="reservation_count",
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement="reservations",
+        tier=TIER_DAILY,
     ),
     EeroSensorEntityDescription(
         key="signal",
-        name="Signal Strength",
+        translation_key="signal",
         device_class=SensorDeviceClass.SIGNAL_STRENGTH,
         state_class=SensorStateClass.MEASUREMENT,
         native_value=lambda resource, key: getattr(resource, key)[0],
@@ -234,7 +352,7 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
     ),
     EeroSensorEntityDescription(
         key="speed_down",
-        name="Download Speed",
+        translation_key="speed_down",
         device_class=SensorDeviceClass.DATA_RATE,
         state_class=SensorStateClass.MEASUREMENT,
         native_value=lambda resource, key: getattr(resource, key)[0],
@@ -247,7 +365,7 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
     ),
     EeroSensorEntityDescription(
         key="speed_up",
-        name="Upload Speed",
+        translation_key="speed_up",
         device_class=SensorDeviceClass.DATA_RATE,
         state_class=SensorStateClass.MEASUREMENT,
         native_value=lambda resource, key: getattr(resource, key)[0],
@@ -260,25 +378,25 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
     ),
     EeroSensorEntityDescription(
         key="status",
-        name="Status",
+        translation_key="status",
     ),
     EeroSensorEntityDescription(
         key="usage_down",
-        name="Download Rate",
+        translation_key="usage_down",
         device_class=SensorDeviceClass.DATA_RATE,
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=UnitOfDataRate.MEGABITS_PER_SECOND,
     ),
     EeroSensorEntityDescription(
         key="usage_up",
-        name="Upload Rate",
+        translation_key="usage_up",
         device_class=SensorDeviceClass.DATA_RATE,
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=UnitOfDataRate.MEGABITS_PER_SECOND,
     ),
     EeroSensorEntityDescription(
         key="wan_router_ip",
-        name="WAN Router IP",
+        translation_key="wan_router_ip",
         extra_attrs={
             "subnet_mask": lambda resource: resource.wan_subnet_mask,
         },
@@ -286,131 +404,32 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
 ]
 
 
+PARALLEL_UPDATES = 0
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: ConfigEntry,
+    config_entry: EeroConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up an Eero sensor entity based on a config entry."""
-    entry = hass.data[EERO_DOMAIN][config_entry.entry_id]
-    coordinator = entry[DATA_COORDINATOR]
-    entities: list[EeroSensorEntity] = []
-
-    SUPPORTED_KEYS = {
-        description.key: description for description in SENSOR_DESCRIPTIONS
-    }
-
-    for network in coordinator.data.networks:
-        if network.id in entry[CONF_NETWORKS]:
-            activity = entry[CONF_ACTIVITY].get(network.id, {})
-            for key, description in SUPPORTED_KEYS.items():
-                if any(
-                    [
-                        description.premium_type and not network.premium_enabled,
-                        description.activity_type
-                        and key not in activity.get(CONF_ACTIVITY_NETWORK, []),
-                    ]
-                ):
-                    continue
-                if resource_supports(network, key):
-                    entities.append(
-                        EeroSensorEntity(
-                            coordinator,
-                            network.id,
-                            None,
-                            description,
-                            entry[CONF_MISCELLANEOUS][network.id],
-                        )
-                    )
-
-            for backup_network in network.backup_networks:
-                if (
-                    backup_network.id
-                    in entry[CONF_RESOURCES][network.id][CONF_BACKUP_NETWORKS]
-                ):
-                    for key, description in SUPPORTED_KEYS.items():
-                        if resource_supports(backup_network, key):
-                            entities.append(
-                                EeroSensorEntity(
-                                    coordinator,
-                                    network.id,
-                                    backup_network.id,
-                                    description,
-                                    entry[CONF_MISCELLANEOUS][network.id],
-                                )
-                            )
-
-            for eero in network.eeros:
-                if eero.id in entry[CONF_RESOURCES][network.id][CONF_EEROS]:
-                    for key, description in SUPPORTED_KEYS.items():
-                        if any(
-                            [
-                                description.premium_type
-                                and not network.premium_enabled,
-                                description.activity_type
-                                and key not in activity.get(CONF_ACTIVITY_EEROS, []),
-                            ]
-                        ):
-                            continue
-                        if resource_supports(eero, key):
-                            entities.append(
-                                EeroSensorEntity(
-                                    coordinator,
-                                    network.id,
-                                    eero.id,
-                                    description,
-                                    entry[CONF_MISCELLANEOUS][network.id],
-                                )
-                            )
-
-            for profile in network.profiles:
-                if profile.id in entry[CONF_RESOURCES][network.id][CONF_PROFILES]:
-                    for key, description in SUPPORTED_KEYS.items():
-                        if any(
-                            [
-                                description.premium_type
-                                and not network.premium_enabled,
-                                description.activity_type
-                                and key not in activity.get(CONF_ACTIVITY_PROFILES, []),
-                            ]
-                        ):
-                            continue
-                        if resource_supports(profile, key):
-                            entities.append(
-                                EeroSensorEntity(
-                                    coordinator,
-                                    network.id,
-                                    profile.id,
-                                    description,
-                                    entry[CONF_MISCELLANEOUS][network.id],
-                                )
-                            )
-
-            for client in network.clients:
-                if client_allowed(client, entry[CONF_RESOURCES][network.id]):
-                    for key, description in SUPPORTED_KEYS.items():
-                        if any(
-                            [
-                                description.premium_type
-                                and not network.premium_enabled,
-                                description.activity_type
-                                and key not in activity.get(CONF_ACTIVITY_CLIENTS, []),
-                                description.wireless_only and not client.wireless,
-                            ]
-                        ):
-                            continue
-                        if resource_supports(client, key):
-                            entities.append(
-                                EeroSensorEntity(
-                                    coordinator,
-                                    network.id,
-                                    client.id,
-                                    description,
-                                    entry[CONF_MISCELLANEOUS][network.id],
-                                )
-                            )
-
-    async_add_entities(entities)
+    async_setup_platform_entities(
+        config_entry,
+        SENSOR_DESCRIPTIONS,
+        EeroSensorEntity,
+        (KIND_NETWORK, KIND_BACKUP_NETWORKS, KIND_EEROS, KIND_PROFILES, KIND_CLIENTS),
+        async_add_entities,
+    )
+    async_setup_port_entities(
+        config_entry,
+        lambda runtime, network_id, eero_id, port: [
+            EeroPortSensorEntity(
+                runtime, network_id, eero_id, port["interface_number"], description
+            )
+            for description in PORT_SENSOR_DESCRIPTIONS
+        ],
+        async_add_entities,
+    )
 
 
 class EeroSensorEntity(EeroEntity, SensorEntity):
@@ -422,6 +441,21 @@ class EeroSensorEntity(EeroEntity, SensorEntity):
         return self.entity_description.native_value(
             self.resource, self.entity_description.key
         )
+
+    @property
+    def last_reset(self) -> datetime | None:
+        """Return when this TOTAL sensor's value last reset.
+
+        Only meaningful for a description that names its reset period: the
+        start of that period (today, midnight) in the network's own
+        timezone, the same window EeroHub.define_period(PERIOD_DAY) fetches
+        the value over.
+        """
+        if not self.entity_description.last_reset_period or self.resource is None:
+            return None
+        timezone = (self.resource.data.get("timezone") or {}).get("value") or "UTC"
+        now = datetime.now(tz=ZoneInfo(timezone))
+        return now.replace(hour=0, minute=0, second=0, microsecond=0)
 
     @property
     def native_unit_of_measurement(self) -> str | None:
@@ -445,7 +479,9 @@ class EeroSensorEntity(EeroEntity, SensorEntity):
         Implemented by platform classes. Convention for attribute names
         is lowercase snake_case.
         """
-        attrs = {}
+        attrs: dict[str, Any] = {}
+        if self.resource is None:
+            return attrs
         if self.entity_description.extra_attrs:
             for key, func in self.entity_description.extra_attrs.items():
                 attrs[key] = func(self.resource)
@@ -477,3 +513,36 @@ class EeroSensorEntity(EeroEntity, SensorEntity):
             ):
                 attrs["failure_reason"] = failure_reason.lower()
         return attrs
+
+
+class EeroPortSensorEntity(EeroPortEntity, SensorEntity):
+    """Representation of one field of one eero's port."""
+
+    entity_description: EeroPortSensorEntityDescription
+
+    def __init__(
+        self,
+        runtime,
+        network_id: str,
+        eero_id: str,
+        interface_number: int,
+        description: EeroPortSensorEntityDescription,
+    ) -> None:
+        """Initialize."""
+        super().__init__(runtime, network_id, eero_id, interface_number)
+        self.entity_description = description
+
+    @property
+    def unique_id(self) -> str:
+        """Return a unique ID."""
+        return (
+            f"{self.network_id}-{self.eero_id}-port_{self.interface_number}"
+            f"_{self.entity_description.key}"
+        )
+
+    @property
+    def native_value(self) -> StateType:
+        """Return the value reported by the sensor."""
+        if (port := self.port) is None:
+            return None
+        return self.entity_description.value_fn(port)
