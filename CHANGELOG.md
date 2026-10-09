@@ -1,5 +1,152 @@
 # Changelog
 
+## 2.0.0
+
+The integration now talks to the eero cloud through the
+[`eero-api`](https://pypi.org/project/eero-api/) package instead of the
+`requests`-based client vendored under `custom_components/eero/api`. The
+property objects the entities read (`EeroNetwork`, `EeroClient`, ...) are kept;
+underneath them the HTTP, the session refresh and the error classification are
+the SDK's. Polling is split into three tiers so that data the API only changes
+hourly or rarely is no longer fetched every poll. Entity unique IDs are
+unchanged, so entities, their history and automations carry over.
+
+### Breaking changes and requirements
+
+- Requires the `eero-api==8.0.6` package, listed in the manifest's
+  `requirements`; Home Assistant installs it. It depends on `keyring`, which
+  therefore also gets installed but is never called: the client is built with
+  `use_keyring=False` and an in-memory credential store, and the session token
+  stays in the config entry as before.
+- Minimum Home Assistant is now 2026.8.0, in `hacs.json` as well. The device
+  tracker's `BaseScannerEntity` (Home Assistant 2026.6) and passing
+  `via_device_id` to the device registry's `async_get_or_create` (accepted from
+  2026.8) have been required since 1.9.1, but `hacs.json` still said 2025.2.0.
+- All API I/O is async on Home Assistant's shared aiohttp session. No executor
+  threads are used and `requests` is no longer used.
+- The request timeout option now has a maximum of 30 seconds, because the SDK
+  caps every request at 30 seconds and offers no way to raise that. A stored
+  value above 30 is clamped when the entry is set up. The timeout is now the
+  total time allowed for each request; in 1.x it was the read timeout of each
+  request.
+
+### Polling
+
+- Data is fetched in three tiers, each its own coordinator:
+  - fast, at the polling interval option (default 300 seconds): network,
+    clients, profiles and eeros;
+  - hourly: activity sensors (insights and data usage), which the API
+    aggregates hourly, so polling them faster only returned the same numbers
+    again;
+  - daily, and right after a change made from Home Assistant that touches
+    them: Thread, backup networks and backup internet, entitlements, firmware
+    updates and release notes.
+
+  Activity sensors, and the Thread, backup network and firmware entities,
+  therefore update less often than in 1.x, where everything was re-read every
+  poll. A change made in the eero app to one of the daily items shows up in
+  Home Assistant within a day, not within one polling interval.
+- Fewer requests per poll. The account is no longer re-read every poll (it is
+  only read by the config and options flows). Eeros come embedded in the
+  network response, so a separate eeros read happens only when they are
+  missing from it. Clients and profiles are only read for networks where
+  something uses them. Release notes are only fetched when at least one eero is
+  configured (1.x fetched them for every network).
+  Measured in the test suite on an account with 3 networks and 10 profiles,
+  with clients and profiles configured and the default data-usage-week
+  activity metric: a fast poll makes 9 requests, where one 1.9.3 poll made 23.
+  Activity is read hourly and Thread, backup networks and updates daily, on
+  top of that.
+- The daily tier reads the network's entitlements and its `updates` resource,
+  which 1.x did not read separately.
+- Rate limits: each tier backs off on its own. A rate-limited poll doubles that
+  tier's interval, up to 15 minutes, and its first successful poll puts it back
+  to the normal interval. The Retry-After value is no longer shown in the
+  error, because the SDK does not expose it.
+
+### Fixes
+
+- Activity requests sent `start`, `end` and `cadence` as a JSON body on a GET,
+  which the API rejects with a 400. They are now query parameters, so activity
+  sensors that showed nothing may now report values.
+- Profile Ad Blocks, Threat Blocks and Scans sensors read the wrong
+  part of the response: they matched entries by `insights_url` in a list that
+  is not shaped that way. They now read each profile's own series. Client
+  ad-block and threat sensors now read the per-device series (`devices`)
+  instead of the network one.
+- Selecting `schedule` as the Beacon nightlight mode raised a `TypeError`: the
+  schedule setter was called without its on and off times. It now re-sends the
+  current schedule.
+
+### Writes that changed on the wire
+
+These follow the request shapes eero-api documents:
+
+- Status light on/off and brightness are form-encoded PUTs to the eero's
+  published `led_action` link, the same URL 1.x used; 1.x sent a JSON body
+  there. The form-encoded shape is the one eero-api has live-verified.
+- Guest network enable/disable is a form-encoded PUT (live-verified in
+  eero-api).
+- DNS caching is written as `{"dns": {"caching": ...}}` on the network
+  settings object; 1.x sent `{"caching": ...}` to `/networks/{id}/dns`. Every
+  DNS write makes the eero cloud reboot all eeros on the network a few minutes
+  later, so expect a short outage after toggling it.
+- Nightlight writes go to the nightlight URL the eero publishes in its own
+  data, instead of a hard-coded `/2.2/eeros/{id}/nightlight/settings`. eero-api
+  marks this write as not yet confirmed against a live network.
+
+Kept exactly as 1.x sent them, on purpose, through the SDK's raw request verbs
+because the SDK has no method for them or its method sends something
+different: profile content filters, ad blocking (network and profile),
+Advanced Security malware blocking, 5 GHz pause, preferred update hour, client
+internet-backup access, IPv6 upstream (the SDK's `set_ipv6` would also change
+downstream), SQM (the SDK's `set_sqm` sends the value as a query parameter,
+which eero-api has not verified) and the Thread enable path. Band steering,
+UPnP, WPA3 and DDNS go through the SDK's methods, which send the same requests
+1.x did, to the links the network publishes.
+
+### Behaviour
+
+- Read-compare-skip: a switch, select, time, number or light set to the state
+  it already reports sends nothing. Some of these writes reboot every eero on
+  the network; repeating one that changes nothing is never free.
+- Premium entities are gated on the network's entitlements (a non-empty feature
+  list), with `premium_status` as the fallback when entitlements cannot be
+  read. A feature the account is not entitled to, or the network lacks, raises
+  a Repairs issue instead of failing the poll; the issue clears itself when the
+  feature becomes available and is removed when the entry is unloaded.
+- An entity action that fails (switch, button, light, number, select, time,
+  update), or the `eero.set_blocked_apps` action, raises a readable,
+  translated error in the UI instead of an unhandled exception. An expired
+  session during one of those actions starts reauthentication. Failed polls
+  are reported with translated messages too.
+- Session handling: the SDK refreshes the session only when the API answers
+  `error.session.refresh`. An invalid or expired session goes straight to
+  reauthentication; 1.x attempted one refresh first. The SDK never rotates the
+  token; the integration still writes a changed token back to the config entry
+  without reloading it.
+- `eero.set_blocked_apps` is registered once at startup, whether or not any
+  profile is configured, and applies to the configured profiles of every
+  loaded eero entry (filtered by `target_network` and `target_profile`).
+- Config flow: a new `cannot_connect` abort when the account's networks
+  cannot be read after login, in both the config and the options flow. The
+  options flow aborts with `not_loaded` when the entry is not loaded.
+
+### Since 1.9.3, also in this release
+
+- Config entry diagnostics: the API payload, with tokens, secrets and contact
+  details redacted.
+- Rate-limit backoff: a 429 doubles the polling interval, up to 15 minutes,
+  and the next successful poll restores the configured interval. Before, every
+  poll hit the limit again at the normal cadence. (In 2.0.0 this applies per
+  tier, see Polling.)
+- The manifest's `codeowners`, `documentation` and `issue_tracker` point at
+  this fork instead of upstream.
+- CI and release workflows: lint, hassfest, HACS validation, tests and type
+  checks run on every push and pull request, and a `v*` tag builds `eero.zip`
+  and attaches it to the GitHub release, which HACS installs (`zip_release` in
+  `hacs.json`).
+
 ## 1.9.3
 
 - The config and options flows always offer the Advanced options step (polling interval, timeout, save responses; all with defaults). It used to appear only when the Home Assistant user had "advanced mode" on, through `show_advanced_options`, which HA deprecated and removes in 2027.6.

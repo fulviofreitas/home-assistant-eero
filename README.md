@@ -21,7 +21,7 @@ Custom component to allow control of Eero networks in [Home Assistant](https://h
 - [@jrlucier's eero_tracker project](https://github.com/jrlucier/eero_tracker) - Initial Home Assistant idea
 
 ## Install
-1. Ensure Home Assistant is updated to version 2025.2.0 or newer.
+1. Ensure Home Assistant is updated to version 2026.8.0 or newer.
 2. Use HACS and add as a [custom repo](https://hacs.xyz/docs/faq/custom_repositories); or download and manually move to the `custom_components` folder.
 3. Once the integration is installed follow the standard process to setup via UI and search for `eero`.
 4. Follow the prompts.
@@ -33,7 +33,9 @@ Custom component to allow control of Eero networks in [Home Assistant](https://h
 
 ## Notes
 - This integration does not support login via Amazon account. A workaround is to create a new account without Amazon login and add that account as another network admin. Refer to this [post](https://github.com/schmittx/home-assistant-eero/issues/77#issuecomment-1960875926) for step-by-step instructions.
-- The integration is moving to the [`eero-api`](https://pypi.org/project/eero-api/) package on PyPI (import name `eero`) as its API client. That package depends on `keyring`, so installing it also installs `keyring`. The integration creates the client with `use_keyring=False`, so no keyring function is ever called and the session token stays in the config entry as before. On Home Assistant the `keyring` package installs and goes unused.
+- Since 2.0.0 the integration uses the [`eero-api`](https://pypi.org/project/eero-api/) package on PyPI (import name `eero`) as its API client; Home Assistant installs it from the manifest requirements. All API calls are async on Home Assistant's shared HTTP session. That package depends on `keyring`, so installing it also installs `keyring`. The integration creates the client with `use_keyring=False` and an in-memory credential store, so no keyring function is ever called and the session token stays in the config entry as before. On Home Assistant the `keyring` package installs and goes unused.
+- Data is polled in three tiers. Network, clients, profiles and eeros follow the polling interval option (default 300 seconds). Activity sensors (insights and data usage) refresh hourly, because the API aggregates them hourly. Thread, backup networks and backup internet, entitlements, and firmware updates with their release notes refresh daily, and right after a change made from Home Assistant that touches them.
+- A feature the account is not entitled to, or the network does not offer, raises a Repairs issue rather than failing the poll; the issue clears itself once the feature becomes available.
 
 ## Currently Working
 - Multiple networks supported
@@ -44,10 +46,10 @@ Custom component to allow control of Eero networks in [Home Assistant](https://h
 - Sensors for various metrics
 - Button entities to control features that require network restarts
 - Select and time entities to control nightlight features for Eero Beacon devices
-- Sensors for activity data (requires Eero Plus subscription)
+- Sensors for activity data, refreshed hourly (requires Eero Plus subscription)
 - Set blocked apps for profiles (requires Eero Plus subscription)
-- Update entities for Eero device firmware management
-- Control backup networks (requires Eero Plus subscription)
+- Update entities for Eero device firmware management (firmware data refreshed daily)
+- Control backup networks (requires Eero Plus subscription; refreshed daily)
 
 ## Coming Soon
 - TBD, feature requests are welcome.
