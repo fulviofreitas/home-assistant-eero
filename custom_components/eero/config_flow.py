@@ -1,12 +1,21 @@
 """Adds config flow for Eero integration."""
 
-import logging
-from collections.abc import Mapping
-from datetime import timedelta
-from typing import Any
+from __future__ import annotations
 
-import voluptuous as vol
+import logging
+from collections.abc import Iterable, Mapping
+from datetime import timedelta
+from typing import TYPE_CHECKING, Any, cast
+
+if TYPE_CHECKING:
+    # Home Assistant 2026.10 validates with probatio and aliases voluptuous to
+    # it at runtime; before that it is voluptuous itself. Only the type checker
+    # needs to be told which one the schemas below are.
+    import probatio as vol
+else:
+    import voluptuous as vol
 from homeassistant import config_entries
+from homeassistant.config_entries import ConfigEntry, ConfigFlowResult
 from homeassistant.const import CONF_NAME, CONF_SCAN_INTERVAL, UnitOfTime
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -22,7 +31,7 @@ from homeassistant.helpers.selector import (
     TextSelectorType,
 )
 
-from .api import EeroException, EeroHub
+from .api import EeroAccount, EeroException, EeroHub
 from .const import (
     ACTIVITIES_DATA_USAGE_DEFAULT,
     ACTIVITIES_DATA_USAGE_PREMIUM,
@@ -75,28 +84,40 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
+def _labels(values: Iterable[str | None]) -> list[str]:
+    """Return display names as the str list a selector wants.
+
+    Typing only: the values pass through unchanged.
+    """
+    return cast("list[str]", list(values))
+
+
 class EeroConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Eero integration."""
 
     VERSION = 3
     MINOR_VERSION = 0
 
+    # Set by the user and reauth steps before any later step reads them.
+    api: EeroHub
+    response: EeroAccount
+
     def __init__(self) -> None:
         """Initialize."""
-        self.api = None
         self.index = 0
-        self.response = None
-        self.user_input = {}
-        self.reauth_login = None
+        self.user_input: dict[str, Any] = {}
+        self.reauth_login: str | None = None
 
     @property
     def config_title(self) -> str:
         """Return the config title."""
         return f"{self.user_input[CONF_NAME]} ({self.user_input[CONF_LOGIN]})"
 
-    async def async_step_user(self, user_input=None):
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Async step user."""
-        errors = {}
+        errors: dict[str, str] = {}
 
         if user_input:
             self.api = EeroHub(session=async_get_clientsession(self.hass))
@@ -126,9 +147,11 @@ class EeroConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    async def async_step_verify(self, user_input=None):
+    async def async_step_verify(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Async step verify."""
-        errors = {}
+        errors: dict[str, str] = {}
 
         if user_input:
             try:
@@ -169,7 +192,9 @@ class EeroConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    async def async_step_networks(self, user_input=None):
+    async def async_step_networks(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Async step networks."""
         if user_input is not None:
             self.user_input[CONF_NETWORKS] = [
@@ -179,7 +204,7 @@ class EeroConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             ]
             return await self.async_step_resources()
 
-        network_names = [network.name_unique for network in self.response.networks]
+        network_names = _labels(network.name_unique for network in self.response.networks)
 
         return self.async_show_form(
             step_id="networks",
@@ -197,7 +222,9 @@ class EeroConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             ),
         )
 
-    async def async_step_resources(self, user_input=None):
+    async def async_step_resources(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Async step resources."""
         if user_input is not None:
             target_network = self.user_input[CONF_NETWORKS][self.index]
@@ -248,14 +275,14 @@ class EeroConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         target_network = self.user_input[CONF_NETWORKS][self.index]
         for network in self.response.networks:
             if network.id == target_network:
-                eero_names = [eero.name for eero in network.eeros]
-                profile_names = [profile.name for profile in network.profiles]
-                wired_client_names = [
+                eero_names = _labels(eero.name for eero in network.eeros)
+                profile_names = _labels(profile.name for profile in network.profiles)
+                wired_client_names = _labels(
                     client.name_mac for client in network.clients if not client.wireless
-                ]
-                wireless_client_names = [
+                )
+                wireless_client_names = _labels(
                     client.name_mac for client in network.clients if client.wireless
-                ]
+                )
                 schema = {
                     vol.Optional(CONF_EEROS, default=eero_names): SelectSelector(
                         SelectSelectorConfig(
@@ -308,10 +335,10 @@ class EeroConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     ),
                 }
                 if network.premium_enabled:
-                    backup_network_names = [
+                    backup_network_names = _labels(
                         backup_network.name
                         for backup_network in network.backup_networks
-                    ]
+                    )
                     schema[
                         vol.Optional(CONF_BACKUP_NETWORKS, default=backup_network_names)
                     ] = SelectSelector(
@@ -326,11 +353,13 @@ class EeroConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return self.async_show_form(
                     step_id="resources",
                     data_schema=vol.Schema(schema),
-                    description_placeholders={"network": network.name_unique},
+                    description_placeholders={"network": str(network.name_unique)},
                 )
-        return None
+        return self.async_abort(reason="cannot_connect")
 
-    async def async_step_activity(self, user_input=None):
+    async def async_step_activity(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Async step activity."""
         if user_input is not None:
             target_network = self.user_input[CONF_NETWORKS][self.index]
@@ -420,11 +449,13 @@ class EeroConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return self.async_show_form(
                     step_id="activity",
                     data_schema=vol.Schema(data_schema),
-                    description_placeholders={"network": network.name_unique},
+                    description_placeholders={"network": str(network.name_unique)},
                 )
-        return None
+        return self.async_abort(reason="cannot_connect")
 
-    async def async_step_miscellaneous(self, user_input=None):
+    async def async_step_miscellaneous(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Async step miscellaneous."""
         if user_input is not None:
             target_network = self.user_input[CONF_NETWORKS][self.index]
@@ -475,13 +506,15 @@ class EeroConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             ): BooleanSelector(),
                         }
                     ),
-                    description_placeholders={"network": network.name_unique},
+                    description_placeholders={"network": str(network.name_unique)},
                 )
-        return None
+        return self.async_abort(reason="cannot_connect")
 
-    async def async_step_advanced(self, user_input=None):
+    async def async_step_advanced(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Handle a flow initialized by the user."""
-        errors = {}
+        errors: dict[str, str] = {}
 
         if user_input:
             conf_scan_interval = user_input[CONF_SCAN_INTERVAL]
@@ -531,7 +564,9 @@ class EeroConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    async def async_step_reconfigure(self, user_input=None):
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Let the user change polling interval, timeout and save-responses.
 
         These are the Advanced step's values. Options take precedence over
@@ -540,7 +575,7 @@ class EeroConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         here ensures the new values actually take effect regardless of
         whether that override exists.
         """
-        errors = {}
+        errors: dict[str, str] = {}
         reconfigure_entry = self._get_reconfigure_entry()
         data = reconfigure_entry.data
         options = reconfigure_entry.options
@@ -613,14 +648,18 @@ class EeroConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    async def async_step_reauth(self, entry_data: Mapping[str, Any]):
+    async def async_step_reauth(
+        self, entry_data: Mapping[str, Any]
+    ) -> ConfigFlowResult:
         """Handle re-authentication when the Eero session can no longer be refreshed."""
         self.reauth_login = entry_data.get(CONF_LOGIN)
         return await self.async_step_reauth_confirm()
 
-    async def async_step_reauth_confirm(self, user_input=None):
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Request a new verification code for the configured account."""
-        errors = {}
+        errors: dict[str, str] = {}
 
         if user_input:
             self.api = EeroHub(session=async_get_clientsession(self.hass))
@@ -649,9 +688,11 @@ class EeroConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    async def async_step_reauth_verify(self, user_input=None):
+    async def async_step_reauth_verify(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Verify the code and write the new session token to the config entry."""
-        errors = {}
+        errors: dict[str, str] = {}
 
         if user_input:
             try:
@@ -692,13 +733,13 @@ class EeroConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     ),
                 }
             ),
-            description_placeholders={"login": self.reauth_login},
+            description_placeholders={"login": str(self.reauth_login)},
             errors=errors,
         )
 
     @staticmethod
     @callback
-    def async_get_options_flow(config_entry):
+    def async_get_options_flow(config_entry: ConfigEntry) -> EeroOptionsFlowHandler:
         """Eero options callback."""
         return EeroOptionsFlowHandler()
 
@@ -706,24 +747,28 @@ class EeroConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 class EeroOptionsFlowHandler(config_entries.OptionsFlow):
     """Config flow options for Eero."""
 
+    # Set by the init step before any later step reads them.
+    api: EeroHub
+    response: EeroAccount
+
     def __init__(self) -> None:
         """Initialize Eero options flow."""
-        self.api = None
         self.index = 0
-        self.response = None
-        self.user_input = {}
+        self.user_input: dict[str, Any] = {}
 
     @property
-    def data(self) -> dict[str, Any]:
+    def data(self) -> Mapping[str, Any]:
         """Return the data from a config entry."""
         return self.config_entry.data
 
     @property
-    def options(self) -> dict[str, Any]:
+    def options(self) -> Mapping[str, Any]:
         """Return the options from a config entry."""
         return self.config_entry.options
 
-    async def async_step_init(self, user_input=None):
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Manage the options."""
         try:
             if self.config_entry.state is config_entries.ConfigEntryState.LOADED:
@@ -742,7 +787,9 @@ class EeroOptionsFlowHandler(config_entries.OptionsFlow):
             return self.async_abort(reason="cannot_connect")
         return await self.async_step_networks()
 
-    async def async_step_networks(self, user_input=None):
+    async def async_step_networks(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Handle a flow initialized by the user."""
         if user_input is not None:
             self.user_input[CONF_NETWORKS] = [
@@ -757,7 +804,7 @@ class EeroOptionsFlowHandler(config_entries.OptionsFlow):
             for network in self.response.networks
             if network.id in self.options.get(CONF_NETWORKS, self.data[CONF_NETWORKS])
         ]
-        network_names = [network.name_unique for network in self.response.networks]
+        network_names = _labels(network.name_unique for network in self.response.networks)
 
         return self.async_show_form(
             step_id="networks",
@@ -775,7 +822,9 @@ class EeroOptionsFlowHandler(config_entries.OptionsFlow):
             ),
         )
 
-    async def async_step_resources(self, user_input=None):
+    async def async_step_resources(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Handle a flow initialized by the user."""
         if user_input is not None:
             target_network = self.user_input[CONF_NETWORKS][self.index]
@@ -835,23 +884,23 @@ class EeroOptionsFlowHandler(config_entries.OptionsFlow):
                     for eero in network.eeros
                     if eero.id in conf_resources.get(CONF_EEROS, [])
                 ]
-                eero_names = [eero.name for eero in network.eeros]
+                eero_names = _labels(eero.name for eero in network.eeros)
 
                 conf_profiles = [
                     profile.name
                     for profile in network.profiles
                     if profile.id in conf_resources.get(CONF_PROFILES, [])
                 ]
-                profile_names = [profile.name for profile in network.profiles]
+                profile_names = _labels(profile.name for profile in network.profiles)
 
                 conf_wired_clients = [
                     client.name_mac
                     for client in network.clients
                     if client.id in conf_resources.get(CONF_WIRED_CLIENTS, [])
                 ]
-                wired_client_names = [
+                wired_client_names = _labels(
                     client.name_mac for client in network.clients if not client.wireless
-                ]
+                )
 
                 conf_wired_clients_filter = conf_resources.get(
                     CONF_WIRED_CLIENTS_FILTER, DEFAULT_WIRED_CLIENTS_FILTER
@@ -862,9 +911,9 @@ class EeroOptionsFlowHandler(config_entries.OptionsFlow):
                     for client in network.clients
                     if client.id in conf_resources.get(CONF_WIRELESS_CLIENTS, [])
                 ]
-                wireless_client_names = [
+                wireless_client_names = _labels(
                     client.name_mac for client in network.clients if client.wireless
-                ]
+                )
 
                 conf_wireless_clients_filter = conf_resources.get(
                     CONF_WIRELESS_CLIENTS_FILTER, DEFAULT_WIRELESS_CLIENTS_FILTER
@@ -932,10 +981,10 @@ class EeroOptionsFlowHandler(config_entries.OptionsFlow):
                         if backup_network.id
                         in conf_resources.get(CONF_BACKUP_NETWORKS, [])
                     ]
-                    backup_network_names = [
+                    backup_network_names = _labels(
                         backup_network.name
                         for backup_network in network.backup_networks
-                    ]
+                    )
                     schema[
                         vol.Optional(CONF_BACKUP_NETWORKS, default=conf_backup_networks)
                     ] = SelectSelector(
@@ -950,11 +999,13 @@ class EeroOptionsFlowHandler(config_entries.OptionsFlow):
                 return self.async_show_form(
                     step_id="resources",
                     data_schema=vol.Schema(schema),
-                    description_placeholders={"network": network.name_unique},
+                    description_placeholders={"network": str(network.name_unique)},
                 )
-        return None
+        return self.async_abort(reason="cannot_connect")
 
-    async def async_step_activity(self, user_input=None):
+    async def async_step_activity(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Async step activity."""
         if user_input is not None:
             target_network = self.user_input[CONF_NETWORKS][self.index]
@@ -1059,11 +1110,13 @@ class EeroOptionsFlowHandler(config_entries.OptionsFlow):
                 return self.async_show_form(
                     step_id="activity",
                     data_schema=vol.Schema(data_schema),
-                    description_placeholders={"network": network.name_unique},
+                    description_placeholders={"network": str(network.name_unique)},
                 )
-        return None
+        return self.async_abort(reason="cannot_connect")
 
-    async def async_step_miscellaneous(self, user_input=None):
+    async def async_step_miscellaneous(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Async step miscellaneous."""
         if user_input is not None:
             target_network = self.user_input[CONF_NETWORKS][self.index]
@@ -1128,13 +1181,15 @@ class EeroOptionsFlowHandler(config_entries.OptionsFlow):
                             ): BooleanSelector(),
                         }
                     ),
-                    description_placeholders={"network": network.name_unique},
+                    description_placeholders={"network": str(network.name_unique)},
                 )
-        return None
+        return self.async_abort(reason="cannot_connect")
 
-    async def async_step_advanced(self, user_input=None):
+    async def async_step_advanced(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Handle a flow initialized by the user."""
-        errors = {}
+        errors: dict[str, str] = {}
 
         if user_input:
             conf_scan_interval = user_input[CONF_SCAN_INTERVAL]
