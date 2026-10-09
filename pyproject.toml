@@ -43,32 +43,11 @@ ignore = [
 # with BaseScannerEntity, which the 3.13 job's requirements_test.txt does
 # not install.
 python_version = "3.14"
-ignore_missing_imports = true
-check_untyped_defs = false
-disallow_untyped_defs = false
-warn_unused_ignores = false
-# The entity/description layer leans on dynamic attribute access and
-# frozen-dataclass inheritance patterns that mypy's strict optional/attr
-# checks don't model well without touching custom_components/eero (out of
-# scope for this housekeeping pass). Disabled codes below all have current
-# occurrences logged verbatim in the housekeeping report for the
-# coordinator to fix; re-enable as those are addressed.
-disable_error_code = [
-    "union-attr",
-    "attr-defined",
-    "misc",
-    "override",
-    "arg-type",
-    "call-overload",
-    "var-annotated",
-    "return-value",
-    "index",
-    "operator",
-    "no-redef",
-    "assignment",
-    "typeddict-unknown-key",
-    "call-arg",
-]
+strict = true
+# custom_components/ has no __init__.py, so without these mypy would name the
+# integration package plain "eero" and shadow the eero-api SDK of the same name.
+explicit_package_bases = true
+mypy_path = "$MYPY_CONFIG_FILE_DIR"
 
 [[tool.mypy.overrides]]
 module = "tests.*"

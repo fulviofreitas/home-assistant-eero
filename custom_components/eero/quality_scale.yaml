@@ -252,4 +252,8 @@ rules:
       EeroHub hands Home Assistant's shared session
       (async_get_clientsession) to the SDK.
   strict-typing:
-    status: todo
+    status: done
+    comment: >-
+      custom_components/eero passes mypy in strict mode with no disabled error
+      codes (see [tool.mypy] in pyproject.toml), checked in CI on the
+      Home Assistant version in requirements_test_ha.txt.
