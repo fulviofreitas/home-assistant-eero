@@ -667,7 +667,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: EeroConfigEntry) 
                                     device_entry.model == MODEL_NETWORK
                                     and unique_id[-1]
                                     not in activity.get(CONF_ACTIVITY_NETWORK, []),
-                                    MANUFACTURER in device_entry.model
+                                    MANUFACTURER in (device_entry.model or "")
                                     and unique_id[-1]
                                     not in activity.get(CONF_ACTIVITY_EEROS, []),
                                     device_entry.model == MODEL_PROFILE
