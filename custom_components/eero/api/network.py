@@ -627,6 +627,23 @@ class EeroNetwork(EeroResource):
         return self.data.get("updates", {}).get("release_notes") or {}
 
     @property
+    def fast_transition_enabled(self) -> bool | None:
+        """802.11r fast transition enabled.
+
+        From a dedicated daily-tier read (security.get_fast_transition,
+        the SDK's own "verified read"): not part of the base network
+        envelope the way wpa3/upnp/band_steering are.
+        """
+        return self.data.get("fast_transition_enabled")
+
+    async def async_set_fast_transition_enabled(self, value: bool) -> None:
+        """Set 802.11r fast transition. Unconfirmed write: may reboot every eero."""
+        await self.api.call(
+            self.api.sdk.security.set_fast_transition(self.id, value, parent=self.data),
+            name=f"{self.url}/fast_transition",
+        )
+
+    @property
     def firmware_history(self) -> list[EeroFirmware]:
         """Firmware history."""
         return [
@@ -823,6 +840,25 @@ class EeroNetwork(EeroResource):
     def postal_code(self) -> str | None:
         """Postal code."""
         return self.data.get("geo_ip", {}).get("postalCode")
+
+    @property
+    def power_saving_enabled(self) -> bool | None:
+        """Power saving enabled.
+
+        Already published on the network envelope (set_power_saving's own
+        docstring points at "the network envelope's power_saving fields");
+        no extra request.
+        """
+        return self.data.get("power_saving", {}).get("enable")
+
+    async def async_set_power_saving_enabled(self, value: bool) -> None:
+        """Turn network-wide power saving on or off. Unconfirmed write."""
+        await self.api.call(
+            self.api.sdk.power_saving.set_power_saving(
+                self.id, enable=value, parent=self.data
+            ),
+            name=f"{self.url}/power_saving",
+        )
 
     @property
     def preferred_update_hour(self) -> str | None:

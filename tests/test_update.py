@@ -22,6 +22,7 @@ def full_sdk(network: dict | None = None, devices: list | None = None) -> FakeSD
             "updates.get_updates": {},
             "reservations.get_reservations": [],
             "forwards.get_forwards": [],
+            "security.get_fast_transition": {"fast_transition": False},
         }
     )
 
@@ -74,6 +75,7 @@ async def test_blacklist_fetched_only_when_configured_and_matched_by_mac() -> No
             "updates.get_updates": {},
             "reservations.get_reservations": [],
             "forwards.get_forwards": [],
+            "security.get_fast_transition": {"fast_transition": False},
             "blacklist.get_blacklist": [{"mac": "AA:BB:CC:DD:EE:FF"}],
         }
     )
@@ -112,6 +114,7 @@ async def test_schedules_fetched_only_when_profiles_configured_and_parsed_by_nam
             "updates.get_updates": {},
             "reservations.get_reservations": [],
             "forwards.get_forwards": [],
+            "security.get_fast_transition": {"fast_transition": False},
             "schedule.get_schedules": [
                 {
                     "name": "Bedtime",
@@ -256,6 +259,7 @@ async def test_reservations_and_forwards_counted_in_the_daily_tier() -> None:
                 {"ip": "192.168.4.100", "client_port": 8080},
                 {"ip": "192.168.4.101", "client_port": 9090},
             ],
+            "security.get_fast_transition": {"fast_transition": False},
         }
     )
     hub = build_hub(sdk=sdk)
@@ -282,6 +286,7 @@ async def test_network_without_a_thread_resource() -> None:
             "updates.get_updates": {},
             "reservations.get_reservations": [],
             "forwards.get_forwards": [],
+            "security.get_fast_transition": {"fast_transition": False},
         }
     )
     hub = build_hub(sdk=sdk)
@@ -312,6 +317,7 @@ async def test_network_missing_capabilities_updates_and_timezone() -> None:
             "updates.get_updates": {},
             "reservations.get_reservations": [],
             "forwards.get_forwards": [],
+            "security.get_fast_transition": {"fast_transition": False},
         }
     )
     hub = build_hub(sdk=sdk)

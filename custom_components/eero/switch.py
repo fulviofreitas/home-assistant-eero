@@ -133,6 +133,14 @@ SWITCH_DESCRIPTIONS: list[EeroSwitchEntityDescription] = [
         request_refresh=False,
     ),
     EeroSwitchEntityDescription(
+        key="fast_transition_enabled",
+        translation_key="fast_transition_enabled",
+        tier=TIER_DAILY,
+        # Unconfirmed write: may reboot every eero, like the confirmed DNS
+        # write path.
+        request_refresh=False,
+    ),
+    EeroSwitchEntityDescription(
         key="guest_network_enabled",
         name="Guest Network",
         extra_attrs={
@@ -155,6 +163,13 @@ SWITCH_DESCRIPTIONS: list[EeroSwitchEntityDescription] = [
     EeroSwitchEntityDescription(
         key="paused",
         name="Paused",
+    ),
+    EeroSwitchEntityDescription(
+        key="power_saving_enabled",
+        translation_key="power_saving_enabled",
+        # Unconfirmed write: may reboot every eero, like the confirmed DNS
+        # write path.
+        request_refresh=False,
     ),
     EeroSwitchEntityDescription(
         key="safe_search_enabled",

@@ -233,6 +233,23 @@ UPnP, WPA3 and DDNS go through the SDK's methods, which send the same requests
   `dns.get_dns_settings` read only when those are absent.
   `create_reservation`/`create_port_forward` also skip creating an exact
   duplicate of an entry the daily-tier read already reports.
+- `switch.<network>_power_saving` (no extra request: `set_power_saving`'s
+  own docstring points at the network envelope's `power_saving` fields)
+  and `switch.<network>_fast_transition` (a new daily-tier read via
+  `security.get_fast_transition`, the SDK's own "verified read"; the
+  write is not request-refreshed, like the confirmed DNS write path, in
+  case it is equally disruptive). Both writes
+  (`power_saving.set_power_saving`/`security.set_fast_transition`) are
+  unconfirmed against a live network by the SDK.
+  **Gap:** MLO mode and Passpoint (`security.set_mlo_mode`/
+  `set_passpoint_enabled`) are not implemented this phase. Neither has an
+  SDK read method, and whether either field is already present on the
+  base network envelope (the way wpa3/upnp/band_steering are) is not
+  confirmed either; shipping a switch with no reliable state would always
+  write and never skip a redundant one, which the project's own
+  read-compare-skip discipline treats as mandatory for exactly this kind
+  of settings write. Revisit once either is confirmed against a live
+  network or the SDK adds a reader.
 
 ### Since 1.9.3, also in this release
 

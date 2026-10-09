@@ -400,6 +400,27 @@ SETTER_CASES = [
         ),
     ),
     _case(
+        "network.fast_transition_enabled",
+        {"security.set_fast_transition": {}},
+        lambda hub: make_network(hub).async_set_fast_transition_enabled(True),
+        lambda sdk: any(
+            d == "security" and m == "set_fast_transition" and a[:2] == (NETWORK_ID, True)
+            for d, m, a, _kw in sdk.calls
+        ),
+    ),
+    _case(
+        "network.power_saving_enabled",
+        {"power_saving.set_power_saving": {}},
+        lambda hub: make_network(hub).async_set_power_saving_enabled(True),
+        lambda sdk: any(
+            d == "power_saving"
+            and m == "set_power_saving"
+            and a[:1] == (NETWORK_ID,)
+            and kw.get("enable") is True
+            for d, m, a, kw in sdk.calls
+        ),
+    ),
+    _case(
         "network.thread_enabled",
         {"PUT /2.2/networks/1234567/thread/enable": {}},
         lambda hub: make_network(hub).async_set_thread_enabled(True),

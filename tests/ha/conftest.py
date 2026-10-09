@@ -69,6 +69,7 @@ def default_routes() -> dict:
         "updates.get_updates": {},
         "reservations.get_reservations": [],
         "forwards.get_forwards": [],
+        "security.get_fast_transition": {"fast_transition": False},
     }
 
 

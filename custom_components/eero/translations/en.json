@@ -458,6 +458,12 @@
             },
             "bedtime_enabled": {
                 "name": "Bedtime"
+            },
+            "fast_transition_enabled": {
+                "name": "802.11r fast transition"
+            },
+            "power_saving_enabled": {
+                "name": "Power saving"
             }
         },
         "time": {

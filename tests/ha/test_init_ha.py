@@ -164,6 +164,63 @@ async def test_switch_turn_on_calls_the_sdk_and_skips_when_already_on(
     )
 
 
+async def test_power_saving_and_fast_transition_switches(hass, sdk_factory) -> None:
+    """power_saving (fast tier) and fast_transition (daily tier) read and write."""
+    sdk = sdk_factory(
+        {
+            "networks.get_network": network_envelope(power_saving={"enable": False}),
+            "eeros.get_eeros": [],
+            "entitlements.get_features": {"features": []},
+            "updates.get_updates": {},
+            "reservations.get_reservations": [],
+            "forwards.get_forwards": [],
+            "security.get_fast_transition": {"fast_transition": False},
+        }
+    )
+    entry = make_entry(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    power_saving_id = "switch.testnetwork_power_saving"
+    fast_transition_id = "switch.testnetwork_802_11r_fast_transition"
+    assert hass.states.get(power_saving_id).state == "off"
+    assert hass.states.get(fast_transition_id).state == "off"
+
+    sdk.calls.clear()
+    sdk.set_route("power_saving.set_power_saving", {})
+    await hass.services.async_call(
+        "switch", "turn_on", {"entity_id": power_saving_id}, blocking=True
+    )
+    assert any(
+        d == "power_saving" and m == "set_power_saving" for d, m, _a, _kw in sdk.calls
+    )
+
+    sdk.calls.clear()
+    sdk.set_route("security.set_fast_transition", {})
+    await hass.services.async_call(
+        "switch", "turn_on", {"entity_id": fast_transition_id}, blocking=True
+    )
+    assert any(
+        d == "security" and m == "set_fast_transition" for d, m, _a, _kw in sdk.calls
+    )
+
+    # Repeating turn_on on fast_transition while still reporting off (no
+    # refresh after an unconfirmed, possibly reboot-triggering write)
+    # sends nothing new only once the daily tier reports it as on.
+    sdk.set_route("security.get_fast_transition", {"fast_transition": True})
+    await entry.runtime_data.coordinator(TIER_DAILY).async_refresh()
+    await hass.async_block_till_done()
+    assert hass.states.get(fast_transition_id).state == "on"
+
+    sdk.calls.clear()
+    await hass.services.async_call(
+        "switch", "turn_on", {"entity_id": fast_transition_id}, blocking=True
+    )
+    assert not any(
+        d == "security" and m == "set_fast_transition" for d, m, _a, _kw in sdk.calls
+    )
+
+
 async def test_reservation_forward_and_dns_services_call_the_sdk(hass, sdk_factory) -> None:
     """Each of the five new actions calls its SDK method on the right network."""
     sdk = sdk_factory()
