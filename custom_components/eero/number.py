@@ -29,7 +29,7 @@ class EeroNumberEntityDescription(EeroEntityDescription, NumberEntityDescription
 NUMBER_DESCRIPTIONS: list[EeroNumberEntityDescription] = [
     EeroNumberEntityDescription(
         key="nightlight_brightness_percentage",
-        name="Nightlight Brightness",
+        translation_key="nightlight_brightness_percentage",
         native_unit_of_measurement=PERCENTAGE,
     ),
 ]

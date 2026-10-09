@@ -176,10 +176,12 @@ rules:
     status: todo
     comment: No entity is disabled by default.
   entity-translations:
-    status: todo
+    status: done
     comment: >-
-      Entity names are hard-coded English in the entity descriptions; only
-      state attributes and states are translated.
+      Every entity description sets a translation_key; names, states and
+      state attributes come from the entity section of strings.json (port
+      entities pass their port number as a translation placeholder). The
+      device tracker is named after its device alone. Translated into pt-BR.
   exception-translations:
     status: done
     comment: >-
@@ -187,8 +189,11 @@ rules:
       ConfigEntryAuthFailed) use translation keys from the exceptions section
       of strings.json.
   icon-translations:
-    status: todo
-    comment: icons.json covers the service only; two entities still set icon=.
+    status: done
+    comment: >-
+      No entity sets icon=; entity and service icons come from icons.json,
+      keyed by translation_key. Entities without an entry there use their
+      device class or platform default icon.
   reconfiguration-flow:
     status: todo
     comment: The options flow covers resource selection; no reconfigure step.

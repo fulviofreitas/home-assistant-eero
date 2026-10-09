@@ -41,24 +41,24 @@ class EeroSwitchEntityDescription(EeroEntityDescription, SwitchEntityDescription
 SWITCH_DESCRIPTIONS: list[EeroSwitchEntityDescription] = [
     EeroSwitchEntityDescription(
         key="ad_block",
-        name="Ad Blocking",
+        translation_key="ad_block",
         premium_type=True,
     ),
     EeroSwitchEntityDescription(
         key="auto_join_enabled",
-        name="Auto-Join Enabled",
+        translation_key="auto_join_enabled",
         premium_type=True,
     ),
     EeroSwitchEntityDescription(
         key="backup_internet_enabled",
-        name="Backup Internet Enabled",
+        translation_key="backup_internet_enabled",
         premium_type=True,
         extra_tiers=(TIER_DAILY,),
         refresh_tiers=(TIER_FAST, TIER_DAILY),
     ),
     EeroSwitchEntityDescription(
         key="band_steering",
-        name="Band Steering",
+        translation_key="band_steering",
     ),
     EeroSwitchEntityDescription(
         key="bedtime_enabled",
@@ -75,52 +75,52 @@ SWITCH_DESCRIPTIONS: list[EeroSwitchEntityDescription] = [
     ),
     EeroSwitchEntityDescription(
         key="block_gaming_content",
-        name="Gaming Content Filter",
+        translation_key="block_gaming_content",
         premium_type=True,
     ),
     EeroSwitchEntityDescription(
         key="block_illegal_content",
-        name="Illegal or Criminal Content Filter",
+        translation_key="block_illegal_content",
         premium_type=True,
     ),
     EeroSwitchEntityDescription(
         key="block_malware",
-        name="Advanced Security",
+        translation_key="block_malware",
         premium_type=True,
     ),
     EeroSwitchEntityDescription(
         key="block_messaging_content",
-        name="Chat and Messaging Content Filter",
+        translation_key="block_messaging_content",
         premium_type=True,
     ),
     EeroSwitchEntityDescription(
         key="block_pornographic_content",
-        name="Adult Content Filter",
+        translation_key="block_pornographic_content",
         premium_type=True,
     ),
     EeroSwitchEntityDescription(
         key="block_shopping_content",
-        name="Shopping Content Filter",
+        translation_key="block_shopping_content",
         premium_type=True,
     ),
     EeroSwitchEntityDescription(
         key="block_social_content",
-        name="Social Media Content Filter",
+        translation_key="block_social_content",
         premium_type=True,
     ),
     EeroSwitchEntityDescription(
         key="block_streaming_content",
-        name="Streaming Content Filter",
+        translation_key="block_streaming_content",
         premium_type=True,
     ),
     EeroSwitchEntityDescription(
         key="block_violent_content",
-        name="Violent Content Filter",
+        translation_key="block_violent_content",
         premium_type=True,
     ),
     EeroSwitchEntityDescription(
         key="ddns_enabled",
-        name="Dynamic DNS",
+        translation_key="ddns_enabled",
         premium_type=True,
         extra_attrs={
             "domain": lambda resource: resource.ddns_subdomain,
@@ -128,7 +128,7 @@ SWITCH_DESCRIPTIONS: list[EeroSwitchEntityDescription] = [
     ),
     EeroSwitchEntityDescription(
         key="dns_caching",
-        name="Local DNS Caching",
+        translation_key="dns_caching",
         # A DNS write reboots every eero on the network a few minutes later.
         request_refresh=False,
     ),
@@ -142,7 +142,7 @@ SWITCH_DESCRIPTIONS: list[EeroSwitchEntityDescription] = [
     ),
     EeroSwitchEntityDescription(
         key="guest_network_enabled",
-        name="Guest Network",
+        translation_key="guest_network_enabled",
         extra_attrs={
             "guest_network_name": lambda resource: resource.guest_network_name,
             "connected_guest_clients": lambda resource: resource.connected_guest_clients_count,
@@ -150,19 +150,19 @@ SWITCH_DESCRIPTIONS: list[EeroSwitchEntityDescription] = [
     ),
     EeroSwitchEntityDescription(
         key="ipv6_upstream",
-        name="IPv6 Enabled",
+        translation_key="ipv6_upstream",
         request_refresh=False,
     ),
     EeroSwitchEntityDescription(
         key="pause_5g_enabled",
-        name="5 GHz Band Paused",
+        translation_key="pause_5g_enabled",
         extra_attrs={
             "expiration": lambda resource: resource.pause_5g_expiration,
         },
     ),
     EeroSwitchEntityDescription(
         key="paused",
-        name="Paused",
+        translation_key="paused",
     ),
     EeroSwitchEntityDescription(
         key="power_saving_enabled",
@@ -173,21 +173,21 @@ SWITCH_DESCRIPTIONS: list[EeroSwitchEntityDescription] = [
     ),
     EeroSwitchEntityDescription(
         key="safe_search_enabled",
-        name="SafeSearch Content Filter",
+        translation_key="safe_search_enabled",
         premium_type=True,
     ),
     EeroSwitchEntityDescription(
         key="secondary_wan_allow_access",
-        name="Allow Internet Backup",
+        translation_key="secondary_wan_allow_access",
         premium_type=True,
     ),
     EeroSwitchEntityDescription(
         key="sqm",
-        name="Smart Queue Management",
+        translation_key="sqm",
     ),
     EeroSwitchEntityDescription(
         key="thread_enabled",
-        name="Thread Enabled",
+        translation_key="thread_enabled",
         tier=TIER_DAILY,
         extra_attrs={
             "thread_network_name": lambda resource: resource.thread_name,
@@ -198,15 +198,15 @@ SWITCH_DESCRIPTIONS: list[EeroSwitchEntityDescription] = [
     ),
     EeroSwitchEntityDescription(
         key="upnp",
-        name="UPnP",
+        translation_key="upnp",
     ),
     EeroSwitchEntityDescription(
         key="wpa3",
-        name="WPA3",
+        translation_key="wpa3",
     ),
     EeroSwitchEntityDescription(
         key="youtube_restricted",
-        name="YouTube Restricted Content Filter",
+        translation_key="youtube_restricted",
         premium_type=True,
     ),
 ]

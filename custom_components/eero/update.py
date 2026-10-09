@@ -34,7 +34,7 @@ class EeroUpdateEntityDescription(EeroEntityDescription, UpdateEntityDescription
 UPDATE_DESCRIPTIONS: list[EeroUpdateEntityDescription] = [
     EeroUpdateEntityDescription(
         key="firmware",
-        name="Firmware",
+        translation_key="firmware",
         device_class=UpdateDeviceClass.FIRMWARE,
         request_refresh=False,
     ),

@@ -148,14 +148,14 @@ class EeroSensorEntityDescription(EeroEntityDescription, SensorEntityDescription
 SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
     EeroSensorEntityDescription(
         key="ad_block_status",
-        name="Ad Blocking Status",
+        translation_key="ad_block_status",
         device_class=SensorDeviceClass.ENUM,
         options=[STATE_DISABLED, STATE_NETWORK, STATE_PROFILE],
         premium_type=True,
     ),
     EeroSensorEntityDescription(
         key="adblock_day",
-        name="Ad Blocks Day",
+        translation_key="adblock_day",
         native_unit_of_measurement="ads",
         state_class=SensorStateClass.TOTAL_INCREASING,
         activity_type=True,
@@ -163,7 +163,7 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
     ),
     EeroSensorEntityDescription(
         key="adblock_week",
-        name="Ad Blocks Week",
+        translation_key="adblock_week",
         native_unit_of_measurement="ads",
         state_class=SensorStateClass.TOTAL_INCREASING,
         activity_type=True,
@@ -171,7 +171,7 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
     ),
     EeroSensorEntityDescription(
         key="adblock_month",
-        name="Ad Blocks Month",
+        translation_key="adblock_month",
         native_unit_of_measurement="ads",
         state_class=SensorStateClass.TOTAL_INCREASING,
         activity_type=True,
@@ -179,7 +179,7 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
     ),
     EeroSensorEntityDescription(
         key="blocked_day",
-        name="Threat Blocks Day",
+        translation_key="blocked_day",
         native_unit_of_measurement="threats",
         state_class=SensorStateClass.TOTAL_INCREASING,
         native_value=lambda resource, key: getattr(resource, key)["blocked"]
@@ -190,7 +190,7 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
     ),
     EeroSensorEntityDescription(
         key="blocked_week",
-        name="Threat Blocks Week",
+        translation_key="blocked_week",
         native_unit_of_measurement="threats",
         state_class=SensorStateClass.TOTAL_INCREASING,
         native_value=lambda resource, key: getattr(resource, key)["blocked"]
@@ -201,7 +201,7 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
     ),
     EeroSensorEntityDescription(
         key="blocked_month",
-        name="Threat Blocks Month",
+        translation_key="blocked_month",
         native_unit_of_measurement="threats",
         state_class=SensorStateClass.TOTAL_INCREASING,
         native_value=lambda resource, key: getattr(resource, key)["blocked"]
@@ -212,19 +212,19 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
     ),
     EeroSensorEntityDescription(
         key="connected_clients_count",
-        name="Connected Clients",
+        translation_key="connected_clients_count",
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement="clients",
     ),
     EeroSensorEntityDescription(
         key="connected_guest_clients_count",
-        name="Connected Guest Clients",
+        translation_key="connected_guest_clients_count",
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement="clients",
     ),
     EeroSensorEntityDescription(
         key="data_usage_day",
-        name="Data Usage Day",
+        translation_key="data_usage_day",
         device_class=SensorDeviceClass.DATA_SIZE,
         state_class=SensorStateClass.TOTAL_INCREASING,
         native_value=sum_data_usage,
@@ -234,7 +234,7 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
     ),
     EeroSensorEntityDescription(
         key="data_usage_week",
-        name="Data Usage Week",
+        translation_key="data_usage_week",
         device_class=SensorDeviceClass.DATA_SIZE,
         state_class=SensorStateClass.TOTAL_INCREASING,
         native_value=sum_data_usage,
@@ -266,7 +266,7 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
     ),
     EeroSensorEntityDescription(
         key="data_usage_month",
-        name="Data Usage Month",
+        translation_key="data_usage_month",
         device_class=SensorDeviceClass.DATA_SIZE,
         state_class=SensorStateClass.TOTAL_INCREASING,
         native_value=sum_data_usage,
@@ -289,7 +289,7 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
     ),
     EeroSensorEntityDescription(
         key="gateway_ip",
-        name="Gateway IP",
+        translation_key="gateway_ip",
         extra_attrs={
             "mac_address": lambda resource: resource.gateway_mac_address,
             "name": lambda resource: resource.gateway_name,
@@ -297,7 +297,7 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
     ),
     EeroSensorEntityDescription(
         key="inspected_day",
-        name="Scans Day",
+        translation_key="inspected_day",
         native_unit_of_measurement="scans",
         state_class=SensorStateClass.TOTAL_INCREASING,
         activity_type=True,
@@ -305,7 +305,7 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
     ),
     EeroSensorEntityDescription(
         key="inspected_week",
-        name="Scans Week",
+        translation_key="inspected_week",
         native_unit_of_measurement="scans",
         state_class=SensorStateClass.TOTAL_INCREASING,
         activity_type=True,
@@ -313,7 +313,7 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
     ),
     EeroSensorEntityDescription(
         key="inspected_month",
-        name="Scans Month",
+        translation_key="inspected_month",
         native_unit_of_measurement="scans",
         state_class=SensorStateClass.TOTAL_INCREASING,
         activity_type=True,
@@ -321,16 +321,16 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
     ),
     EeroSensorEntityDescription(
         key="ip",
-        name="IP Address",
+        translation_key="ip",
     ),
     EeroSensorEntityDescription(
         key="last_active",
-        name="Last Active",
+        translation_key="last_active",
         device_class=SensorDeviceClass.TIMESTAMP,
     ),
     EeroSensorEntityDescription(
         key="public_ip",
-        name="Public IP",
+        translation_key="public_ip",
     ),
     EeroSensorEntityDescription(
         key="reservation_count",
@@ -341,7 +341,7 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
     ),
     EeroSensorEntityDescription(
         key="signal",
-        name="Signal Strength",
+        translation_key="signal",
         device_class=SensorDeviceClass.SIGNAL_STRENGTH,
         state_class=SensorStateClass.MEASUREMENT,
         native_value=lambda resource, key: getattr(resource, key)[0],
@@ -352,7 +352,7 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
     ),
     EeroSensorEntityDescription(
         key="speed_down",
-        name="Download Speed",
+        translation_key="speed_down",
         device_class=SensorDeviceClass.DATA_RATE,
         state_class=SensorStateClass.MEASUREMENT,
         native_value=lambda resource, key: getattr(resource, key)[0],
@@ -365,7 +365,7 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
     ),
     EeroSensorEntityDescription(
         key="speed_up",
-        name="Upload Speed",
+        translation_key="speed_up",
         device_class=SensorDeviceClass.DATA_RATE,
         state_class=SensorStateClass.MEASUREMENT,
         native_value=lambda resource, key: getattr(resource, key)[0],
@@ -378,25 +378,25 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
     ),
     EeroSensorEntityDescription(
         key="status",
-        name="Status",
+        translation_key="status",
     ),
     EeroSensorEntityDescription(
         key="usage_down",
-        name="Download Rate",
+        translation_key="usage_down",
         device_class=SensorDeviceClass.DATA_RATE,
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=UnitOfDataRate.MEGABITS_PER_SECOND,
     ),
     EeroSensorEntityDescription(
         key="usage_up",
-        name="Upload Rate",
+        translation_key="usage_up",
         device_class=SensorDeviceClass.DATA_RATE,
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=UnitOfDataRate.MEGABITS_PER_SECOND,
     ),
     EeroSensorEntityDescription(
         key="wan_router_ip",
-        name="WAN Router IP",
+        translation_key="wan_router_ip",
         extra_attrs={
             "subnet_mask": lambda resource: resource.wan_subnet_mask,
         },

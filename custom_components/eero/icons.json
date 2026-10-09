@@ -37,6 +37,12 @@
             }
         },
         "button": {
+            "run_internet_backup_test": {
+                "default": "mdi:web"
+            },
+            "run_speed_test": {
+                "default": "mdi:speedometer"
+            },
             "port_action_enable_data": {
                 "default": "mdi:ethernet"
             },

@@ -31,11 +31,11 @@ class EeroTimeEntityDescription(EeroEntityDescription, TimeEntityDescription):
 TIME_DESCRIPTIONS: list[EeroTimeEntityDescription] = [
     EeroTimeEntityDescription(
         key="nightlight_schedule_on",
-        name="Nightlight On",
+        translation_key="nightlight_schedule_on",
     ),
     EeroTimeEntityDescription(
         key="nightlight_schedule_off",
-        name="Nightlight Off",
+        translation_key="nightlight_schedule_off",
     ),
     EeroTimeEntityDescription(
         key="bedtime_weekday_start",

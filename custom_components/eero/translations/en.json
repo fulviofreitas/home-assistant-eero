@@ -307,7 +307,11 @@
     },
     "entity": {
         "binary_sensor": {
-            "all": {
+            "block_apps_enabled": {
+                "name": "Block Apps"
+            },
+            "connected": {
+                "name": "Connected",
                 "state_attributes": {
                     "bandwidth_receive": {
                         "name": "Bandwidth receive"
@@ -327,6 +331,44 @@
                 "name": "Unread notifications"
             }
         },
+        "button": {
+            "port_action_disable_data": {
+                "name": "Disable port {port_number} data"
+            },
+            "port_action_disable_poe": {
+                "name": "Disable port {port_number} PoE"
+            },
+            "port_action_disable_port": {
+                "name": "Disable port {port_number}"
+            },
+            "port_action_disable_port_security": {
+                "name": "Disable port {port_number} security"
+            },
+            "port_action_enable_data": {
+                "name": "Enable port {port_number} data"
+            },
+            "port_action_enable_poe": {
+                "name": "Enable port {port_number} PoE"
+            },
+            "port_action_enable_port": {
+                "name": "Enable port {port_number}"
+            },
+            "port_action_enable_port_security": {
+                "name": "Enable port {port_number} security"
+            },
+            "port_action_restart_power": {
+                "name": "Restart port {port_number} power"
+            },
+            "reboot": {
+                "name": "Reboot"
+            },
+            "run_internet_backup_test": {
+                "name": "Run Internet Backup Test"
+            },
+            "run_speed_test": {
+                "name": "Run Speed Test"
+            }
+        },
         "device_tracker": {
             "all": {
                 "state_attributes": {
@@ -339,8 +381,35 @@
                 }
             }
         },
+        "event": {
+            "app_events": {
+                "name": "App events"
+            }
+        },
+        "light": {
+            "status_light_enabled": {
+                "name": "Status Light"
+            }
+        },
+        "number": {
+            "nightlight_brightness_percentage": {
+                "name": "Nightlight Brightness"
+            }
+        },
         "select": {
-            "all": {
+            "mlo_mode": {
+                "name": "MLO mode"
+            },
+            "nightlight_mode": {
+                "name": "Nightlight Mode",
+                "state": {
+                    "ambient": "Ambient",
+                    "disabled": "Disabled",
+                    "schedule": "Schedule"
+                }
+            },
+            "preferred_update_hour": {
+                "name": "Preferred Update Time",
                 "state": {
                     "12am_1am": "12 AM - 1 AM",
                     "1am_2am": "1 AM - 2 AM",
@@ -365,79 +434,245 @@
                     "8pm_9pm": "8 PM - 9 PM",
                     "9pm_10pm": "9 PM - 10 PM",
                     "10pm_11pm": "10 PM - 11 PM",
-                    "11pm_12am": "11 PM - 12 AM",
-                    "ambient": "Ambient",
-                    "disabled": "Disabled",
-                    "schedule": "Schedule"
+                    "11pm_12am": "11 PM - 12 AM"
                 }
             },
             "profile_assignment": {
                 "name": "Profile"
-            },
-            "mlo_mode": {
-                "name": "MLO mode"
             }
         },
         "sensor": {
-            "all": {
+            "ad_block_status": {
+                "name": "Ad Blocking Status",
+                "state": {
+                    "disabled": "Disabled",
+                    "network": "Network",
+                    "profile": "Profiles"
+                }
+            },
+            "adblock_day": {
+                "name": "Ad Blocks Day"
+            },
+            "adblock_month": {
+                "name": "Ad Blocks Month"
+            },
+            "adblock_week": {
+                "name": "Ad Blocks Week"
+            },
+            "blocked_day": {
+                "name": "Threat Blocks Day"
+            },
+            "blocked_month": {
+                "name": "Threat Blocks Month"
+            },
+            "blocked_week": {
+                "name": "Threat Blocks Week"
+            },
+            "connected_clients_count": {
+                "name": "Connected Clients",
+                "state_attributes": {
+                    "computers_personal": {
+                        "name": "Computers and personal"
+                    }
+                }
+            },
+            "connected_guest_clients_count": {
+                "name": "Connected Guest Clients",
+                "state_attributes": {
+                    "computers_personal": {
+                        "name": "Computers and personal"
+                    }
+                }
+            },
+            "data_usage_day": {
+                "name": "Data Usage Day"
+            },
+            "data_usage_month": {
+                "name": "Data Usage Month"
+            },
+            "data_usage_week": {
+                "name": "Data Usage Week"
+            },
+            "dns_mode": {
+                "name": "DNS mode",
+                "state": {
+                    "automatic": "Automatic",
+                    "custom": "Custom"
+                }
+            },
+            "eeros_data_usage_summary_day": {
+                "name": "Eeros data usage summary"
+            },
+            "forward_count": {
+                "name": "Port forwards"
+            },
+            "gateway_ip": {
+                "name": "Gateway IP",
+                "state_attributes": {
+                    "mac_address": {
+                        "name": "MAC address"
+                    },
+                    "name": {
+                        "name": "Name"
+                    }
+                }
+            },
+            "inspected_day": {
+                "name": "Scans Day"
+            },
+            "inspected_month": {
+                "name": "Scans Month"
+            },
+            "inspected_week": {
+                "name": "Scans Week"
+            },
+            "ip": {
+                "name": "IP Address"
+            },
+            "last_active": {
+                "name": "Last Active"
+            },
+            "port_connection_status": {
+                "name": "Port {port_number} connection status"
+            },
+            "port_negotiated_speed": {
+                "name": "Port {port_number} negotiated speed"
+            },
+            "public_ip": {
+                "name": "Public IP"
+            },
+            "reservation_count": {
+                "name": "Reservations"
+            },
+            "signal": {
+                "name": "Signal Strength"
+            },
+            "speed_down": {
+                "name": "Download Speed"
+            },
+            "speed_up": {
+                "name": "Upload Speed"
+            },
+            "status": {
+                "name": "Status",
                 "state": {
                     "blue": "Blue",
                     "connected": "Connected",
-                    "disabled": "Disabled",
                     "disconnected": "Disconnected",
                     "failure": "Failure",
                     "green": "Green",
-                    "network": "Network",
-                    "profiles": "Profiles",
                     "red": "Red",
                     "success": "Success",
                     "white": "White",
                     "yellow": "Yellow"
                 },
                 "state_attributes": {
-                    "computers_personal": {
-                        "name": "Computers and personal"
-                    },
                     "failure_reason": {
                         "state": {
                             "network_not_found": "Network not found"
                         }
-                    },
-                    "mac_address": {
-                        "name": "MAC address"
-                    },
-                    "name": {
-                        "name": "Name"
-                    },
-                    "subnet_mask": {
-                        "name": "Subnet mask"
                     }
                 }
             },
             "unprofiled_data_usage_day": {
                 "name": "Unprofiled data usage"
             },
-            "eeros_data_usage_summary_day": {
-                "name": "Eeros data usage summary"
+            "usage_down": {
+                "name": "Download Rate"
             },
-            "dns_mode": {
-                "name": "DNS mode"
+            "usage_up": {
+                "name": "Upload Rate"
             },
-            "forward_count": {
-                "name": "Port forwards"
-            },
-            "reservation_count": {
-                "name": "Reservations"
-            },
-            "port_connection_status": {
-                "name": "Port connection status"
-            },
-            "port_negotiated_speed": {
-                "name": "Port negotiated speed"
+            "wan_router_ip": {
+                "name": "WAN Router IP",
+                "state_attributes": {
+                    "subnet_mask": {
+                        "name": "Subnet mask"
+                    }
+                }
             }
         },
         "switch": {
-            "all": {
+            "ad_block": {
+                "name": "Ad Blocking"
+            },
+            "auto_join_enabled": {
+                "name": "Auto-Join Enabled"
+            },
+            "backup_internet_enabled": {
+                "name": "Backup Internet Enabled"
+            },
+            "band_steering": {
+                "name": "Band Steering"
+            },
+            "bedtime_enabled": {
+                "name": "Bedtime"
+            },
+            "block_gaming_content": {
+                "name": "Gaming Content Filter"
+            },
+            "block_illegal_content": {
+                "name": "Illegal or Criminal Content Filter"
+            },
+            "block_malware": {
+                "name": "Advanced Security"
+            },
+            "block_messaging_content": {
+                "name": "Chat and Messaging Content Filter"
+            },
+            "block_pornographic_content": {
+                "name": "Adult Content Filter"
+            },
+            "block_shopping_content": {
+                "name": "Shopping Content Filter"
+            },
+            "block_social_content": {
+                "name": "Social Media Content Filter"
+            },
+            "block_streaming_content": {
+                "name": "Streaming Content Filter"
+            },
+            "block_violent_content": {
+                "name": "Violent Content Filter"
+            },
+            "blocked": {
+                "name": "Blocked"
+            },
+            "ddns_enabled": {
+                "name": "Dynamic DNS"
+            },
+            "dns_caching": {
+                "name": "Local DNS Caching"
+            },
+            "fast_transition_enabled": {
+                "name": "802.11r fast transition"
+            },
+            "guest_network_enabled": {
+                "name": "Guest Network"
+            },
+            "ipv6_upstream": {
+                "name": "IPv6 Enabled"
+            },
+            "pause_5g_enabled": {
+                "name": "5 GHz Band Paused"
+            },
+            "paused": {
+                "name": "Paused"
+            },
+            "power_saving_enabled": {
+                "name": "Power saving"
+            },
+            "safe_search_enabled": {
+                "name": "SafeSearch Content Filter"
+            },
+            "secondary_wan_allow_access": {
+                "name": "Allow Internet Backup"
+            },
+            "sqm": {
+                "name": "Smart Queue Management"
+            },
+            "thread_enabled": {
+                "name": "Thread Enabled",
                 "state_attributes": {
                     "thread_network_key": {
                         "name": "Thread network key"
@@ -462,31 +697,14 @@
                     }
                 }
             },
-            "blocked": {
-                "name": "Blocked"
+            "upnp": {
+                "name": "UPnP"
             },
-            "bedtime_enabled": {
-                "name": "Bedtime"
+            "wpa3": {
+                "name": "WPA3"
             },
-            "fast_transition_enabled": {
-                "name": "802.11r fast transition"
-            },
-            "power_saving_enabled": {
-                "name": "Power saving"
-            }
-        },
-        "time": {
-            "bedtime_weekday_start": {
-                "name": "Bedtime weekday start"
-            },
-            "bedtime_weekday_end": {
-                "name": "Bedtime weekday end"
-            },
-            "bedtime_weekend_start": {
-                "name": "Bedtime weekend start"
-            },
-            "bedtime_weekend_end": {
-                "name": "Bedtime weekend end"
+            "youtube_restricted": {
+                "name": "YouTube Restricted Content Filter"
             }
         },
         "text": {
@@ -497,38 +715,29 @@
                 "name": "Guest network password"
             }
         },
-        "event": {
-            "app_events": {
-                "name": "App events"
+        "time": {
+            "bedtime_weekday_end": {
+                "name": "Bedtime weekday end"
+            },
+            "bedtime_weekday_start": {
+                "name": "Bedtime weekday start"
+            },
+            "bedtime_weekend_end": {
+                "name": "Bedtime weekend end"
+            },
+            "bedtime_weekend_start": {
+                "name": "Bedtime weekend start"
+            },
+            "nightlight_schedule_off": {
+                "name": "Nightlight Off"
+            },
+            "nightlight_schedule_on": {
+                "name": "Nightlight On"
             }
         },
-        "button": {
-            "port_action_enable_data": {
-                "name": "Enable port data"
-            },
-            "port_action_disable_data": {
-                "name": "Disable port data"
-            },
-            "port_action_enable_poe": {
-                "name": "Enable port PoE"
-            },
-            "port_action_disable_poe": {
-                "name": "Disable port PoE"
-            },
-            "port_action_enable_port": {
-                "name": "Enable port"
-            },
-            "port_action_disable_port": {
-                "name": "Disable port"
-            },
-            "port_action_restart_power": {
-                "name": "Restart port power"
-            },
-            "port_action_enable_port_security": {
-                "name": "Enable port security"
-            },
-            "port_action_disable_port_security": {
-                "name": "Disable port security"
+        "update": {
+            "firmware": {
+                "name": "Firmware"
             }
         }
     },

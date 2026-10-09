@@ -261,7 +261,7 @@ UPnP, WPA3 and DDNS go through the SDK's methods, which send the same requests
   exactly this kind of settings write. Revisit once a reader exists.
 - Per-port sensors (`sensor.<eero>_port_<n>_connection_status`,
   `..._negotiated_speed`) and per-port action buttons
-  (`button.<eero>_port_<n>_action_<action>`, one per action the port's own
+  (e.g. `button.<eero>_restart_port_<n>_power`, one per action the port's own
   `actions` list reports, intersected with the SDK's accepted
   `eeros.port_action` values): built dynamically from a new daily-tier
   read, `eeros.get_connections`, once per configured eero -- the SDK has
@@ -276,6 +276,17 @@ UPnP, WPA3 and DDNS go through the SDK's methods, which send the same requests
   unconfirmed against a live network: disabled by default, a CONFIG
   entity. New ports (or a newly-connected eero) appear without a reload,
   the same as a new client.
+- Entity names are translated: every entity takes its name from the
+  `entity` section of `strings.json` instead of a hard-coded English
+  string, and a Brazilian Portuguese (`pt-BR`) translation of the whole
+  integration is included. English names are unchanged, and existing entity
+  IDs are kept by the entity registry. On a system set to Portuguese
+  (Brazil), entities registered from now on get Portuguese names and,
+  because Home Assistant builds entity IDs in that language, Portuguese
+  entity IDs; per-port entity names now include the port number. The
+  two buttons that set an icon in code (speed test, internet backup test)
+  take it from `icons.json` instead. The ad blocking status sensor's
+  `profile` state, and the DNS mode sensor's states, are now translated.
 
 ### Since 1.9.3, also in this release
 

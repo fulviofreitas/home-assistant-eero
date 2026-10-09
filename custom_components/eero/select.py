@@ -36,7 +36,7 @@ SELECT_DESCRIPTIONS: list[EeroSelectEntityDescription] = [
     ),
     EeroSelectEntityDescription(
         key="nightlight_mode",
-        name="Nightlight Mode",
+        translation_key="nightlight_mode",
         options="nightlight_mode_options",
     ),
     EeroSelectEntityDescription(
@@ -49,7 +49,7 @@ SELECT_DESCRIPTIONS: list[EeroSelectEntityDescription] = [
     ),
     EeroSelectEntityDescription(
         key="preferred_update_hour",
-        name="Preferred Update Time",
+        translation_key="preferred_update_hour",
         options="preferred_update_hour_options",
     ),
 ]

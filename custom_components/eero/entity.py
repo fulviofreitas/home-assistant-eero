@@ -341,8 +341,8 @@ class EeroEntity(CoordinatorEntity[EeroTierCoordinator]):
     # name is intentionally not overridden: has_entity_name is set, so Home
     # Assistant's own Entity.name resolves a translation_key against
     # strings.json/translations before falling back to entity_description.name
-    # (and to the device name alone when neither is set). Descriptions that
-    # still set a literal name= keep returning it unchanged.
+    # (and to the device name alone when neither is set, as for the device
+    # tracker). Every other description sets its own translation_key.
 
     async def async_write(
         self,
@@ -457,6 +457,9 @@ class EeroPortEntity(CoordinatorEntity[EeroTierCoordinator]):
         self.network_id = network_id
         self.eero_id = eero_id
         self.interface_number = interface_number
+        # Every port entity's translated name carries its port number, so the
+        # same field on two ports of one eero gets distinct names.
+        self._attr_translation_placeholders = {"port_number": str(interface_number)}
 
     @property
     def network(self) -> EeroNetwork | None:

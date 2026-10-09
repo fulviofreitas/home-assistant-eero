@@ -38,7 +38,7 @@ class EeroLightEntityDescription(EeroEntityDescription, LightEntityDescription):
 LIGHT_DESCRIPTIONS: list[EeroLightEntityDescription] = [
     EeroLightEntityDescription(
         key="status_light_enabled",
-        name="Status Light",
+        translation_key="status_light_enabled",
     ),
 ]
 

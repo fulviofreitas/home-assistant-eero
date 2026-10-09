@@ -42,14 +42,14 @@ class EeroBinarySensorEntityDescription(
 BINARY_SENSOR_DESCRIPTIONS: list[EeroBinarySensorEntityDescription] = [
     EeroBinarySensorEntityDescription(
         key="block_apps_enabled",
-        name="Block Apps",
+        translation_key="block_apps_enabled",
         extra_attrs={
             "blocked_apps": lambda resource: sorted(resource.blocked_applications),
         },
     ),
     EeroBinarySensorEntityDescription(
         key="connected",
-        name="Connected",
+        translation_key="connected",
         device_class=BinarySensorDeviceClass.CONNECTIVITY,
         extra_attrs_wireless_only={
             "bandwidth_receive": lambda resource: resource.channel_width_rx,

@@ -1,0 +1,771 @@
+{
+    "config": {
+        "abort": {
+            "already_configured": "A rede escolhida já está configurada",
+            "reauth_successful": "Reautenticação realizada com sucesso",
+            "wrong_account": "A conta verificada não é a conta com a qual esta entrada foi configurada",
+            "cannot_connect": "Não foi possível ler as redes da conta pela API do eero. Tente novamente mais tarde."
+        },
+        "error": {
+            "invalid_code": "Código inválido",
+            "invalid_login": "Login inválido",
+            "invalid_scan_interval_timeout": "O tempo limite de consulta deve ser menor que o intervalo de consulta para evitar possíveis problemas."
+        },
+        "step": {
+            "user": {
+                "data": {
+                    "login": "Login (e-mail ou número de telefone para SMS)"
+                },
+                "description": "Informe o endereço de e-mail ou o número de telefone para SMS (com o código do país) associado à sua conta.",
+                "title": "Entrar na conta eero"
+            },
+            "verify": {
+                "data": {
+                    "code": "Código de verificação"
+                },
+                "description": "Informe o código de verificação enviado para {login}.",
+                "title": "Verificar conta eero"
+            },
+            "reauth_confirm": {
+                "data": {
+                    "login": "Login (e-mail ou número de telefone para SMS)"
+                },
+                "description": "A sessão do eero expirou. Informe o endereço de e-mail ou o número de telefone para SMS (com o código do país) associado à sua conta para entrar novamente.",
+                "title": "Reautenticar conta eero"
+            },
+            "reauth_verify": {
+                "data": {
+                    "code": "Código de verificação"
+                },
+                "description": "Informe o código de verificação enviado para {login}.",
+                "title": "Verificar conta eero"
+            },
+            "networks": {
+                "data": {
+                    "networks": "Redes"
+                },
+                "description": "Selecione a(s) rede(s) eero desejada(s).",
+                "title": "Selecionar redes eero"
+            },
+            "resources": {
+                "data": {
+                    "eeros": "Dispositivos eero",
+                    "profiles": "Perfis",
+                    "wired_clients": "Clientes cabeados",
+                    "wired_clients_filter": "Comportamento do filtro de clientes cabeados",
+                    "wireless_clients": "Clientes sem fio",
+                    "wireless_clients_filter": "Comportamento do filtro de clientes sem fio",
+                    "backup_networks": "Redes de backup"
+                },
+                "description": "Rede: {network}\n\nUm novo dispositivo e todas as entidades aplicáveis serão criados no Home Assistant para cada recurso selecionado (para clientes, o comportamento pode ser invertido alterando o método de filtro). Depois, entidades individuais podem ser desativadas conforme desejado.",
+                "title": "Selecionar recursos da rede"
+            },
+            "activity": {
+                "data": {
+                    "network": "Rede",
+                    "eeros": "Dispositivos eero",
+                    "profiles": "Perfis",
+                    "clients": "Clientes"
+                },
+                "description": "Rede: {network}\n\nCada métrica exige uma chamada exclusiva à API do eero, e você pode encontrar erros de tempo limite ao selecionar várias métricas.",
+                "title": "Selecionar métricas de atividade"
+            },
+            "miscellaneous": {
+                "data": {
+                    "consider_home": "Intervalo para considerar em casa (aplica-se somente a entidades de rastreamento de dispositivos)",
+                    "prefix_network_name": "Adicionar o nome da rede como prefixo de todas as entidades que não são de rede",
+                    "suffix_connection_type": "Adicionar o tipo de conexão (cabeada ou sem fio) como sufixo de todos os dispositivos e entidades de clientes"
+                },
+                "description": "Rede: {network}",
+                "title": "Opções diversas"
+            },
+            "advanced": {
+                "data": {
+                    "save_responses": "Salvar as respostas do servidor, sem dados sensíveis, em .storage/eero_responses",
+                    "scan_interval": "Intervalo de consulta",
+                    "timeout": "Tempo limite de consulta"
+                },
+                "title": "Opções avançadas"
+            }
+        }
+    },
+    "options": {
+        "error": {
+            "invalid_scan_interval_timeout": "O tempo limite de consulta deve ser menor que o intervalo de consulta para evitar possíveis problemas."
+        },
+        "step": {
+            "networks": {
+                "data": {
+                    "networks": "Redes"
+                },
+                "description": "Selecione a(s) rede(s) eero desejada(s).",
+                "title": "Selecionar redes eero"
+            },
+            "resources": {
+                "data": {
+                    "eeros": "Dispositivos eero",
+                    "profiles": "Perfis",
+                    "wired_clients": "Clientes cabeados",
+                    "wired_clients_filter": "Comportamento do filtro de clientes cabeados",
+                    "wireless_clients": "Clientes sem fio",
+                    "wireless_clients_filter": "Comportamento do filtro de clientes sem fio",
+                    "backup_networks": "Redes de backup"
+                },
+                "description": "Rede: {network}\n\nUm novo dispositivo e todas as entidades aplicáveis serão criados no Home Assistant para cada recurso selecionado (para clientes, o comportamento pode ser invertido alterando o método de filtro). Depois, entidades individuais podem ser desativadas conforme desejado.\n\nDesmarcar um recurso excluirá (ou adicionará, dependendo do método de filtro) esse dispositivo e todas as entidades associadas.",
+                "title": "Selecionar recursos da rede"
+            },
+            "activity": {
+                "data": {
+                    "network": "Rede",
+                    "eeros": "Dispositivos eero",
+                    "profiles": "Perfis",
+                    "clients": "Clientes"
+                },
+                "description": "Rede: {network}\n\nCada métrica exige uma chamada exclusiva à API do eero, e você pode encontrar erros de tempo limite ao selecionar várias métricas.",
+                "title": "Selecionar métricas de atividade"
+            },
+            "miscellaneous": {
+                "data": {
+                    "consider_home": "Intervalo para considerar em casa (aplica-se somente a entidades de rastreamento de dispositivos)",
+                    "prefix_network_name": "Adicionar o nome da rede como prefixo de todas as entidades que não são de rede",
+                    "suffix_connection_type": "Adicionar o tipo de conexão (cabeada ou sem fio) como sufixo de todos os dispositivos e entidades de clientes"
+                },
+                "description": "Rede: {network}",
+                "title": "Opções diversas"
+            },
+            "advanced": {
+                "data": {
+                    "save_responses": "Salvar as respostas do servidor, sem dados sensíveis, em .storage/eero_responses",
+                    "scan_interval": "Intervalo de consulta",
+                    "timeout": "Tempo limite de consulta"
+                },
+                "title": "Opções avançadas"
+            }
+        },
+        "abort": {
+            "not_loaded": "A integração não está carregada. Corrija primeiro o problema exibido na integração e depois abra as opções novamente.",
+            "cannot_connect": "Não foi possível ler as redes da conta pela API do eero. Tente novamente mais tarde."
+        }
+    },
+    "services": {
+        "set_blocked_apps": {
+            "name": "Definir aplicativos bloqueados",
+            "description": "Define os aplicativos bloqueados de um perfil.",
+            "fields": {
+                "blocked_apps": {
+                    "name": "Aplicativos bloqueados",
+                    "description": "(Obrigatório) Lista de aplicativos a bloquear. Uma lista vazia desbloqueia todos os aplicativos compatíveis."
+                },
+                "target_profile": {
+                    "name": "Perfil(is) de destino",
+                    "description": "(Opcional) Nome(s) ou ID(s) do(s) perfil(is) a definir. Se não for informado, todos os perfis são usados."
+                },
+                "target_network": {
+                    "name": "Rede(s) de destino",
+                    "description": "(Opcional) Nome(s) ou ID(s) da(s) rede(s) em que o(s) perfil(is) desejado(s) se encontra(m). Se não for informado, todas as redes são usadas."
+                }
+            }
+        },
+        "create_reservation": {
+            "name": "Criar reserva",
+            "description": "Cria uma reserva de DHCP em uma rede.",
+            "fields": {
+                "target_network": {
+                    "name": "Rede(s) de destino",
+                    "description": "(Obrigatório) Nome(s) ou ID(s) da(s) rede(s) em que a reserva será criada."
+                },
+                "ip": {
+                    "name": "Endereço IP",
+                    "description": "(Obrigatório) O endereço IP reservado."
+                },
+                "mac": {
+                    "name": "Endereço MAC",
+                    "description": "(Obrigatório) O endereço MAC do dispositivo."
+                },
+                "description": {
+                    "name": "Descrição",
+                    "description": "(Opcional) Um rótulo para a reserva."
+                },
+                "public_static_ip": {
+                    "name": "IP público estático",
+                    "description": "(Opcional) Se esta reserva também tem um IP público estático."
+                }
+            }
+        },
+        "delete_reservation": {
+            "name": "Excluir reserva",
+            "description": "Exclui uma reserva de DHCP de uma rede.",
+            "fields": {
+                "target_network": {
+                    "name": "Rede(s) de destino",
+                    "description": "(Obrigatório) Nome(s) ou ID(s) da(s) rede(s) da(s) qual(is) a reserva será excluída."
+                },
+                "reservation": {
+                    "name": "Reserva",
+                    "description": "(Obrigatório) O ID da própria reserva, conforme informado pela API do eero."
+                },
+                "delete_forwards": {
+                    "name": "Excluir redirecionamentos",
+                    "description": "(Opcional) Se também devem ser excluídos os redirecionamentos de porta que fazem referência ao IP desta reserva."
+                }
+            }
+        },
+        "create_port_forward": {
+            "name": "Criar redirecionamento de porta",
+            "description": "Cria um redirecionamento de porta em uma rede.",
+            "fields": {
+                "target_network": {
+                    "name": "Rede(s) de destino",
+                    "description": "(Obrigatório) Nome(s) ou ID(s) da(s) rede(s) em que o redirecionamento será criado."
+                },
+                "ip": {
+                    "name": "Endereço IP",
+                    "description": "(Obrigatório) O endereço IP interno para o qual redirecionar."
+                },
+                "client_port": {
+                    "name": "Porta do cliente",
+                    "description": "(Obrigatório) A porta interna para a qual redirecionar."
+                },
+                "gateway_port": {
+                    "name": "Porta do gateway",
+                    "description": "(Obrigatório) A porta externa a partir da qual redirecionar."
+                },
+                "protocol": {
+                    "name": "Protocolo",
+                    "description": "(Obrigatório) O protocolo, por exemplo tcp ou udp."
+                },
+                "description": {
+                    "name": "Descrição",
+                    "description": "(Opcional) Um rótulo para o redirecionamento."
+                },
+                "enabled": {
+                    "name": "Ativado",
+                    "description": "(Opcional) Se o redirecionamento está ativo. O padrão é verdadeiro."
+                }
+            }
+        },
+        "delete_port_forward": {
+            "name": "Excluir redirecionamento de porta",
+            "description": "Exclui um redirecionamento de porta de uma rede.",
+            "fields": {
+                "target_network": {
+                    "name": "Rede(s) de destino",
+                    "description": "(Obrigatório) Nome(s) ou ID(s) da(s) rede(s) da(s) qual(is) o redirecionamento será excluído."
+                },
+                "forward": {
+                    "name": "Redirecionamento",
+                    "description": "(Obrigatório) O ID do próprio redirecionamento, conforme informado pela API do eero."
+                }
+            }
+        },
+        "set_custom_dns": {
+            "name": "Definir DNS personalizado",
+            "description": "Define servidores DNS personalizados para uma rede ou a retorna para o modo automático. Atenção: toda alteração de DNS reinicia a rede mesh inteira alguns minutos depois.",
+            "fields": {
+                "target_network": {
+                    "name": "Rede(s) de destino",
+                    "description": "(Obrigatório) Nome(s) ou ID(s) da(s) rede(s) para a(s) qual(is) definir o DNS personalizado."
+                },
+                "ipv4": {
+                    "name": "Servidores IPv4",
+                    "description": "(Opcional) Endereços de servidores DNS IPv4. Uma família não informada permanece inalterada."
+                },
+                "ipv6": {
+                    "name": "Servidores IPv6",
+                    "description": "(Opcional) Endereços de servidores DNS IPv6. Uma família não informada permanece inalterada."
+                },
+                "automatic": {
+                    "name": "Automático",
+                    "description": "(Opcional) Retorna as duas famílias para o DNS automático (fornecido pelo provedor), ignorando ipv4/ipv6. O padrão é falso."
+                }
+            }
+        }
+    },
+    "selector": {
+        "all": {
+            "options": {
+                "adblock_day": "Anúncios bloqueados (dia)",
+                "adblock_week": "Anúncios bloqueados (semana)",
+                "adblock_month": "Anúncios bloqueados (mês)",
+                "data_usage_day": "Uso de dados (dia)",
+                "data_usage_week": "Uso de dados (semana)",
+                "data_usage_month": "Uso de dados (mês)",
+                "exclude": "Excluir os selecionados",
+                "include": "Incluir os selecionados",
+                "inspected_day": "Verificações (dia)",
+                "inspected_week": "Verificações (semana)",
+                "inspected_month": "Verificações (mês)",
+                "blocked_day": "Ameaças bloqueadas (dia)",
+                "blocked_week": "Ameaças bloqueadas (semana)",
+                "blocked_month": "Ameaças bloqueadas (mês)",
+                "unprofiled_data_usage_day": "Uso de dados sem perfil (dia)",
+                "eeros_data_usage_summary_day": "Resumo de uso de dados dos eeros (dia)",
+                "app_events": "Eventos do aplicativo",
+                "notifications_has_unread": "Notificações não lidas"
+            }
+        }
+    },
+    "entity": {
+        "binary_sensor": {
+            "block_apps_enabled": {
+                "name": "Bloqueio de aplicativos"
+            },
+            "connected": {
+                "name": "Conectado",
+                "state_attributes": {
+                    "bandwidth_receive": {
+                        "name": "Largura de banda de recepção"
+                    },
+                    "bandwidth_transmit": {
+                        "name": "Largura de banda de transmissão"
+                    },
+                    "channel": {
+                        "name": "Canal"
+                    },
+                    "operating_band": {
+                        "name": "Banda de operação"
+                    }
+                }
+            },
+            "notifications_has_unread": {
+                "name": "Notificações não lidas"
+            }
+        },
+        "button": {
+            "port_action_disable_data": {
+                "name": "Desativar dados da porta {port_number}"
+            },
+            "port_action_disable_poe": {
+                "name": "Desativar PoE da porta {port_number}"
+            },
+            "port_action_disable_port": {
+                "name": "Desativar porta {port_number}"
+            },
+            "port_action_disable_port_security": {
+                "name": "Desativar segurança da porta {port_number}"
+            },
+            "port_action_enable_data": {
+                "name": "Ativar dados da porta {port_number}"
+            },
+            "port_action_enable_poe": {
+                "name": "Ativar PoE da porta {port_number}"
+            },
+            "port_action_enable_port": {
+                "name": "Ativar porta {port_number}"
+            },
+            "port_action_enable_port_security": {
+                "name": "Ativar segurança da porta {port_number}"
+            },
+            "port_action_restart_power": {
+                "name": "Reiniciar alimentação da porta {port_number}"
+            },
+            "reboot": {
+                "name": "Reiniciar"
+            },
+            "run_internet_backup_test": {
+                "name": "Testar internet de backup"
+            },
+            "run_speed_test": {
+                "name": "Testar velocidade"
+            }
+        },
+        "device_tracker": {
+            "all": {
+                "state_attributes": {
+                    "connection_type": {
+                        "state": {
+                            "wired": "Cabeada",
+                            "wireless": "Sem fio"
+                        }
+                    }
+                }
+            }
+        },
+        "event": {
+            "app_events": {
+                "name": "Eventos do aplicativo"
+            }
+        },
+        "light": {
+            "status_light_enabled": {
+                "name": "Luz de status"
+            }
+        },
+        "number": {
+            "nightlight_brightness_percentage": {
+                "name": "Brilho da luz noturna"
+            }
+        },
+        "select": {
+            "mlo_mode": {
+                "name": "Modo MLO"
+            },
+            "nightlight_mode": {
+                "name": "Modo da luz noturna",
+                "state": {
+                    "ambient": "Ambiente",
+                    "disabled": "Desativado",
+                    "schedule": "Programação"
+                }
+            },
+            "preferred_update_hour": {
+                "name": "Horário preferido de atualização",
+                "state": {
+                    "12am_1am": "00:00 - 01:00",
+                    "1am_2am": "01:00 - 02:00",
+                    "2am_3am": "02:00 - 03:00",
+                    "3am_4am": "03:00 - 04:00",
+                    "4am_5am": "04:00 - 05:00",
+                    "5am_6am": "05:00 - 06:00",
+                    "6am_7am": "06:00 - 07:00",
+                    "7am_8am": "07:00 - 08:00",
+                    "8am_9am": "08:00 - 09:00",
+                    "9am_10am": "09:00 - 10:00",
+                    "10am_11am": "10:00 - 11:00",
+                    "11am_12pm": "11:00 - 12:00",
+                    "12pm_1pm": "12:00 - 13:00",
+                    "1pm_2pm": "13:00 - 14:00",
+                    "2pm_3pm": "14:00 - 15:00",
+                    "3pm_4pm": "15:00 - 16:00",
+                    "4pm_5pm": "16:00 - 17:00",
+                    "5pm_6pm": "17:00 - 18:00",
+                    "6pm_7pm": "18:00 - 19:00",
+                    "7pm_8pm": "19:00 - 20:00",
+                    "8pm_9pm": "20:00 - 21:00",
+                    "9pm_10pm": "21:00 - 22:00",
+                    "10pm_11pm": "22:00 - 23:00",
+                    "11pm_12am": "23:00 - 00:00"
+                }
+            },
+            "profile_assignment": {
+                "name": "Perfil"
+            }
+        },
+        "sensor": {
+            "ad_block_status": {
+                "name": "Status do bloqueio de anúncios",
+                "state": {
+                    "disabled": "Desativado",
+                    "network": "Rede",
+                    "profile": "Perfis"
+                }
+            },
+            "adblock_day": {
+                "name": "Anúncios bloqueados no dia"
+            },
+            "adblock_month": {
+                "name": "Anúncios bloqueados no mês"
+            },
+            "adblock_week": {
+                "name": "Anúncios bloqueados na semana"
+            },
+            "blocked_day": {
+                "name": "Ameaças bloqueadas no dia"
+            },
+            "blocked_month": {
+                "name": "Ameaças bloqueadas no mês"
+            },
+            "blocked_week": {
+                "name": "Ameaças bloqueadas na semana"
+            },
+            "connected_clients_count": {
+                "name": "Clientes conectados",
+                "state_attributes": {
+                    "computers_personal": {
+                        "name": "Computadores e dispositivos pessoais"
+                    }
+                }
+            },
+            "connected_guest_clients_count": {
+                "name": "Clientes convidados conectados",
+                "state_attributes": {
+                    "computers_personal": {
+                        "name": "Computadores e dispositivos pessoais"
+                    }
+                }
+            },
+            "data_usage_day": {
+                "name": "Uso de dados no dia"
+            },
+            "data_usage_month": {
+                "name": "Uso de dados no mês"
+            },
+            "data_usage_week": {
+                "name": "Uso de dados na semana"
+            },
+            "dns_mode": {
+                "name": "Modo de DNS",
+                "state": {
+                    "automatic": "Automático",
+                    "custom": "Personalizado"
+                }
+            },
+            "eeros_data_usage_summary_day": {
+                "name": "Resumo de uso de dados dos eeros"
+            },
+            "forward_count": {
+                "name": "Redirecionamentos de porta"
+            },
+            "gateway_ip": {
+                "name": "IP do gateway",
+                "state_attributes": {
+                    "mac_address": {
+                        "name": "Endereço MAC"
+                    },
+                    "name": {
+                        "name": "Nome"
+                    }
+                }
+            },
+            "inspected_day": {
+                "name": "Verificações no dia"
+            },
+            "inspected_month": {
+                "name": "Verificações no mês"
+            },
+            "inspected_week": {
+                "name": "Verificações na semana"
+            },
+            "ip": {
+                "name": "Endereço IP"
+            },
+            "last_active": {
+                "name": "Última atividade"
+            },
+            "port_connection_status": {
+                "name": "Status de conexão da porta {port_number}"
+            },
+            "port_negotiated_speed": {
+                "name": "Velocidade negociada da porta {port_number}"
+            },
+            "public_ip": {
+                "name": "IP público"
+            },
+            "reservation_count": {
+                "name": "Reservas"
+            },
+            "signal": {
+                "name": "Intensidade do sinal"
+            },
+            "speed_down": {
+                "name": "Velocidade de download"
+            },
+            "speed_up": {
+                "name": "Velocidade de upload"
+            },
+            "status": {
+                "name": "Status",
+                "state": {
+                    "blue": "Azul",
+                    "connected": "Conectado",
+                    "disconnected": "Desconectado",
+                    "failure": "Falha",
+                    "green": "Verde",
+                    "red": "Vermelho",
+                    "success": "Sucesso",
+                    "white": "Branco",
+                    "yellow": "Amarelo"
+                },
+                "state_attributes": {
+                    "failure_reason": {
+                        "state": {
+                            "network_not_found": "Rede não encontrada"
+                        }
+                    }
+                }
+            },
+            "unprofiled_data_usage_day": {
+                "name": "Uso de dados sem perfil"
+            },
+            "usage_down": {
+                "name": "Taxa de download"
+            },
+            "usage_up": {
+                "name": "Taxa de upload"
+            },
+            "wan_router_ip": {
+                "name": "IP do roteador WAN",
+                "state_attributes": {
+                    "subnet_mask": {
+                        "name": "Máscara de sub-rede"
+                    }
+                }
+            }
+        },
+        "switch": {
+            "ad_block": {
+                "name": "Bloqueio de anúncios"
+            },
+            "auto_join_enabled": {
+                "name": "Conexão automática ativada"
+            },
+            "backup_internet_enabled": {
+                "name": "Internet de backup ativada"
+            },
+            "band_steering": {
+                "name": "Direcionamento de banda"
+            },
+            "bedtime_enabled": {
+                "name": "Hora de dormir"
+            },
+            "block_gaming_content": {
+                "name": "Filtro de conteúdo de jogos"
+            },
+            "block_illegal_content": {
+                "name": "Filtro de conteúdo ilegal ou criminoso"
+            },
+            "block_malware": {
+                "name": "Segurança avançada"
+            },
+            "block_messaging_content": {
+                "name": "Filtro de conteúdo de chat e mensagens"
+            },
+            "block_pornographic_content": {
+                "name": "Filtro de conteúdo adulto"
+            },
+            "block_shopping_content": {
+                "name": "Filtro de conteúdo de compras"
+            },
+            "block_social_content": {
+                "name": "Filtro de conteúdo de redes sociais"
+            },
+            "block_streaming_content": {
+                "name": "Filtro de conteúdo de streaming"
+            },
+            "block_violent_content": {
+                "name": "Filtro de conteúdo violento"
+            },
+            "blocked": {
+                "name": "Bloqueado"
+            },
+            "ddns_enabled": {
+                "name": "DNS dinâmico"
+            },
+            "dns_caching": {
+                "name": "Cache de DNS local"
+            },
+            "fast_transition_enabled": {
+                "name": "Transição rápida 802.11r"
+            },
+            "guest_network_enabled": {
+                "name": "Rede de convidados"
+            },
+            "ipv6_upstream": {
+                "name": "IPv6 ativado"
+            },
+            "pause_5g_enabled": {
+                "name": "Banda de 5 GHz pausada"
+            },
+            "paused": {
+                "name": "Pausado"
+            },
+            "power_saving_enabled": {
+                "name": "Economia de energia"
+            },
+            "safe_search_enabled": {
+                "name": "Filtro de conteúdo SafeSearch"
+            },
+            "secondary_wan_allow_access": {
+                "name": "Permitir internet de backup"
+            },
+            "sqm": {
+                "name": "Gerenciamento inteligente de filas (SQM)"
+            },
+            "thread_enabled": {
+                "name": "Thread ativado",
+                "state_attributes": {
+                    "thread_network_key": {
+                        "name": "Chave da rede Thread"
+                    },
+                    "thread_network_name": {
+                        "name": "Nome da rede Thread"
+                    },
+                    "channel": {
+                        "name": "Canal"
+                    },
+                    "pan_id": {
+                        "name": "PAN ID"
+                    },
+                    "extended_pan_id": {
+                        "name": "PAN ID estendido"
+                    },
+                    "commissioning_credential": {
+                        "name": "Credencial de comissionamento"
+                    },
+                    "active_operational_dataset": {
+                        "name": "Conjunto de dados operacional ativo"
+                    }
+                }
+            },
+            "upnp": {
+                "name": "UPnP"
+            },
+            "wpa3": {
+                "name": "WPA3"
+            },
+            "youtube_restricted": {
+                "name": "Filtro de conteúdo restrito do YouTube"
+            }
+        },
+        "text": {
+            "guest_network_name": {
+                "name": "Nome da rede de convidados"
+            },
+            "guest_network_password": {
+                "name": "Senha da rede de convidados"
+            }
+        },
+        "time": {
+            "bedtime_weekday_end": {
+                "name": "Fim da hora de dormir em dias úteis"
+            },
+            "bedtime_weekday_start": {
+                "name": "Início da hora de dormir em dias úteis"
+            },
+            "bedtime_weekend_end": {
+                "name": "Fim da hora de dormir no fim de semana"
+            },
+            "bedtime_weekend_start": {
+                "name": "Início da hora de dormir no fim de semana"
+            },
+            "nightlight_schedule_off": {
+                "name": "Desligamento da luz noturna"
+            },
+            "nightlight_schedule_on": {
+                "name": "Acionamento da luz noturna"
+            }
+        },
+        "update": {
+            "firmware": {
+                "name": "Firmware"
+            }
+        }
+    },
+    "exceptions": {
+        "api_error": {
+            "message": "A API do eero rejeitou a solicitação: {error}"
+        },
+        "auth_failed": {
+            "message": "A sessão do eero expirou. Entre novamente pela página da integração."
+        },
+        "resource_unavailable": {
+            "message": "Este recurso do eero não é mais informado pela API."
+        },
+        "rate_limited": {
+            "message": "Limite de requisições da API do eero atingido; a próxima consulta será em {seconds} segundos."
+        },
+        "timeout": {
+            "message": "Tempo limite esgotado na comunicação com a API do eero."
+        }
+    },
+    "issues": {
+        "premium_required": {
+            "title": "eero Plus necessário para {feature}",
+            "description": "A rede {network} não tem direito a {feature}: é necessária uma assinatura eero Plus. As entidades que dependem desse recurso não são criadas. Este aviso desaparece sozinho assim que a assinatura estiver ativa."
+        },
+        "feature_unavailable": {
+            "title": "{feature} não está disponível",
+            "description": "A rede {network} não oferece {feature} (o hardware ou a conta não oferece suporte). As entidades que dependem desse recurso não são criadas. Este aviso desaparece sozinho se o recurso ficar disponível."
+        }
+    }
+}

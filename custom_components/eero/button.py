@@ -37,21 +37,19 @@ class EeroButtonEntityDescription(EeroEntityDescription, ButtonEntityDescription
 BUTTON_DESCRIPTIONS: list[EeroButtonEntityDescription] = [
     EeroButtonEntityDescription(
         key="reboot",
-        name="Reboot",
+        translation_key="reboot",
         device_class=ButtonDeviceClass.RESTART,
         request_refresh=False,
     ),
     EeroButtonEntityDescription(
         key="run_internet_backup_test",
-        name="Run Internet Backup Test",
-        icon="mdi:web",
+        translation_key="run_internet_backup_test",
         premium_type=True,
         request_refresh=False,
     ),
     EeroButtonEntityDescription(
         key="run_speed_test",
-        name="Run Speed Test",
-        icon="mdi:speedometer",
+        translation_key="run_speed_test",
         request_refresh=False,
     ),
 ]
