@@ -14,9 +14,7 @@ if TYPE_CHECKING:
 class EeroResource:
     """EeroResource."""
 
-    def __init__(
-        self, api: EeroHub, network: EeroNetwork | None, data: dict[str, Any]
-    ) -> None:
+    def __init__(self, api: EeroHub, network: EeroNetwork | None, data: dict[str, Any]) -> None:
         """Initialize."""
         self.api = api
         self.network = network
