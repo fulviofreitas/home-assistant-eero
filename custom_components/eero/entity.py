@@ -74,6 +74,9 @@ class EeroEntityDescription(EntityDescription):
     activity_type: bool = False
     wireless_only: bool = False
     check_support: bool = True
+    # The attribute check_support looks for, when it is not the key itself:
+    # an action entity (a button) checks for the method it calls.
+    support_key: str | None = None
     # Don't create the entity while its value is None: an optional read that
     # failed or is not offered (a daily-tier 404, a blacklist not yet read).
     # A platform using async_setup_platform_entities picks it up later, on
@@ -142,7 +145,7 @@ def build_entities[EntityT: "EeroEntity"](
                 ):
                     continue
                 if description.check_support and not resource_supports(
-                    resource, description.key
+                    resource, description.support_key or description.key
                 ):
                     continue
                 if (
