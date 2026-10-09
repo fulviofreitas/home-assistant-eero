@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from helpers import eero_api
+from helpers import build_hub, eero_api
 
 sum_data_usage = eero_api.util.sum_data_usage
 
@@ -17,7 +17,7 @@ class Usage:
 
 def network_with_activity(activity: dict):
     """Return an EeroNetwork carrying the given network activity block."""
-    api = eero_api.EeroAPI()
+    api = build_hub()
     account = eero_api.EeroAccount(
         api,
         {
@@ -90,7 +90,7 @@ def test_network_with_both_series() -> None:
 
 def test_release_notes_key_present_but_null() -> None:
     """get_release_notes returns None for a network with no manifest (H7)."""
-    api = eero_api.EeroAPI()
+    api = build_hub()
     account = eero_api.EeroAccount(
         api,
         {
@@ -112,7 +112,7 @@ def test_release_notes_key_present_but_null() -> None:
 
 def test_preferred_update_hour_outside_the_map() -> None:
     """An unexpected hour returns None rather than raising ValueError (L7)."""
-    api = eero_api.EeroAPI()
+    api = build_hub()
     account = eero_api.EeroAccount(
         api,
         {
@@ -132,7 +132,7 @@ def test_preferred_update_hour_outside_the_map() -> None:
 
 def test_client_signal_formats() -> None:
     """An unexpected signal string is (None, None), not an IndexError (L8)."""
-    api = eero_api.EeroAPI()
+    api = build_hub()
     network = eero_api.EeroAccount(api, {}).networks
 
     def client(signal):
@@ -148,7 +148,7 @@ def test_client_signal_formats() -> None:
 
 def test_name_unique_without_geo_ip() -> None:
     """A network with no geo_ip must not render None into the label (L6)."""
-    api = eero_api.EeroAPI()
+    api = build_hub()
     account = eero_api.EeroAccount(
         api,
         {
