@@ -37,6 +37,7 @@ from .api import (
 from .api.const import CONNECT_TIMEOUT, SUPPORTED_APPS
 from .api.network import EeroNetwork
 from .api.resource import EeroResource
+from .backoff import backoff_interval
 from .config_flow import EeroConfigFlow
 from .device_removal import can_remove_device
 from .const import (
@@ -457,26 +458,32 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
         anyway.
         """
         try:
-            return await hass.async_add_executor_job(api.update, conf_update)
+            account = await hass.async_add_executor_job(api.update, conf_update)
         except EeroSessionExpired as error:
             raise ConfigEntryAuthFailed(
                 "Eero session expired, please sign in again"
             ) from error
         except EeroRateLimited as error:
-            retry_after = error.retry_after or "unknown"
+            coordinator.update_interval = backoff_interval(
+                coordinator.update_interval, scan_interval
+            )
             raise UpdateFailed(
-                f"Rate limited by the Eero API, retry after {retry_after}s"
+                "Rate limited by the Eero API, next poll in "
+                f"{int(coordinator.update_interval.total_seconds())}s"
             ) from error
         except EeroException as error:
             raise UpdateFailed(f"Error communicating with Eero API: {error}") from error
+        coordinator.update_interval = scan_interval
+        return account
 
+    scan_interval = timedelta(seconds=conf_scan_interval)
     coordinator = DataUpdateCoordinator(
         hass=hass,
         logger=_LOGGER,
         config_entry=config_entry,
         name=f"Eero ({data[CONF_NAME]})",
         update_method=async_update_data,
-        update_interval=timedelta(seconds=conf_scan_interval),
+        update_interval=scan_interval,
     )
     await coordinator.async_config_entry_first_refresh()
 
