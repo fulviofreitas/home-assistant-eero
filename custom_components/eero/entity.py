@@ -208,6 +208,67 @@ def async_setup_platform_entities[EntityT: "EeroEntity"](
     )
 
 
+def resource_device_info(
+    hass: HomeAssistant,
+    runtime: EeroRuntime,
+    network: EeroNetwork | None,
+    resource: EeroResource,
+) -> dr.DeviceInfo:
+    """Return the full device info for a resource's device.
+
+    Shared by every entity that sits on a resource's device, so whichever
+    platform registers the device first registers it complete: a device
+    first created from identifiers alone would have no name, and its
+    entities' IDs no device prefix.
+    """
+    miscellaneous = runtime.miscellaneous.get(network.id if network else "", {})
+    name = resource.name
+    model = None
+    if resource.is_network:
+        model = MODEL_NETWORK
+    elif resource.is_backup_network:
+        model = MODEL_BACKUP_NETWORK
+    elif resource.is_eero:
+        model = resource.model
+    elif resource.is_profile:
+        model = MODEL_PROFILE
+    elif resource.is_client:
+        model = MODEL_CLIENT_WIRELESS if resource.wireless else MODEL_CLIENT_WIRED
+        if miscellaneous.get(CONF_SUFFIX_CONNECTION_TYPE):
+            name = resource.name_connection_type
+    if miscellaneous.get(CONF_PREFIX_NETWORK_NAME) and not resource.is_network and network:
+        name = f"{network.name} {name}"
+
+    entry_type, suggested_area, sw_version, hw_version = None, None, None, None
+    if resource.is_backup_network or resource.is_network or resource.is_profile:
+        entry_type = dr.DeviceEntryType.SERVICE
+    if resource.is_eero:
+        suggested_area = resource.location
+        sw_version = resource.os_version
+        hw_version = resource.model_number
+    device_info = dr.DeviceInfo(
+        entry_type=entry_type,
+        hw_version=hw_version,
+        identifiers={(DOMAIN, resource.id)},
+        manufacturer=MANUFACTURER,
+        model=model,
+        name=name,
+        suggested_area=suggested_area,
+        sw_version=sw_version,
+    )
+    if not resource.is_network and network is not None:
+        # Linked by via_device_id, a device registry ID: the identifier
+        # tuple via_device is removed in Home Assistant 2027.8. Left out
+        # when the network device is not found, because Home Assistant
+        # raises on an unknown via_device_id and drops the entity.
+        network_device = dr.async_get(hass).async_get_device_by_identifier(
+            (DOMAIN, network.id), runtime.entry.entry_id
+        )
+        if network_device is not None:
+            device_info["via_device_id"] = network_device.id
+    return device_info
+
+
 class EeroEntity(CoordinatorEntity[EeroTierCoordinator]):
     """Representation of an Eero entity."""
 
@@ -305,48 +366,9 @@ class EeroEntity(CoordinatorEntity[EeroTierCoordinator]):
         """
         if (resource := self.resource) is None:
             return None
-        name = resource.name
-        model = None
-        if resource.is_network:
-            model = MODEL_NETWORK
-        elif resource.is_backup_network:
-            model = MODEL_BACKUP_NETWORK
-        elif resource.is_eero:
-            model = resource.model
-        elif resource.is_profile:
-            model = MODEL_PROFILE
-        elif resource.is_client:
-            model = MODEL_CLIENT_WIRELESS if resource.wireless else MODEL_CLIENT_WIRED
-            if self.suffix_connection_type:
-                name = resource.name_connection_type
-        if self.prefix_network_name and not resource.is_network and self.network:
-            name = f"{self.network.name} {name}"
-
-        entry_type, suggested_area, sw_version, hw_version = None, None, None, None
-        if resource.is_backup_network or resource.is_network or resource.is_profile:
-            entry_type = dr.DeviceEntryType.SERVICE
-        if resource.is_eero:
-            suggested_area = resource.location
-            sw_version = resource.os_version
-            hw_version = resource.model_number
-        device_info = dr.DeviceInfo(
-            entry_type=entry_type,
-            hw_version=hw_version,
-            identifiers={(DOMAIN, resource.id)},
-            manufacturer=MANUFACTURER,
-            model=model,
-            name=name,
-            suggested_area=suggested_area,
-            sw_version=sw_version,
+        return resource_device_info(
+            self.hass or self.coordinator.hass, self.runtime, self.network, resource
         )
-        if not resource.is_network:
-            # Linked by via_device_id, a device registry ID: the identifier
-            # tuple via_device is removed in Home Assistant 2027.8. Left out
-            # when the network device is not found, because Home Assistant
-            # raises on an unknown via_device_id and drops the entity.
-            if (network_device := self.network_device) is not None:
-                device_info["via_device_id"] = network_device.id
-        return device_info
 
     # name is intentionally not overridden: has_entity_name is set, so Home
     # Assistant's own Entity.name resolves a translation_key against
@@ -519,5 +541,13 @@ class EeroPortEntity(CoordinatorEntity[EeroTierCoordinator]):
 
     @property
     def device_info(self) -> dr.DeviceInfo | None:
-        """Attach to the eero's own device, already registered by another platform."""
-        return dr.DeviceInfo(identifiers={(DOMAIN, self.eero_id)})
+        """Return the eero's own device, complete.
+
+        Complete rather than identifiers alone: if this platform happens to
+        register the eero's device first, a bare device would have no name.
+        """
+        if (eero := self.eero) is None:
+            return dr.DeviceInfo(identifiers={(DOMAIN, self.eero_id)})
+        return resource_device_info(
+            self.hass or self.coordinator.hass, self.runtime, self.network, eero
+        )

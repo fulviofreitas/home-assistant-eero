@@ -63,14 +63,26 @@ jobs:
       - run: pytest -q
 
   pytest-ha:
-    name: Pytest HA (3.14)
+    name: Pytest HA ${{ matrix.homeassistant }} (3.14)
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The minimum declared in hacs.json, and the version the
+          # requirements file pins.
+          - homeassistant: "2026.8.0"
+            phcc: "0.13.354"
+          - homeassistant: "2026.10.0"
+            phcc: "0.13.371"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
       - run: pip install -r requirements_test_ha.txt
+      - run: pip install "pytest-homeassistant-custom-component==${{ matrix.phcc }}"
+      - run: python -c "import homeassistant.const as c; assert c.__version__ == '${{ matrix.homeassistant }}', c.__version__"
       - run: pytest -q tests/ha
 
   mypy:

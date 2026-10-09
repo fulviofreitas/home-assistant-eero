@@ -232,22 +232,24 @@ async def test_eero_and_port_entity_names(hass, sdk_factory) -> None:
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
-    assert _name(hass, "light", f"{NETWORK_ID}-e1-status_light_enabled") == (
-        "light.testnetwork_office_status_light",
-        "TestNetwork Office Status Light",
-    )
-    assert _name(hass, "update", f"{NETWORK_ID}-e1-firmware") == (
-        "update.testnetwork_office_firmware",
-        "TestNetwork Office Firmware",
-    )
-    assert _name(hass, "sensor", f"{NETWORK_ID}-e1-status") == (
-        "sensor.testnetwork_office_status",
-        "TestNetwork Office Status",
-    )
-    assert _name(hass, "sensor", f"{NETWORK_ID}-e1-port_2_connection_status") == (
-        "sensor.testnetwork_office_port_2_connection_status",
-        "TestNetwork Office Port 2 connection status",
-    )
+    # The eero's device carries suggested_area "Office"; newer Home Assistant
+    # releases prefix new entity IDs with the device's area, so only the
+    # part after any area prefix is fixed here. Friendly names are exact.
+    for platform, unique_suffix, object_suffix, friendly in (
+        ("light", "status_light_enabled", "status_light", "Status Light"),
+        ("update", "firmware", "firmware", "Firmware"),
+        ("sensor", "status", "status", "Status"),
+        (
+            "sensor",
+            "port_2_connection_status",
+            "port_2_connection_status",
+            "Port 2 connection status",
+        ),
+    ):
+        entity_id, name = _name(hass, platform, f"{NETWORK_ID}-e1-{unique_suffix}")
+        assert entity_id.startswith(f"{platform}.")
+        assert entity_id.endswith(f"testnetwork_office_{object_suffix}")
+        assert name == f"TestNetwork Office {friendly}"
     registry = er.async_get(hass)
     button_id = registry.async_get_entity_id(
         "button", DOMAIN, f"{NETWORK_ID}-e1-port_2_action_restart_power"

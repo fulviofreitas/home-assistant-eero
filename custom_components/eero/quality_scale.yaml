@@ -33,8 +33,8 @@ rules:
       tests/ha/test_config_flow_ha.py covers the user flow happy path,
       invalid_login/invalid_code, already_configured, reauth (success and
       wrong_account), reconfigure (success, overriding an existing options
-      value, and the validation error) and the options flow (happy path and
-      not_loaded). config_flow.py itself measures 89% line coverage (see
+      value, and the validation error) and the options flow (happy path, and
+      running while the entry is not loaded). config_flow.py itself measures 89% line coverage (see
       test-coverage below).
   dependency-transparency:
     status: done
