@@ -8,7 +8,7 @@ This is an audited fork of [schmittx/home-assistant-eero](https://github.com/sch
 
 **How it is kept current.** A weekly job merges upstream's new commits onto a branch, runs this fork's tests, reviews the diff, and only then pushes; a merge conflict or a failing test stops it. The fork is installed through HACS as a custom repository, so Home Assistant offers each new version as an update.
 
-**Where the detail is.** CHANGELOG.md records every change by version, and by audit finding for 1.9.0.
+**Where the detail is.** CHANGELOG.md records what each version changed, for this fork and for the lpleva fork it builds on.
 
 ---
 

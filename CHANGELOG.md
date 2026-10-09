@@ -1,529 +1,194 @@
 # Changelog
 
+This file covers two forks:
+
+- **[fulviofreitas/home-assistant-eero](https://github.com/fulviofreitas/home-assistant-eero)**: 2.0.0 and later.
+- **[lpleva/home-assistant-eero](https://github.com/lpleva/home-assistant-eero)**: the audited 1.9.x releases this fork is based on.
+
+---
+
+# fulviofreitas/home-assistant-eero
+
 ## 2.0.0
 
-The integration now talks to the eero cloud through the
-[`eero-api`](https://pypi.org/project/eero-api/) package instead of the
-`requests`-based client vendored under `custom_components/eero/api`. The
-property objects the entities read (`EeroNetwork`, `EeroClient`, ...) are kept;
-underneath them the HTTP, the session refresh and the error classification are
-the SDK's. Polling is split into three tiers so that data the API only changes
-hourly or rarely is no longer fetched every poll. Entity unique IDs are
-unchanged, so entities, their history and automations carry over.
+The integration now uses the [`eero-api`](https://pypi.org/project/eero-api/)
+package instead of its own `requests` client, and splits polling into three
+tiers. Entity unique IDs are unchanged, so entities, history and automations
+carry over.
 
-### Breaking changes and requirements
+### Breaking changes
 
-- Requires the `eero-api==8.0.6` package, listed in the manifest's
-  `requirements`; Home Assistant installs it. It depends on `keyring`, which
-  therefore also gets installed but is never called: the client is built with
-  `use_keyring=False` and an in-memory credential store, and the session token
-  stays in the config entry as before.
-- Minimum Home Assistant is now 2026.8.0, in `hacs.json` as well. The device
-  tracker's `BaseScannerEntity` (Home Assistant 2026.6) and passing
-  `via_device_id` to the device registry's `async_get_or_create` (accepted from
-  2026.8) have been required since 1.9.1, but `hacs.json` still said 2025.2.0.
-- All API I/O is async on Home Assistant's shared aiohttp session. No executor
-  threads are used and `requests` is no longer used.
-- The request timeout option now has a maximum of 30 seconds, because the SDK
-  caps every request at 30 seconds and offers no way to raise that. A stored
-  value above 30 is clamped when the entry is set up. The timeout is now the
-  total time allowed for each request; in 1.x it was the read timeout of each
-  request.
+- Requires Home Assistant **2026.8.0** or later. Releases since 1.9.1 already
+  needed it, but `hacs.json` still said 2025.2.0.
+- Requires `eero-api==8.0.6`, which Home Assistant installs. It pulls in
+  `keyring`, which is never used: the session token stays in the config entry.
+- The request timeout option is capped at 30 seconds, the SDK's own limit.
+  Higher stored values are clamped.
+- Activity sensors refresh hourly. Thread, backup network and firmware data
+  refresh daily, and right after you change them from Home Assistant.
 
 ### Polling
 
-- Data is fetched in three tiers, each its own coordinator:
-  - fast, at the polling interval option (default 300 seconds): network,
-    clients, profiles and eeros;
-  - hourly: activity sensors (insights and data usage), which the API
-    aggregates hourly, so polling them faster only returned the same numbers
-    again;
-  - daily, and right after a change made from Home Assistant that touches
-    them: Thread, backup networks and backup internet, entitlements, firmware
-    updates and release notes.
-
-  Activity sensors, and the Thread, backup network and firmware entities,
-  therefore update less often than in 1.x, where everything was re-read every
-  poll. A change made in the eero app to one of the daily items shows up in
-  Home Assistant within a day, not within one polling interval.
-- Fewer requests per poll. The account is no longer re-read every poll (it is
-  only read by the config and options flows). Eeros come embedded in the
-  network response, so a separate eeros read happens only when they are
-  missing from it. Clients and profiles are only read for networks where
-  something uses them. Release notes are only fetched when at least one eero is
-  configured (1.x fetched them for every network).
-  Measured in the test suite on an account with 3 networks and 10 profiles,
-  with clients and profiles configured and the default data-usage-week
-  activity metric: a fast poll makes 9 requests, where one 1.9.3 poll made 23.
-  Activity is read hourly and Thread, backup networks and updates daily, on
-  top of that.
-- The daily tier reads the network's entitlements and its `updates` resource,
-  which 1.x did not read separately.
-- Rate limits: each tier backs off on its own. A rate-limited poll doubles that
-  tier's interval, up to 15 minutes, and its first successful poll puts it back
-  to the normal interval. The Retry-After value is no longer shown in the
-  error, because the SDK does not expose it.
+- Three tiers:
+  - **Fast**, at your polling interval: network, clients, profiles, eeros.
+  - **Hourly**: insights and data usage.
+  - **Daily**: Thread, backup networks, entitlements, firmware updates.
+- Fewer requests. With 3 networks and 10 profiles, a fast poll makes 9
+  requests, where a 1.9.3 poll made 23.
+- On a rate limit, each tier doubles its interval, up to 15 minutes, and goes
+  back to normal after the next successful poll.
+- Only the fast tier has to succeed for the integration to load. A failing
+  hourly or daily tier makes only its own entities unavailable.
+- A configured network that no longer exists, or that the account lost access
+  to, is skipped with a Repairs issue. The other networks keep working.
+- All I/O is async on Home Assistant's shared HTTP session, with no executor
+  threads.
 
 ### Fixes
 
-- Activity requests sent `start`, `end` and `cadence` as a JSON body on a GET,
-  which the API rejects with a 400. They are now query parameters, so activity
-  sensors that showed nothing may now report values.
-- Profile Ad Blocks, Threat Blocks and Scans sensors read the wrong
-  part of the response: they matched entries by `insights_url` in a list that
-  is not shaped that way. They now read each profile's own series. Client
-  ad-block and threat sensors now read the per-device series (`devices`)
-  instead of the network one.
-- Selecting `schedule` as the Beacon nightlight mode raised a `TypeError`: the
-  schedule setter was called without its on and off times. It now re-sends the
-  current schedule.
-
-### Writes that changed on the wire
-
-These follow the request shapes eero-api documents:
-
-- Status light on/off and brightness are form-encoded PUTs to the eero's
-  published `led_action` link, the same URL 1.x used; 1.x sent a JSON body
-  there. The form-encoded shape is the one eero-api has live-verified.
-- Guest network enable/disable is a form-encoded PUT (live-verified in
-  eero-api).
-- DNS caching is written as `{"dns": {"caching": ...}}` on the network
-  settings object; 1.x sent `{"caching": ...}` to `/networks/{id}/dns`. Every
-  DNS write makes the eero cloud reboot all eeros on the network a few minutes
-  later, so expect a short outage after toggling it.
-- Nightlight writes go to the nightlight URL the eero publishes in its own
-  data, instead of a hard-coded `/2.2/eeros/{id}/nightlight/settings`. eero-api
-  marks this write as not yet confirmed against a live network.
-
-Kept exactly as 1.x sent them, on purpose, through the SDK's raw request verbs
-because the SDK has no method for them or its method sends something
-different: profile content filters, ad blocking (network and profile),
-Advanced Security malware blocking, 5 GHz pause, preferred update hour, client
-internet-backup access, IPv6 upstream (the SDK's `set_ipv6` would also change
-downstream), SQM (the SDK's `set_sqm` sends the value as a query parameter,
-which eero-api has not verified) and the Thread enable path. Band steering,
-UPnP, WPA3 and DDNS go through the SDK's methods, which send the same requests
-1.x did, to the links the network publishes.
+- Activity sensors now send their time window as query parameters. The old
+  request was rejected by the API, so sensors that showed nothing may now show
+  values.
+- Profile ad-block, threat and scan sensors read the profile's own data.
+- Choosing "schedule" as the Beacon nightlight mode no longer crashes.
+- On a Sunday, the weekly activity sensors no longer report the previous week.
+- The status light and guest network switches use the request format the SDK
+  has verified against a real network.
+- DNS caching uses the network's DNS settings object.
 
 ### Behaviour
 
-- Read-compare-skip: a switch, select, time, number or light set to the state
-  it already reports sends nothing. Some of these writes reboot every eero on
-  the network; repeating one that changes nothing is never free.
-- Premium entities are gated on the network's entitlements (a non-empty feature
-  list), with `premium_status` as the fallback when entitlements cannot be
-  read. A feature the account is not entitled to, or the network lacks, raises
-  a Repairs issue instead of failing the poll; the issue clears itself when the
-  feature becomes available and is removed when the entry is unloaded.
-- An entity action that fails (switch, button, light, number, select, time,
-  update), or the `eero.set_blocked_apps` action, raises a readable,
-  translated error in the UI instead of an unhandled exception. An expired
-  session during one of those actions starts reauthentication. Failed polls
-  are reported with translated messages too.
-- Session handling: the SDK refreshes the session only when the API answers
-  `error.session.refresh`. An invalid or expired session goes straight to
-  reauthentication; 1.x attempted one refresh first. The SDK never rotates the
-  token; the integration still writes a changed token back to the config entry
-  without reloading it.
-- `eero.set_blocked_apps` is registered once at startup, whether or not any
-  profile is configured, and applies to the configured profiles of every
-  loaded eero entry (filtered by `target_network` and `target_profile`).
-- Config flow: a new `cannot_connect` abort when the account's networks
-  cannot be read after login, in both the config and the options flow. The
-  options flow also works while the entry is not loaded (it signs in with
-  the stored session), so a network that is gone can be deselected there.
-- A configured network that the API no longer finds (removed from the
-  account, or access revoked) is skipped with a Repairs issue; the other
-  networks keep working and the entry still loads. In 1.x it was skipped
-  silently.
-- Only the fast tier has to succeed for the entry to load. A failure in the
-  hourly or daily tier makes only that tier's entities unavailable until its
-  next poll. A daily read the network does not offer (404) or this admin
-  cannot see (403) is skipped quietly, without a Repairs issue.
-- A switch whose state is not known shows as unknown rather than off, and
-  the block, bedtime, power saving and fast transition switches are only
-  created once their state has been read (they appear on a later poll if
-  the first read failed).
-- Setting the guest password to the password it already has sends nothing
-  (re-sending it disconnects every guest).
-- Moving a client between profiles refuses to write when a profile's
-  current device list is not known, rather than replacing that list with
-  this client alone.
-- A stored session token the SDK rejects starts reauthentication instead of
-  failing setup.
-- Saved responses are written from a worker thread instead of the event
-  loop.
-- The week used by the "week" activity sensors starts on the current
-  Sunday; on a Sunday, 1.x reported the previous week.
+- Setting an entity to the state it already has sends nothing. Some eero
+  writes reboot every eero on the network, so repeats are skipped.
+- **Changing DNS reboots every eero a few minutes later.** This applies to the
+  DNS caching switch and to the custom DNS action.
+- Premium entities follow the network's eero Plus entitlements. A feature the
+  account can't use raises a Repairs issue instead of failing the poll.
+- A failed action shows a readable, translated error. An expired session
+  starts re-authentication.
+- An unknown switch state shows as unknown, not off.
+- The options flow works even when the integration failed to load, so you can
+  deselect a network that is gone.
+- New config flow error: `cannot_connect`, when the account's networks can't
+  be read after login.
+- `eero.set_blocked_apps` is always available and applies to every loaded
+  eero entry.
 
-### New entities and actions
+### New entities
 
-- `switch.<client>_blocked`: blocks or unblocks a client via the SDK's
-  `blacklist.add_to_blacklist`/`remove_from_blacklist`. State is read from a
-  new daily-tier read of the network's block list (`blacklist.get_blacklist`),
-  fetched only for networks with client entities configured; blocking a
-  client also refreshes the fast tier, since a blocked device is removed from
-  the network's device list, not just flagged.
-- `switch.<profile>_bedtime_enabled` and four `time.<profile>_bedtime_*`
-  entities (weekday start/end, weekend start/end): read from a new
-  daily-tier read of each configured profile's schedules
-  (`schedule.get_schedules`), fetched only for networks with profile
-  entities configured. The eero API models a bedtime as a named scheduled
-  pause rather than a single on/off field, so these are matched by name
-  ("Bedtime") and day set; turning the switch off disables the schedule(s)
-  rather than deleting them, so times already set survive being turned back
-  on. Writes go through `schedule.set_weekday_bedtime`/
-  `set_weekend_bedtime`/`update_schedule`, none of which the SDK has
-  verified against a live network yet (`warn_uncharacterised_write`).
-- `select.<client>_profile`: assigns a client to a different profile, or
-  unassigns it. Current/options are read from the already-fetched fast-tier
-  profiles (no new request): the profile whose device list includes this
-  client, matched by URL or MAC, since the device envelope itself carries no
-  profile reference. Writes go through `profiles.set_profile_devices`, which
-  replaces a profile's whole device list, so changing the assignment issues
-  one write to the previous profile (device removed) and one to the new
-  profile (device added). Only offered when at least one profile is
-  configured on that network: the fast tier only fetches profiles in that
-  case, so without it there is nothing honest to report the assignment from.
+- **Clients**: block/unblock switch, and a select to move the client to a
+  profile. The select is only offered where profiles are configured.
+- **New clients** get their entities as they join, without reloading. The
+  include/exclude filter is respected.
+- **Profiles**: bedtime switch, plus weekday and weekend start and end times.
+- **Guest network**: name text entity, and a write-only password text entity.
+  The password is never shown as state.
+- **Network**: power saving and fast transition switches, and an MLO mode
+  select where the network supports it.
+- **Network diagnostics**: reservation count, port forward count and DNS mode
+  sensors.
+- **Eero ports**: connection status and speed sensors per port, and port
+  action buttons. The buttons are disabled by default.
+- **Optional activity metrics**, off by default:
+  - unprofiled-device and per-eero daily data usage;
+  - an app events entity;
+  - an unread-notifications sensor.
 
-### Dynamic client discovery
+  Events appear up to an hour late. Past events are not replayed after a
+  restart.
+- Passpoint is not supported: there is no way to read its current state.
+- The MLO, port and power saving entities use response formats that haven't
+  been checked against a real network yet.
 
-- A client that joins the network after the entry is set up gets its
-  entities (every platform that builds client entities: binary_sensor,
-  device_tracker, select, sensor, switch) on the next fast-tier poll,
-  without a config entry reload. `async_setup_platform_entities` rebuilds
-  the platform's entity list on every fast-tier update and adds only the
-  unique IDs not already added; this respects the same include/exclude
-  client filter as initial setup, since it is the same `build_entities`
-  doing the filtering both times.
+### New actions
 
-- `text.<network>_guest_network_name` and `text.<network>_guest_network_password`
-  (new `text` platform): rename the guest network, or set its password.
-  The password text is write-only: it is never read back as state, even
-  though the network envelope carries it (`networks.set_guest_password`
-  accepts it, nothing ever surfaces it), and requires at least 8
-  characters. Writes go through `networks.set_guest_network` (name, keeping
-  the current enabled state) and `networks.set_guest_password`.
-- `sensor.<network>_unprofiled_data_usage_day` and
-  `sensor.<network>_eeros_data_usage_summary_day`: today's hourly data usage
-  for unprofiled devices and summed across all eeros
-  (`data_usage.get_unprofiled_summary`/`get_eeros_summary`, hourly tier).
-  Both are new activity choices in the config/options flow's activity step,
-  selectable but never pre-selected, so existing entries' request counts do
-  not grow on upgrade. The response shape is assumed identical to the
-  existing `data_usage_day` series (a list of `{"type", "sum"}` entries):
-  the SDK does not document either method as live-verified against a real
-  network, which is a gap worth confirming before relying on these. Both
-  use `state_class: total` with `last_reset` set to the start of the
-  current day in the network's own timezone (the same window the hourly
-  tier fetches the value over), rather than `total_increasing`: the
-  existing `data_usage_day`/`week`/`month` and `adblock_*`/`blocked_*`/
-  `inspected_*` sensors are left on `total_increasing` unchanged, so as
-  not to disturb users' existing long-term statistics.
+- `eero.create_reservation` and `eero.delete_reservation`.
+- `eero.create_port_forward` and `eero.delete_port_forward`.
+- `eero.set_custom_dns`. This reboots the mesh. It sends at most one write,
+  and only for address families that actually change.
 
-- `event.<network>_app_events` (new `event` platform) and
-  `binary_sensor.<network>_notifications_has_unread`: two more opt-in
-  activity choices (`events.get_app_events`/`notifications.has_unread`,
-  hourly tier), selectable but never pre-selected. The event entity fires
-  a single generic `app_event` HA event for every app event the network
-  reports that this entity instance has not already seen (deduped
-  in-memory by id/timestamp, not persisted across a restart), carrying the
-  raw eero event as attributes; the eero API's own event schema is not
-  documented well enough to split these into distinct HA event types yet.
-  Latency: an event is only visible up to an hour after it happened (the
-  hourly tier's cadence). Events already present when the entity is added
-  are recorded as seen without firing, so a restart or a newly-added
-  entity never replays history as live HA events; an event that happened
-  while Home Assistant was down is not replayed once it comes back either.
+### Configuration and translations
 
-- Reservations, port forwards and custom DNS actions:
-  `eero.create_reservation`/`eero.delete_reservation`,
-  `eero.create_port_forward`/`eero.delete_port_forward`, and
-  `eero.set_custom_dns` (IPv4/IPv6 server lists, or `automatic` to switch
-  both families back). **Every DNS write reboots the entire mesh a few
-  minutes later** — the service's description says so; follow
-  read-compare-skip and never retry a failed call in a loop. Plus three
-  diagnostic sensors, all in the daily tier:
-  `sensor.<network>_reservation_count`, `sensor.<network>_forward_count`
-  (one more request each, every network, every daily poll — reservations
-  and forwards have no per-network opt-in, since the daily tier already
-  costs one poll a day) and `sensor.<network>_dns_mode` (no extra request:
-  already published on the network envelope the fast tier fetches).
-  `set_custom_dns` follows read-compare-skip strictly: each family's write
-  is skipped when the network already reports the target servers/mode
-  (compared order-insensitively, and through `ipaddress` for IPv6 so a
-  compressed literal matches the API's fully-expanded stored form), using
-  the network envelope's own `dns`/`ipv6` fields and falling back to one
-  `dns.get_dns_settings` read only when those are absent. The families that
-  do change are sent in one write, so one action means at most one reboot.
-  `create_reservation`/`create_port_forward` also skip creating an exact
-  duplicate of an entry the daily-tier read already reports.
-- `switch.<network>_power_saving` (no extra request: `set_power_saving`'s
-  own docstring points at the network envelope's `power_saving` fields)
-  and `switch.<network>_fast_transition` (a new daily-tier read via
-  `security.get_fast_transition`, the SDK's own "verified read"; the
-  write is not request-refreshed, like the confirmed DNS write path, in
-  case it is equally disruptive). Both writes
-  (`power_saving.set_power_saving`/`security.set_fast_transition`) are
-  unconfirmed against a live network by the SDK.
-  `select.<network>_mlo_mode` (disabled/single/multi): no extra request,
-  read from the network envelope's own `mlo_mode` field, gated on the
-  network's `capabilities.mlo_mode.capable` flag and on the value
-  actually parsing -- the entity is never created otherwise, so there is
-  never a blind write with nothing confirmed to compare against. The
-  eero-api SDK itself has no reader for this field and does not
-  characterise `set_mlo_mode`'s write against a live network; the read
-  shape (a plain string, or possibly a dict carrying one under "mode"/
-  "value") comes from the eero app's own observed API schema, not from
-  eero-api, so treat it as unconfirmed until checked against a live
-  network.
-  **Gap:** Passpoint (`security.set_passpoint_enabled`) is not
-  implemented this phase: unlike MLO mode, nothing in either the eero-api
-  SDK or the app's observed API schema documents a way to read it back
-  (only the `PUT passpoint/enabled` write exists anywhere), so a switch
-  for it would always write and never skip a redundant one, which the
-  project's own read-compare-skip discipline treats as mandatory for
-  exactly this kind of settings write. Revisit once a reader exists.
-- Per-port sensors (`sensor.<eero>_port_<n>_connection_status`,
-  `..._negotiated_speed`) and per-port action buttons
-  (e.g. `button.<eero>_restart_port_<n>_power`, one per action the port's own
-  `actions` list reports, intersected with the SDK's accepted
-  `eeros.port_action` values): built dynamically from a new daily-tier
-  read, `eeros.get_connections`, once per configured eero -- the SDK has
-  no dedicated "list ports" reader at all (`eeros.get_ports` does not
-  exist); `get_connections` happens to carry a `ports` block alongside
-  the client-connection data it is actually for. The response shape
-  (`ports.interfaces[]`, `interface_number`, `connection_status`,
-  `negotiated_speed` as a `PhyRate` enum mapped here to Mbit/s, `actions`)
-  comes from the eero app's own observed API schema, not from eero-api,
-  which does not document or verify any of it. Port action buttons are
-  disruptive (power-cycle, disable data/PoE/the port itself) and
-  unconfirmed against a live network: disabled by default, a CONFIG
-  entity. New ports (or a newly-connected eero) appear without a reload,
-  the same as a new client.
-- Entity names are translated: every entity takes its name from the
-  `entity` section of `strings.json` instead of a hard-coded English
-  string, and a Brazilian Portuguese (`pt-BR`) translation of the whole
-  integration is included. English names are unchanged, and existing entity
-  IDs are kept by the entity registry. On a system set to Portuguese
-  (Brazil), entities registered from now on get Portuguese names and,
-  because Home Assistant builds entity IDs in that language, Portuguese
-  entity IDs; per-port entity names now include the port number. The
-  two buttons that set an icon in code (speed test, internet backup test)
-  take it from `icons.json` instead. The ad blocking status sensor's
-  `profile` state, and the DNS mode sensor's states, are now translated.
-- Reconfigure: the integration's "Reconfigure" menu entry changes the
-  polling interval, request timeout and save-responses setting without
-  going through the whole options flow, and reloads the entry. Every config
-  flow field now has a description under it.
-- Releases are cut by release-please from the conventional commits on
-  `main`: it keeps a release pull request open that bumps `manifest.json`
-  and this file, and merging it tags the release, publishes it, and attaches
-  the `eero.zip` HACS installs.
+- **Reconfigure** changes the polling interval, request timeout and response
+  logging directly.
+- Every config flow field has a description.
+- Entity names come from translations. Brazilian Portuguese (`pt-BR`) is
+  added. English names and existing entity IDs are unchanged.
 
-### Since 1.9.3, also in this release
+### Also in this release
 
-- Config entry diagnostics: the API payload, with tokens, secrets and contact
-  details redacted.
-- Rate-limit backoff: a 429 doubles the polling interval, up to 15 minutes,
-  and the next successful poll restores the configured interval. Before, every
-  poll hit the limit again at the normal cadence. (In 2.0.0 this applies per
-  tier, see Polling.)
-- The manifest's `codeowners`, `documentation` and `issue_tracker` point at
-  this fork instead of upstream.
-- CI and release workflows: lint, hassfest, HACS validation, tests and type
-  checks run on every push and pull request, and a `v*` tag builds `eero.zip`
-  and attaches it to the GitHub release, which HACS installs (`zip_release` in
-  `hacs.json`).
+- Config entry diagnostics, with tokens, passwords, keys and contact details
+  redacted.
+- The manifest's code owner, documentation and issue tracker point at this
+  fork.
+- CI checks every change with lint, hassfest, HACS validation, tests and type
+  checks. Tests run on Home Assistant 2026.8 and 2026.10.
+- Releases, including the `eero.zip` that HACS installs, are cut by
+  release-please from conventional commits.
+
+---
+
+# lpleva/home-assistant-eero
 
 ## 1.9.3
 
-- The config and options flows always offer the Advanced options step (polling interval, timeout, save responses; all with defaults). It used to appear only when the Home Assistant user had "advanced mode" on, through `show_advanced_options`, which HA deprecated and removes in 2027.6.
+- The Advanced options step is always offered: polling interval, timeout and
+  saved responses. It used to need Home Assistant's "advanced mode".
 
 ## 1.9.2
 
-- Devices can be deleted from Home Assistant's device page: `async_remove_config_entry_device` allows it for a wired or wireless client the eero does not currently report as connected (it is recreated if the client comes back); never for the network, an eero or a profile. Before this, the delete button was refused and dead clients lingered with all their entities.
+- Wired or wireless clients that the eero no longer reports as connected can
+  be deleted from the device page. A deleted client comes back if it
+  reconnects.
 
 ## 1.9.1
 
-Two fixes from the first run on Home Assistant 2026.9.1.
-
-- The release-notes host allowlist added in 1.9.0 (**M5**) was too strict: it
-  carried `eero.com` and `e2ro.com` only, while the firmware manifest URL in
-  the API response points at `eeroassets.com`, Eero's own asset host. Every
-  poll logged "Refusing to fetch release notes from unexpected host:
-  eeroassets.com" and no release notes were shown. `eeroassets.com` and its
-  subdomains are now allowed; the fetch is still https-only and still uses a
-  bare request rather than the authenticated session.
-- Child devices are linked to their network with `via_device_id` instead of
-  `via_device`. Home Assistant deprecated the identifier-tuple `via_device`
-  (it is removed in 2027.8) and warned once per platform on every start. The
-  network device is now looked up in the device registry and its ID passed
-  instead. Eeros, profiles, clients and backup networks sit under their
-  network exactly as before.
+- Release notes load again. The allowed hosts now include `eeroassets.com`,
+  where the firmware manifest lives.
+- Child devices link to their network with `via_device_id` instead of the
+  deprecated `via_device`.
 
 ## 1.9.0
 
-Fixes for the findings in the code audit of this fork (4 critical, 9 high,
-11 medium, 9 low). IDs below refer to that audit.
+A security and reliability release from a full code audit of the integration.
 
 ### Security
 
-- **C1** — Saved responses no longer land in `custom_components/eero/api/responses`
-  (inside the component source tree, so included in every backup). They go to
-  `.storage/eero_responses`, every `/2.2/login*` exchange is skipped outright,
-  and `user_token`, `password`, `psk`, `master_key`,
-  `commissioning_credential` and `active_operational_dataset` are redacted
-  from whatever is written.
-- **C2** — `EeroException` no longer logs at WARNING from its constructor and
-  no longer carries the response body. An Eero 500 on a network endpoint used
-  to dump the WiFi PSK, the guest PSK and the Thread dataset into
-  `home-assistant.log` with no option enabled. Error messages now name the URL
-  path only, so query strings never reach the log.
-- **H8** — The `thread_enabled` switch no longer publishes the Thread master
-  key, commissioning credential or active operational dataset as state
-  attributes, and the guest network switch no longer publishes the guest WiFi
-  password. State attributes are readable by every logged-in user and are
-  written to the recorder database.
-- **M5** — The firmware manifest URL, which comes from the API response, must
-  be https on `eero.com` or `e2ro.com` and is fetched with a bare request
-  rather than the session that talks to the auth endpoint.
-- **M6** — The login identifier and the one-time verification code are no
-  longer written to the debug log, and config-entry migration logs key names
-  rather than values.
+- Saved responses go to `.storage/eero_responses`. Login exchanges are never
+  saved, and tokens, Wi-Fi passwords and Thread keys are redacted.
+- API errors no longer write response bodies to the log. Those bodies
+  contained the Wi-Fi password and Thread credentials.
+- The Thread switch no longer exposes the Thread keys as attributes, and the
+  guest network switch no longer exposes the guest password.
+- Release notes are only fetched over https from eero's own hosts.
+- The login identifier and verification code are no longer logged.
 
 ### Reliability
 
-- **C3** — The session refresh is bounded: at most one refresh per call, and a
-  session that cannot be refreshed raises `EeroSessionExpired`. That becomes
-  `ConfigEntryAuthFailed`, and a reauth step in the config flow asks for a new
-  verification code and stores the new token. Previously a dead session sent
-  hundreds of auth POSTs per poll and then crash-looped forever with no way
-  out but delete-and-re-add.
-- **C4** — API errors are no longer swallowed. `update()` raises, the
-  coordinator marks the update failed, and entities become unavailable instead
-  of reporting the values they had when the failure started. Presence
-  automations now see a failure rather than a frozen `home`.
-- **H1** — Every request carries a `(connect, read)` timeout, taking the
-  configured polling timeout as the read value. `requests` transport errors
-  (`ConnectionError`, `SSLError`, timeouts) all become `EeroException`.
-- **H2** — A refreshed session token is written back to the config entry, so a
-  restart no longer reloads a token Eero has already rotated.
-- **H3** — A resource that disappears from the API is reported as missing
-  rather than silently replaced by the network object, which is what produced
-  `'EeroNetwork' object has no attribute 'paused'`. Unique IDs are built from
-  configured IDs, so an entity can no longer attach itself to the wrong device.
-- **H4** — The update loop treats every field of the response as optional: no
-  Thread border router, no `backup_access_point` capability, no `updates`
-  block and no timezone no longer break setup.
-- **H5** — Data usage sensors report unknown instead of raising
-  `TypeError: NoneType + NoneType` right after a period rolls over.
-- **H6** — Status light brightness handles an eero that reports no
-  `led_brightness`, and rounds instead of truncating.
-- **H7** — Firmware entities cope with a network that has no release notes.
-- **H9** — `EeroProfile.ad_block` no longer raises `TypeError` when
-  `premium_dns` is unpopulated, which used to prevent the entire switch
-  platform from creating a single entity.
-- **M1** — The request retried after a session refresh is checked.
-- **M2** — 429 raises `EeroRateLimited` carrying `Retry-After`. Release notes
-  are cached per manifest URL instead of refetched every poll. The polling
-  floor moves 30s → 60s and the default 120s → 300s.
-- **M9** — Entity discovery no longer uses bare `hasattr`, so one broken
-  property cannot abort a whole platform's setup and failures are logged.
-  (Partial: the audit's declarative `supported_resources` redesign was not
-  attempted.)
-- **M10** — The `requests.Session` is closed when the entry unloads.
-- **L7, L8** — `preferred_update_hour` and `EeroClient.signal` no longer raise
-  on unexpected values.
+- An expired session starts re-authentication instead of looping on refresh
+  requests. A refreshed token is saved to the config entry, and saving it
+  does not reload the integration.
+- A failed poll makes entities unavailable instead of freezing their last
+  values.
+- Every request has a timeout.
+- Missing fields in API responses no longer break setup: no Thread, no backup
+  capability, no updates block, no timezone.
+- A resource that disappears is reported as missing. It no longer attaches to
+  the wrong device.
+- Data usage, status light, firmware, signal and update-hour entities cope
+  with missing or unexpected values.
+- An empty account response counts as a failed poll, not an account with no
+  networks.
+- Rate limits are reported. Release notes are cached.
+- The polling floor is 60 seconds and the default 300 seconds.
 
 ### Behaviour and naming
 
-- **M7** — `has_entity_name` is adopted. Entities are named for what they
-  measure ("Signal Strength") and Home Assistant composes the friendly name
-  from the device name; the network prefix and wired/wireless suffix moved to
-  the device. **This changes generated entity IDs**, which is why it ships
-  before first install. Unique IDs are unchanged.
-- **Image platform removed.** The two QR-code image entities per network are
-  gone, along with the `pypng` and `PyQRCode` requirements (sdist-only, last
-  released 2019 and 2016; a requirements install failure takes down the whole
-  integration) and the `show_eero_logo` option. This also resolves **M3** (QR
-  PNGs re-encoded on the event loop on every state write) and **M4**
-  (hardcoded `/config` paths).
-- **M8** — Profile clients are constructed with their network, not their
-  profile.
-- **M11** — `EeroNetwork.update()` is now `install_firmware_update()`: it
-  updates every eero on the network, which the old name did not say.
-- **L5** — `secondary_wan_deny_access` is now `secondary_wan_allow_access`,
-  matching what it returns and what the switch is labelled.
-- **L6** — Networks with no geolocation no longer appear as
-  "MyNetwork (None, None)".
-- **L1, L2, L3, L4, L9** — Real type annotations instead of `str[EntityCategory]`,
-  working form prefill in the config flow, consistent entity base-class order,
-  dead `camera` translations removed, `quality_scale` dropped, `loggers` set,
-  and the coordinator gets `config_entry`.
-
-### Fixes to the PRs merged into this fork
-
-- PR #170's `except (KeyError, ValueError): pass` is now a KeyError-only
-  handler that logs and explains the cause (a snapshot of the device registry
-  being iterated while entries are removed). It has nothing to do with
-  Python 3.14, contrary to the commit message.
-- PR #171 dropped the `ip`, `mac` and `host_name` device_tracker attributes
-  when it moved to `BaseScannerEntity`. Restored.
-- PR #174's unreachable `.strip()` removed; the attribute is named
-  `channel_width_rx`, which is the field it reads.
-- `light.turn_on` with `brightness: 1` mapped to 0 and turned the light off.
-  Clamped to 1.
-
-### Post-review fixes
-
-An independent review of these changes raised one blocking regression and
-seven smaller items, all fixed here.
-
-- **B1** — Home Assistant fires an entry's update listeners on any change,
-  data included, so the token written back by the H2 fix reloaded the whole
-  integration on every session rotation: entities removed and re-added,
-  `consider_home` clocks reset, the `requests.Session` closed under an
-  executor thread, and a second poll started on top of the one in flight.
-  `async_update_listener` now reloads only when the options changed or when
-  the entry's token differs from the one the running API object holds, which
-  is true of a token from the reauth flow and false of one this integration
-  persisted itself.
-- **N1** — The asyncio timeout around the whole poll is gone. It gave the
-  entire multi-request poll the budget of one request, and cancelling it never
-  killed the executor thread, which is what H1's per-request timeout is for.
-- **N2** — A failed release-notes fetch logs a warning instead of failing the
-  poll. A 404 on the firmware manifest used to take every entity in the house
-  unavailable over a decoration on the update entities.
-- **N3** — A release-notes URL on an unexpected host is refused once and the
-  refusal cached, instead of warning every poll forever.
-- **N4** — The reauth step passes `reload_even_if_entry_is_unchanged=False`.
-  Asking `async_update_reload_and_abort` to schedule a reload on an entry that
-  has an update listener is deprecated and breaks in Home Assistant 2026.12;
-  the listener owns the reload.
-- **N5** — Reauth fails closed when the verification response carries no
-  `log_id`, rather than skipping the wrong-account check and writing the token
-  in unverified.
-- **N6** — An account response with no `networks` member raises instead of
-  building an empty account. On a cold start it used to set the integration up
-  successfully with no entities and no reason logged.
-- **N7** — The scan interval is clamped to the floor when read, in both the
-  setup path and the options form, so a stored value below a raised floor
-  cannot make the form unsubmittable. The floor is 60s (the default stays
-  300s).
-- **N8** — Comment only: `device_info` returning None is permanent, since
-  Home Assistant reads it once at registration.
-
-### Tests
-
-`tests/` holds 41 tests for the api package, running without Home Assistant
-installed:
-
-```bash
-python3 -m venv .venv && .venv/bin/pip install pytest requests
-.venv/bin/python -m pytest -q
-```
-
-## 1.8.1 and earlier
-
-See the upstream project: https://github.com/schmittx/home-assistant-eero
+- Entities use `has_entity_name`. Friendly names are built from the device
+  name; this changes generated entity IDs for new installs.
+- The QR-code image entities and their two unmaintained dependencies are
+  removed.
+- Device tracker attributes `ip`, `mac` and `host_name` are restored. Wireless
+  clients also report band, channel and channel width.
+- `light.turn_on` with the lowest brightness no longer turns the light off.
+- Re-authentication refuses a different account.
