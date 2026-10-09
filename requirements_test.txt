@@ -14,3 +14,6 @@ ruff==0.16.10
 eero-api==8.0.6
 aiohttp==3.13.3
 python-dateutil==2.9.0.post0
+# Test-only: tests/test_hub.py runs the 1.9.3 requests-based client out of git
+# history to measure its request count. The integration does not use requests.
+requests
