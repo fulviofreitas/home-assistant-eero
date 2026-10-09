@@ -109,8 +109,9 @@ def entry_data(**overrides) -> dict:
 def sdk_factory(monkeypatch):
     """Patch EeroHub construction so it uses a FakeSDK instead of the real SDK.
 
-    Returns a function that must be called with the routes for the test; it
-    returns the FakeSDK so the test can inspect sdk.calls / mutate routes.
+    Returns a function called with the routes the test needs on top of
+    default_routes(); it returns the FakeSDK so the test can inspect
+    sdk.calls / mutate routes.
     """
     import custom_components.eero as eero_init
     from custom_components.eero.api import EeroHub as RealEeroHub
@@ -118,7 +119,9 @@ def sdk_factory(monkeypatch):
     created: list = []
 
     def make(routes: dict | None = None) -> FakeSDK:
-        sdk = FakeSDK(routes if routes is not None else default_routes())
+        # A test's routes override the defaults rather than replace them, so a
+        # new daily-tier read only needs a default here, not in every test.
+        sdk = FakeSDK({**default_routes(), **(routes or {})})
         created.append(sdk)
 
         def patched_hub(**kwargs):
