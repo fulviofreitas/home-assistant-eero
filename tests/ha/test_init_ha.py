@@ -1261,3 +1261,38 @@ async def test_network_action_buttons_exist_and_call_the_sdk(hass, sdk_factory) 
             "button", "press", {"entity_id": entity_id}, blocking=True
         )
         assert any(d == "networks" and m == method for d, m, _a, _kw in sdk.calls), key
+
+
+async def test_setup_copes_with_a_registered_device_that_has_no_model(
+    hass, sdk_factory
+) -> None:
+    """A device registered without a model (e.g. a bare port-entity device) must not break setup.
+
+    Setup prunes entities of premium activities the options no longer enable,
+    and decides per device model; a missing model used to raise TypeError.
+    """
+    from homeassistant.config_entries import ConfigEntryState
+    from homeassistant.helpers import device_registry as dr, entity_registry as er
+
+    from custom_components.eero.const import ACTIVITIES_PREMIUM
+
+    sdk_factory()
+    entry = make_entry(hass)
+    device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id, identifiers={(DOMAIN, NETWORK_ID)}
+    )
+    assert device.model is None
+    premium_key = ACTIVITIES_PREMIUM[0]
+    entity = er.async_get(hass).async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"{NETWORK_ID}-{premium_key}",
+        config_entry=entry,
+        device_id=device.id,
+    )
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert er.async_get(hass).async_get(entity.entity_id) is not None
