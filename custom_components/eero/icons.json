@@ -16,6 +16,11 @@
                 }
             }
         },
+        "select": {
+            "profile_assignment": {
+                "default": "mdi:account-group"
+            }
+        },
         "time": {
             "bedtime_weekday_start": {
                 "default": "mdi:bed-clock"

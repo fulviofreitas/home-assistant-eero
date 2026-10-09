@@ -10,6 +10,18 @@ from .resource import EeroResource
 
 _LOGGER = logging.getLogger(__name__)
 
+#: The select option meaning "not assigned to any profile". Chosen so it
+#: cannot collide with a real eero profile name in practice; a profile
+#: actually named this would be indistinguishable from unassigned.
+UNASSIGNED_PROFILE = "Unassigned"
+
+
+def _same_client(a: EeroClient, b: EeroClient) -> bool:
+    """Whether two EeroClient views (network-level, profile-level) are the same device."""
+    if a.url and b.url and a.url == b.url:
+        return True
+    return bool(a.mac and b.mac and a.mac == b.mac)
+
 
 class EeroClient(EeroResource):
     """EeroClient."""
@@ -314,6 +326,60 @@ class EeroClient(EeroResource):
             self.api.sdk.devices.pause_device(self.network.id, self.mac, value),
             name=f"/2.3/networks/{self.network.id}/devices",
         )
+
+    @property
+    def profile_assignment(self) -> str:
+        """Name of the profile this client is currently assigned to.
+
+        Resolved by scanning the network's profiles for one whose device
+        list includes this client: the device envelope itself carries no
+        reliable profile reference. UNASSIGNED_PROFILE when none does.
+        """
+        for profile in self.network.profiles:
+            if any(_same_client(self, assigned) for assigned in profile.clients):
+                return profile.name or UNASSIGNED_PROFILE
+        return UNASSIGNED_PROFILE
+
+    @property
+    def profile_assignment_options(self) -> list[str]:
+        """Every selectable profile name, plus the unassigned sentinel."""
+        return [
+            UNASSIGNED_PROFILE,
+            *[profile.name for profile in self.network.profiles if profile.name],
+        ]
+
+    async def async_set_profile_assignment(self, value: str) -> None:
+        """Move this client to a different profile (or unassign it).
+
+        profiles.set_profile_devices replaces a profile's whole device
+        list, so this reads both the losing and gaining profile's current
+        list and rewrites each exactly once.
+        """
+        current = None
+        target = None
+        for profile in self.network.profiles:
+            if any(_same_client(self, assigned) for assigned in profile.clients):
+                current = profile
+            if value != UNASSIGNED_PROFILE and profile.name == value:
+                target = profile
+        if current is not None and current is not target:
+            urls = [
+                assigned.url
+                for assigned in current.clients
+                if not _same_client(self, assigned) and assigned.url
+            ]
+            await self.api.call(
+                self.api.sdk.profiles.set_profile_devices(self.network.id, current.id, urls),
+                name=current.url,
+            )
+        if target is not None and target is not current:
+            urls = [
+                assigned.url for assigned in target.clients if assigned.url
+            ] + ([self.url] if self.url else [])
+            await self.api.call(
+                self.api.sdk.profiles.set_profile_devices(self.network.id, target.id, urls),
+                name=target.url,
+            )
 
     @property
     def secondary_wan_allow_access(self) -> bool | None:

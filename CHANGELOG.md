@@ -151,6 +151,14 @@ UPnP, WPA3 and DDNS go through the SDK's methods, which send the same requests
   on. Writes go through `schedule.set_weekday_bedtime`/
   `set_weekend_bedtime`/`update_schedule`, none of which the SDK has
   verified against a live network yet (`warn_uncharacterised_write`).
+- `select.<client>_profile`: assigns a client to a different profile, or
+  unassigns it. Current/options are read from the already-fetched fast-tier
+  profiles (no new request): the profile whose device list includes this
+  client, matched by URL or MAC, since the device envelope itself carries no
+  profile reference. Writes go through `profiles.set_profile_devices`, which
+  replaces a profile's whole device list, so changing the assignment issues
+  one write to the previous profile (device removed) and one to the new
+  profile (device added).
 
 ### Since 1.9.3, also in this release
 

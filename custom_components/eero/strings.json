@@ -249,6 +249,9 @@
                     "disabled": "Disabled",
                     "schedule": "Schedule"
                 }
+            },
+            "profile_assignment": {
+                "name": "Profile"
             }
         },
         "sensor": {

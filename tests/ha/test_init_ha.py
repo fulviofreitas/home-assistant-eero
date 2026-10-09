@@ -331,6 +331,84 @@ async def test_switch_and_time_bedtime_schedule(hass, sdk_factory) -> None:
     )
 
 
+def client_and_profile_entry_data(**overrides) -> dict:
+    """Entry data with wired clients discovered and two profiles configured."""
+    resources = {
+        NETWORK_ID: {
+            CONF_BACKUP_NETWORKS: [],
+            CONF_EEROS: [],
+            CONF_PROFILES: ["kids", "adults"],
+            CONF_WIRED_CLIENTS: [],
+            CONF_WIRED_CLIENTS_FILTER: CONF_FILTER_EXCLUDE,
+            CONF_WIRELESS_CLIENTS: [],
+            CONF_WIRELESS_CLIENTS_FILTER: CONF_FILTER_INCLUDE,
+        }
+    }
+    return entry_data(**{CONF_RESOURCES: resources, **overrides})
+
+
+async def test_select_profile_assignment_moves_a_client(hass, sdk_factory) -> None:
+    """The profile select reads the fast-tier profiles and moves the client on write."""
+    mac = "aa:bb:cc:dd:ee:ff"
+    device_url = f"{NETWORK_URL}/devices/{mac}"
+    device = {"url": device_url, "mac": mac, "wireless": False, "nickname": "TestClient"}
+    profiles = [
+        {
+            "url": f"{NETWORK_URL}/profiles/kids",
+            "name": "Kids",
+            "devices": [{"url": device_url, "mac": mac}],
+        },
+        {"url": f"{NETWORK_URL}/profiles/adults", "name": "Adults", "devices": []},
+    ]
+    sdk = sdk_factory(
+        {
+            "networks.get_network": network_envelope(),
+            "eeros.get_eeros": [],
+            "devices.get_devices": [device],
+            "profiles.get_profiles": profiles,
+            "entitlements.get_features": {"features": []},
+            "updates.get_updates": {},
+            "blacklist.get_blacklist": [],
+            "schedule.get_schedules": [],
+        }
+    )
+    entry = make_entry(hass, **client_and_profile_entry_data())
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    from homeassistant.helpers import entity_registry as er
+
+    registry = er.async_get(hass)
+    entity_id = registry.async_get_entity_id(
+        "select", DOMAIN, f"{NETWORK_ID}-{mac}-profile_assignment"
+    )
+    assert entity_id is not None
+    state = hass.states.get(entity_id)
+    assert state.state == "Kids"
+    assert set(state.attributes["options"]) == {"Unassigned", "Kids", "Adults"}
+
+    sdk.calls.clear()
+    sdk.set_route("profiles.set_profile_devices", {})
+    await hass.services.async_call(
+        "select",
+        "select_option",
+        {"entity_id": entity_id, "option": "Adults"},
+        blocking=True,
+    )
+    assert (
+        "profiles",
+        "set_profile_devices",
+        (NETWORK_ID, "kids", []),
+        {},
+    ) in sdk.calls
+    assert (
+        "profiles",
+        "set_profile_devices",
+        (NETWORK_ID, "adults", [device_url]),
+        {},
+    ) in sdk.calls
+
+
 async def test_diagnostics_redacts_the_token(hass, sdk_factory) -> None:
     """The config entry diagnostics never leak the session token."""
     sdk_factory()

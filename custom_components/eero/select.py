@@ -11,6 +11,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .coordinator import EeroConfigEntry
 from .entity import (
+    KIND_CLIENTS,
     KIND_EEROS,
     KIND_NETWORK,
     EeroEntity,
@@ -27,6 +28,11 @@ class EeroSelectEntityDescription(EeroEntityDescription, SelectEntityDescription
 
 
 SELECT_DESCRIPTIONS: list[EeroSelectEntityDescription] = [
+    EeroSelectEntityDescription(
+        key="profile_assignment",
+        translation_key="profile_assignment",
+        options="profile_assignment_options",
+    ),
     EeroSelectEntityDescription(
         key="nightlight_mode",
         name="Nightlight Mode",
@@ -53,7 +59,7 @@ async def async_setup_entry(
             config_entry.runtime_data,
             SELECT_DESCRIPTIONS,
             EeroSelectEntity,
-            (KIND_NETWORK, KIND_EEROS,),
+            (KIND_NETWORK, KIND_EEROS, KIND_CLIENTS),
         )
     )
 

@@ -150,6 +150,63 @@ async def test_schedules_fetched_only_when_profiles_configured_and_parsed_by_nam
     assert profile.bedtime_weekend_start is None
 
 
+async def test_client_profile_assignment_reads_and_moves_between_profiles() -> None:
+    """profile_assignment is read from the fast-tier profiles; moving rewrites both lists."""
+    mac = "aa:bb:cc:dd:ee:ff"
+    other_mac = "11:22:33:44:55:66"
+    network = dict(fixture("network"))
+    profiles = [
+        {
+            "url": f"/2.2/networks/{NETWORK_ID}/profiles/kids",
+            "name": "Kids",
+            "devices": [{"url": f"/2.2/networks/{NETWORK_ID}/devices/{mac}", "mac": mac}],
+        },
+        {
+            "url": f"/2.2/networks/{NETWORK_ID}/profiles/adults",
+            "name": "Adults",
+            "devices": [],
+        },
+    ]
+    sdk = FakeSDK(
+        {
+            "networks.get_network": network,
+            "devices.get_devices": fixture("devices"),
+            "eeros.get_eeros": [],
+            "profiles.get_profiles": profiles,
+            "profiles.set_profile_devices": {},
+        }
+    )
+    hub = build_hub(sdk=sdk)
+    config = eero_api.EeroUpdateConfig(get_devices=True, profiles=["kids", "adults"])
+
+    fast = await hub.fetch_fast(NETWORK_ID, config)
+    account = hub.assemble(None, {NETWORK_ID: fast}, {}, {})
+    net = account.networks[0]
+    clients = {client.mac: client for client in net.clients}
+
+    assert clients[mac].profile_assignment == "Kids"
+    assert clients[other_mac].profile_assignment == "Unassigned"
+    assert sorted(clients[mac].profile_assignment_options) == [
+        "Adults",
+        "Kids",
+        "Unassigned",
+    ]
+
+    await clients[mac].async_set_profile_assignment("Adults")
+    assert (
+        "profiles",
+        "set_profile_devices",
+        (NETWORK_ID, "kids", []),
+        {},
+    ) in sdk.calls
+    assert (
+        "profiles",
+        "set_profile_devices",
+        (NETWORK_ID, "adults", [f"/2.2/networks/{NETWORK_ID}/devices/{mac}"]),
+        {},
+    ) in sdk.calls
+
+
 async def test_network_without_a_thread_resource() -> None:
     """A network with no Thread border router must not raise KeyError (H4)."""
     sdk = FakeSDK(
