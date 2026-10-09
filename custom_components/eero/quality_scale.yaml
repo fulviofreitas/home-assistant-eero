@@ -1,0 +1,209 @@
+rules:
+  # Bronze
+  action-setup:
+    status: todo
+    comment: >-
+      set_blocked_apps is registered in async_setup_entry, and only when a
+      profile is configured. It needs to move to async_setup and check the
+      config entry state inside the handler.
+  appropriate-polling:
+    status: done
+    comment: >-
+      Cloud polling, default 300 s, user-adjustable from 60 to 600 s in the
+      Advanced step. Rate-limit responses back the interval off.
+  brands:
+    status: todo
+    comment: >-
+      No eero entry in home-assistant/brands (core_integrations or
+      custom_integrations).
+  common-modules:
+    status: todo
+    comment: >-
+      The DataUpdateCoordinator is built inline in async_setup_entry and the
+      base entity lives in __init__.py. Move them to coordinator.py and
+      entity.py.
+  config-flow:
+    status: todo
+    comment: >-
+      UI config flow with options flow exists, but strings.json has no
+      data_description for any step's fields.
+  config-flow-test-coverage:
+    status: todo
+    comment: >-
+      No tests drive the config, reauth or options flow. The existing suite
+      tests the API layer without Home Assistant.
+  dependency-transparency:
+    status: todo
+    comment: >-
+      The API client is vendored under custom_components/eero/api and
+      manifest requirements are empty. Done once the integration uses the
+      eero-api package from PyPI.
+  docs-actions:
+    status: todo
+    comment: >-
+      services.yaml describes set_blocked_apps, but the README only names the
+      feature and does not document the action or its fields.
+  docs-conditions:
+    status: exempt
+    comment: The integration provides no conditions.
+  docs-high-level-description:
+    status: done
+  docs-installation-instructions:
+    status: done
+  docs-removal-instructions:
+    status: todo
+  docs-triggers:
+    status: exempt
+    comment: The integration provides no triggers.
+  entity-event-setup:
+    status: done
+    comment: >-
+      Entities are CoordinatorEntity subclasses; none subscribe to events
+      themselves.
+  entity-unique-id:
+    status: done
+    comment: >-
+      network_id[-resource_id]-key, built from configured IDs, not live data.
+  has-entity-name:
+    status: done
+  runtime-data:
+    status: todo
+    comment: Per-entry objects are stored in hass.data[DOMAIN][entry_id].
+  test-before-configure:
+    status: done
+    comment: >-
+      The user and verify steps call the Eero login API and show
+      invalid_login / invalid_code on failure.
+  test-before-setup:
+    status: done
+    comment: >-
+      async_config_entry_first_refresh; an expired session raises
+      ConfigEntryAuthFailed, other API errors UpdateFailed (not ready).
+  unique-config-entry:
+    status: done
+    comment: Unique ID is the account log_id; duplicates abort.
+
+  # Silver
+  action-exceptions:
+    status: todo
+    comment: >-
+      Entity actions (switch, button, light, select, time, number) and
+      set_blocked_apps let EeroException propagate instead of raising
+      HomeAssistantError / ServiceValidationError.
+  config-entry-unloading:
+    status: done
+    comment: >-
+      async_unload_entry unloads the platforms, removes the update listener
+      and closes the HTTP session.
+  docs-configuration-parameters:
+    status: todo
+    comment: The README Options section is a summary, not a per-option list.
+  docs-installation-parameters:
+    status: todo
+  entity-unavailable:
+    status: done
+    comment: >-
+      available is false when the last poll failed or the resource is no
+      longer reported.
+  integration-owner:
+    status: done
+    comment: codeowners is @fulviofreitas in manifest.json.
+  log-when-unavailable:
+    status: done
+    comment: >-
+      Failures surface as UpdateFailed from the DataUpdateCoordinator, which
+      logs once when it becomes unavailable and once when it recovers.
+      Entities do not log on their own.
+  parallel-updates:
+    status: todo
+    comment: No platform sets PARALLEL_UPDATES.
+  reauthentication-flow:
+    status: done
+    comment: >-
+      reauth_confirm / reauth_verify; the account must match (wrong_account
+      abort).
+  test-coverage:
+    status: todo
+    comment: >-
+      No tests for config flow, setup/unload or entity platforms; coverage
+      is not measured.
+
+  # Gold
+  devices:
+    status: done
+    comment: >-
+      One device per network, eero, profile, client and backup network,
+      linked to the network with via_device_id.
+  diagnostics:
+    status: done
+    comment: >-
+      Config entry diagnostics with the API payload, redacting tokens,
+      secrets and contact details.
+  discovery:
+    status: exempt
+    comment: >-
+      Cloud-account integration; the eero account cannot be discovered on
+      the local network.
+  discovery-update-info:
+    status: exempt
+    comment: No discovery; the integration talks only to the cloud API.
+  docs-data-update:
+    status: todo
+  docs-examples:
+    status: todo
+  docs-known-limitations:
+    status: todo
+    comment: README notes Amazon-login accounts are unsupported; nothing else.
+  docs-supported-devices:
+    status: todo
+  docs-supported-functions:
+    status: todo
+    comment: README "Currently Working" lists features, not entities.
+  docs-troubleshooting:
+    status: todo
+  docs-use-cases:
+    status: todo
+  dynamic-devices:
+    status: todo
+    comment: >-
+      Entities are created only for resources selected in the options flow;
+      a new client needs an options change.
+  entity-category:
+    status: done
+  entity-device-class:
+    status: done
+  entity-disabled-by-default:
+    status: todo
+    comment: No entity is disabled by default.
+  entity-translations:
+    status: todo
+    comment: >-
+      Entity names are hard-coded English in the entity descriptions; only
+      state attributes and states are translated.
+  exception-translations:
+    status: todo
+  icon-translations:
+    status: todo
+    comment: icons.json covers the service only; two entities still set icon=.
+  reconfiguration-flow:
+    status: todo
+    comment: The options flow covers resource selection; no reconfigure step.
+  repair-issues:
+    status: todo
+  stale-devices:
+    status: done
+    comment: >-
+      Deselected resources are removed on setup, and
+      async_remove_config_entry_device lets the user delete a client the eero
+      no longer reports as connected.
+
+  # Platinum
+  async-dependency:
+    status: todo
+    comment: >-
+      The vendored client uses requests in the executor. eero-api is
+      aiohttp-based.
+  inject-websession:
+    status: todo
+  strict-typing:
+    status: todo
