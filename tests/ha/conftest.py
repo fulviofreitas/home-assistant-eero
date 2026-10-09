@@ -73,6 +73,34 @@ def default_routes() -> dict:
     }
 
 
+def account_envelope(**overrides) -> dict:
+    """A minimal /account body: one network, matching NETWORK_URL/NETWORK_ID."""
+    data = {
+        "log_id": "someone@example.com",
+        "name": "Test Account",
+        "networks": {"data": [{"url": NETWORK_URL}]},
+    }
+    data.update(overrides)
+    return data
+
+
+def config_flow_routes() -> dict:
+    """SDK routes covering a config/options flow snapshot() call.
+
+    snapshot() asks for devices and profiles (on top of what default_routes()
+    already covers for a plain poll) and the login/verify steps need the
+    account endpoint.
+    """
+    return {
+        **default_routes(),
+        "auth.login": True,
+        "auth.verify": True,
+        "devices.get_devices": [],
+        "profiles.get_profiles": [],
+        "GET /account": account_envelope(),
+    }
+
+
 def entry_data(**overrides) -> dict:
     """A VERSION 3 config entry data dict for one network, nothing configured."""
     resources = {
@@ -129,6 +157,35 @@ def sdk_factory(monkeypatch):
             return RealEeroHub(**kwargs)
 
         monkeypatch.setattr(eero_init, "EeroHub", patched_hub)
+        return sdk
+
+    return make
+
+
+@pytest.fixture
+def config_flow_sdk_factory(monkeypatch):
+    """Like sdk_factory, but patches config_flow.EeroHub.
+
+    config_flow.py imports EeroHub into its own module namespace, so a
+    config/options/reauth/reconfigure flow test needs its own patch target
+    rather than the one sdk_factory patches for __init__.py's setup/reload
+    path. Routes default to config_flow_routes() (a snapshot() call), not
+    default_routes() (a plain poll).
+    """
+    import custom_components.eero.config_flow as eero_config_flow
+    from custom_components.eero.api import EeroHub as RealEeroHub
+
+    created: list = []
+
+    def make(routes: dict | None = None) -> FakeSDK:
+        sdk = FakeSDK({**config_flow_routes(), **(routes or {})})
+        created.append(sdk)
+
+        def patched_hub(**kwargs):
+            kwargs["sdk"] = sdk
+            return RealEeroHub(**kwargs)
+
+        monkeypatch.setattr(eero_config_flow, "EeroHub", patched_hub)
         return sdk
 
     return make

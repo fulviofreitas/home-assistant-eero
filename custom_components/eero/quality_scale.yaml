@@ -23,13 +23,19 @@ rules:
       The coordinators and the per-entry runtime live in coordinator.py, the
       base entity in entity.py.
   config-flow:
-    status: todo
+    status: done
     comment: >-
-      UI config flow with options flow exists, but strings.json has no
-      data_description for any step's fields.
+      UI config flow with options flow; every step's fields now have a
+      data_description in strings.json/translations/en.json.
   config-flow-test-coverage:
-    status: todo
-    comment: pending tests in this branch
+    status: done
+    comment: >-
+      tests/ha/test_config_flow_ha.py covers the user flow happy path,
+      invalid_login/invalid_code, already_configured, reauth (success and
+      wrong_account), reconfigure (success, overriding an existing options
+      value, and the validation error) and the options flow (happy path and
+      not_loaded). config_flow.py itself measures 89% line coverage (see
+      test-coverage below).
   dependency-transparency:
     status: done
     comment: >-
@@ -126,7 +132,19 @@ rules:
       abort).
   test-coverage:
     status: todo
-    comment: pending tests in this branch
+    comment: >-
+      `pytest --cov=custom_components.eero -o addopts="" tests tests/ha`
+      (3.14 venv, standalone + HA suites combined) measures 84% line
+      coverage (3377 statements, 554 missed), short of Gold's >95%. Weakest
+      spots: __init__.py 58% (service handlers, the device-removal and
+      entitlement-repair branches of async_setup_entry), api/__init__.py's
+      profile/client/network property classes in the 60-80% range (most
+      properties are read by the live poll tests, but many of the
+      less-common ones, e.g. less-used activity/insight branches, are not),
+      and config_flow.py 89% (a handful of per-network loop edges and the
+      multi-network resources/activity "next network" branches).
+      config_flow-test-coverage above and the per-platform state tests in
+      test_init_ha.py account for most of what is covered.
 
   # Gold
   devices:
@@ -195,8 +213,14 @@ rules:
       keyed by translation_key. Entities without an entry there use their
       device class or platform default icon.
   reconfiguration-flow:
-    status: todo
-    comment: The options flow covers resource selection; no reconfigure step.
+    status: done
+    comment: >-
+      async_step_reconfigure lets the user change the polling interval,
+      timeout and save-responses setting (same fields and validation as the
+      Advanced step), writing both data and options so the change takes
+      effect even if an options flow run already overrides them. Network
+      and resource selection stays in the options flow (Configure), which
+      already covers that ground.
   repair-issues:
     status: done
     comment: >-

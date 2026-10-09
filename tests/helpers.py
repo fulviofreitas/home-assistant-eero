@@ -37,7 +37,22 @@ def load_api():
     return module
 
 
-eero_api = load_api()
+def __getattr__(name: str) -> Any:
+    """Load eero_api lazily on first access (PEP 562).
+
+    `from helpers import eero_api` used to run load_api() eagerly at import
+    time, which is early enough (during tests/ha/conftest.py's own import,
+    before coverage starts tracing) that pytest-cov would never see the
+    module's code execute: every line it runs afterwards still gets
+    attributed to the same already-compiled code objects, but the HA
+    (tests/ha) suite never names eero_api directly (it goes through
+    custom_components.eero.api, loaded under its real name at test time),
+    so deferring this load until something actually asks for it keeps that
+    file out of this module's import-time side effects entirely.
+    """
+    if name == "eero_api":
+        return load_api()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def fixture(name: str) -> Any:
@@ -211,7 +226,7 @@ def build_hub(
     **kwargs: Any,
 ) -> Any:
     """Return an EeroHub wired to a FakeSDK and a FakeHTTPSession."""
-    return eero_api.EeroHub(
+    return load_api().EeroHub(
         session=session if session is not None else FakeHTTPSession(),
         sdk=sdk if sdk is not None else FakeSDK(routes or {}),
         user_token=user_token,

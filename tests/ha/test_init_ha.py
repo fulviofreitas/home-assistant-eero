@@ -989,6 +989,141 @@ async def test_unload_entry(hass, sdk_factory) -> None:
     assert entry.state is ConfigEntryState.NOT_LOADED
 
 
+async def test_device_tracker_reads_connected_state(hass, sdk_factory) -> None:
+    """The device_tracker entity reads the wired client's connected flag."""
+    mac = "aa:bb:cc:dd:ee:ff"
+    device = {
+        "url": f"{NETWORK_URL}/devices/{mac}",
+        "mac": mac,
+        "wireless": False,
+        "nickname": "TestClient",
+        "connected": True,
+    }
+    sdk_factory(
+        {
+            "networks.get_network": network_envelope(),
+            "eeros.get_eeros": [],
+            "devices.get_devices": [device],
+            "entitlements.get_features": {"features": []},
+            "updates.get_updates": {},
+            "blacklist.get_blacklist": [],
+        }
+    )
+    entry = make_entry(hass, **client_entry_data())
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    from homeassistant.helpers import entity_registry as er
+
+    registry = er.async_get(hass)
+    entity_id = registry.async_get_entity_id(
+        "device_tracker", DOMAIN, f"{NETWORK_ID}-{mac}-device_tracker"
+    )
+    assert entity_id is not None
+    assert hass.states.get(entity_id).state == "home"
+
+
+async def test_light_status_light_reads_and_writes(hass, sdk_factory) -> None:
+    """The status light reads led_on from the eero envelope and writes set_led."""
+    eero = {"url": "/2.2/eeros/e1", "model": "eero 6", "led_on": False}
+    sdk = sdk_factory(
+        {
+            "networks.get_network": network_envelope(),
+            "eeros.get_eeros": [eero],
+            "entitlements.get_features": {"features": []},
+            "updates.get_updates": {},
+            "eeros.get_connections": {},
+        }
+    )
+    entry = make_entry(hass, **eero_entry_data())
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    from homeassistant.helpers import entity_registry as er
+
+    registry = er.async_get(hass)
+    entity_id = registry.async_get_entity_id(
+        "light", DOMAIN, f"{NETWORK_ID}-e1-status_light_enabled"
+    )
+    assert entity_id is not None
+    assert hass.states.get(entity_id).state == "off"
+
+    sdk.calls.clear()
+    sdk.set_route("eeros.set_led", {})
+    await hass.services.async_call(
+        "light", "turn_on", {"entity_id": entity_id}, blocking=True
+    )
+    assert any(d == "eeros" and m == "set_led" for d, m, _a, _kw in sdk.calls)
+
+
+async def test_number_nightlight_brightness_reads_and_writes(hass, sdk_factory) -> None:
+    """The nightlight brightness number reads/writes on an eero Beacon."""
+    eero = {
+        "url": "/2.2/eeros/e1",
+        "model": "eero Beacon",
+        "nightlight": {"brightness_percentage": 40},
+    }
+    sdk = sdk_factory(
+        {
+            "networks.get_network": network_envelope(),
+            "eeros.get_eeros": [eero],
+            "entitlements.get_features": {"features": []},
+            "updates.get_updates": {},
+            "eeros.get_connections": {},
+        }
+    )
+    entry = make_entry(hass, **eero_entry_data())
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    from homeassistant.helpers import entity_registry as er
+
+    registry = er.async_get(hass)
+    entity_id = registry.async_get_entity_id(
+        "number", DOMAIN, f"{NETWORK_ID}-e1-nightlight_brightness_percentage"
+    )
+    assert entity_id is not None
+    assert hass.states.get(entity_id).state == "40"
+
+    sdk.calls.clear()
+    sdk.set_route("eeros.set_nightlight", {})
+    await hass.services.async_call(
+        "number",
+        "set_value",
+        {"entity_id": entity_id, "value": 60},
+        blocking=True,
+    )
+    assert any(d == "eeros" and m == "set_nightlight" for d, m, _a, _kw in sdk.calls)
+
+
+async def test_update_firmware_reports_installed_version(hass, sdk_factory) -> None:
+    """The firmware update entity reports the eero's installed OS version."""
+    eero = {"url": "/2.2/eeros/e1", "model": "eero 6", "os_version": "6.1.0-99"}
+    sdk_factory(
+        {
+            "networks.get_network": network_envelope(),
+            "eeros.get_eeros": [eero],
+            "entitlements.get_features": {"features": []},
+            "updates.get_updates": {},
+            "eeros.get_connections": {},
+        }
+    )
+    entry = make_entry(hass, **eero_entry_data())
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    from homeassistant.helpers import entity_registry as er
+
+    registry = er.async_get(hass)
+    entity_id = registry.async_get_entity_id(
+        "update", DOMAIN, f"{NETWORK_ID}-e1-firmware"
+    )
+    assert entity_id is not None
+    state = hass.states.get(entity_id)
+    assert state is not None
+    assert state.attributes["installed_version"] == "6.1.0-99"
+
+
 def test_port_value_helpers_map_phy_rate_and_tolerate_odd_shapes() -> None:
     """Port sensor value functions map PhyRate to Mbit/s and tolerate odd shapes."""
     from custom_components.eero import sensor as eero_sensor
