@@ -1,12 +1,11 @@
 """Adds config flow for Eero integration."""
 
+import logging
 from collections.abc import Mapping
 from datetime import timedelta
-import logging
 from typing import Any
 
 import voluptuous as vol
-
 from homeassistant import config_entries
 from homeassistant.const import CONF_NAME, CONF_SCAN_INTERVAL, UnitOfTime
 from homeassistant.core import callback

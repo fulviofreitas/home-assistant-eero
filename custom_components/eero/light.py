@@ -3,18 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
-from homeassistant.components.light import (
-    ATTR_BRIGHTNESS,
-    ColorMode,
-    LightEntity,
-    LightEntityDescription,
-)
+from homeassistant.components.light import LightEntity, LightEntityDescription
+from homeassistant.components.light.const import ColorMode
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from .api.eero import EeroDevice
 from .coordinator import EeroConfigEntry
 from .entity import (
     KIND_EEROS,
@@ -22,6 +19,13 @@ from .entity import (
     EeroEntityDescription,
     build_entities,
 )
+
+if TYPE_CHECKING:
+    # Moved to .const in Home Assistant 2026.10; still defined in the package
+    # itself before that, which is what runs on both.
+    from homeassistant.components.light.const import ATTR_BRIGHTNESS
+else:
+    from homeassistant.components.light import ATTR_BRIGHTNESS
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -74,9 +78,9 @@ class EeroLightEntity(EeroEntity, LightEntity):
     @property
     def brightness(self) -> int | None:
         """Return the brightness of this light between 0..255."""
-        if self.resource is None:
+        if not isinstance(resource := self.resource, EeroDevice):
             return None
-        if (brightness := self.resource.status_light_brightness) is None:
+        if (brightness := resource.status_light_brightness) is None:
             return None
         return cast("int | None", round(brightness * 255 / 100))
 
@@ -97,8 +101,8 @@ class EeroLightEntity(EeroEntity, LightEntity):
             # must not turn the light off.
             brightness = max(1, round(kwargs[ATTR_BRIGHTNESS] * 100 / 255))
             current = (
-                self.resource.status_light_brightness
-                if self.resource is not None and self.is_on
+                resource.status_light_brightness
+                if isinstance(resource := self.resource, EeroDevice) and self.is_on
                 else None
             )
             await self.async_write(

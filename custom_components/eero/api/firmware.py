@@ -13,7 +13,7 @@ class EeroFirmware:
         self.data: dict[str, Any] = {} if data is None else data
 
     @property
-    def features(self) -> list[str | None] | None:
+    def features(self) -> list[str] | None:
         """Features."""
         return self.data.get("features")
 

@@ -137,8 +137,8 @@ class EeroProfile(EeroResource):
                 if entry is None:
                     await self.api.call(
                         setter(
-                            self.network.sdk_id,
-                            self.sdk_id,
+                            self.network.known_id,
+                            self.known_id,
                             _DEFAULT_BEDTIME_START,
                             _DEFAULT_BEDTIME_END,
                         ),
@@ -174,7 +174,7 @@ class EeroProfile(EeroResource):
             else self.api.sdk.schedule.set_weekend_bedtime
         )
         await self.api.call(
-            setter(self.network.sdk_id, self.sdk_id, start, end),
+            setter(self.network.known_id, self.known_id, start, end),
             name=f"{self.url}/schedules",
         )
 
@@ -337,7 +337,7 @@ class EeroProfile(EeroResource):
         """Set blocked applications."""
         await self.api.call(
             self.api.sdk.dns_policies.set_profile_blocked_applications(
-                self.network.sdk_id, self.sdk_id, list(blocked_applications)
+                self.network.known_id, self.known_id, list(blocked_applications)
             ),
             name=f"{self.url_dns_policies}/applications/blocked",
         )
@@ -466,8 +466,8 @@ class EeroProfile(EeroResource):
     async def async_set_paused(self, value: bool) -> None:
         """Pause or resume the profile."""
         await self.api.call(
-            self.api.sdk.profiles.pause_profile(self.network.sdk_id, self.sdk_id, value),
-            name=self.sdk_url,
+            self.api.sdk.profiles.pause_profile(self.network.known_id, self.known_id, value),
+            name=self.known_url,
         )
 
     @property

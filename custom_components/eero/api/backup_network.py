@@ -24,13 +24,13 @@ class EeroBackupNetwork(EeroResource):
         """Set auto-join, re-sending SSID and password as the API expects."""
         await self.api.call(
             self.api.sdk.backup_access_points.update(
-                self.network.sdk_id,
+                self.network.known_id,
                 cast("str", self.uuid),
                 enabled=value,
                 ssid=self.ssid,
                 password=self.password,
             ),
-            name=self.sdk_url,
+            name=self.known_url,
         )
 
     @property

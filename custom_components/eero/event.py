@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, ClassVar
+from typing import Any
 
 from homeassistant.components.event import EventEntity, EventEntityDescription
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import TIER_HOURLY
@@ -82,24 +82,25 @@ class EeroEventEntity(EeroEntity, EventEntity):
     scrolls off that page cannot reappear as "new" either.
     """
 
-    _attr_event_types: ClassVar[list[str]] = [EVENT_TYPE_APP_EVENT]
+    entity_description: EeroEventEntityDescription
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         """Initialize."""
         super().__init__(*args, **kwargs)
+        self._attr_event_types = [EVENT_TYPE_APP_EVENT]
         # None until primed (async_added_to_hass): _handle_coordinator_update
         # must never fire anything before that has happened.
         self._seen_events: set[str] | None = None
 
     @staticmethod
-    def _event_key(event: dict) -> str:
+    def _event_key(event: dict[str, Any]) -> str:
         """Return a best-effort identifying key for one raw event."""
         for field in ("id", "timestamp", "created_at", "time"):
             if field in event:
                 return f"{field}:{event[field]}"
         return repr(sorted(event.items()))
 
-    def _current_events(self) -> list[dict]:
+    def _current_events(self) -> list[dict[str, Any]]:
         """Return the resource's current raw event list, defensively typed."""
         if (resource := self.resource) is None:
             return []

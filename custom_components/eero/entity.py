@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Awaitable, Callable, Iterator
 from dataclasses import dataclass
-import logging
-from typing import Any, cast
+from typing import Any
 
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
@@ -16,7 +16,9 @@ from homeassistant.helpers.typing import UNDEFINED
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .api import EeroAuthenticationException, EeroException
-from .api.network import EeroNetwork
+from .api.client import EeroClient
+from .api.eero import EeroDevice
+from .api.network import EeroEntityResource, EeroNetwork
 from .api.resource import EeroResource
 from .const import (
     CONF_ACTIVITY_CLIENTS,
@@ -61,7 +63,7 @@ ACTIVITY_KEYS = {
 class EeroEntityDescription(EntityDescription):
     """A class that describes Eero entities."""
 
-    extra_attrs: dict[str, Callable] | None = None
+    extra_attrs: dict[str, Callable[[Any], Any]] | None = None
     premium_type: bool = False
     request_refresh: bool = True
     translation_key: str | None = "all"
@@ -92,9 +94,9 @@ class EeroEntityDescription(EntityDescription):
 
 def iter_resources(
     runtime: EeroRuntime, network: EeroNetwork, kinds: tuple[str, ...]
-) -> Iterator[tuple[str, EeroResource]]:
+) -> Iterator[tuple[str, EeroEntityResource]]:
     """Yield (kind, resource) for every configured resource of the given kinds."""
-    resources = runtime.resources[network.id]
+    resources = runtime.resources[network.known_id]
     if KIND_NETWORK in kinds:
         yield KIND_NETWORK, network
     if KIND_BACKUP_NETWORKS in kinds:
@@ -126,7 +128,7 @@ def build_entities[EntityT: "EeroEntity"](
     for network in runtime.account.networks:
         if network.id not in runtime.networks:
             continue
-        activity = runtime.activity.get(network.id, {})
+        activity = runtime.activity.get(network.known_id, {})
         for kind, resource in iter_resources(runtime, network, kinds):
             for description in descriptions:
                 if description.premium_type and not network.premium_enabled:
@@ -141,7 +143,7 @@ def build_entities[EntityT: "EeroEntity"](
                     continue
                 if (
                     description.requires_profiles
-                    and not runtime.update_config[network.id].get_profiles
+                    and not runtime.update_config[network.known_id].get_profiles
                 ):
                     continue
                 if description.check_support and not resource_supports(
@@ -156,7 +158,7 @@ def build_entities[EntityT: "EeroEntity"](
                 entities.append(
                     entity_class(
                         runtime,
-                        network.id,
+                        network.known_id,
                         None if kind == KIND_NETWORK else resource.id,
                         description,
                         # Backup networks come from the daily tier, whatever
@@ -215,7 +217,7 @@ def resource_device_info(
     hass: HomeAssistant,
     runtime: EeroRuntime,
     network: EeroNetwork | None,
-    resource: EeroResource,
+    resource: EeroEntityResource,
 ) -> dr.DeviceInfo:
     """Return the full device info for a resource's device.
 
@@ -224,18 +226,18 @@ def resource_device_info(
     first created from identifiers alone would have no name, and its
     entities' IDs no device prefix.
     """
-    miscellaneous = runtime.miscellaneous.get(network.id if network else "", {})
+    miscellaneous = runtime.miscellaneous.get(network.known_id if network else "", {})
     name = resource.name
-    model = None
+    model: str | None = None
     if resource.is_network:
         model = MODEL_NETWORK
     elif resource.is_backup_network:
         model = MODEL_BACKUP_NETWORK
-    elif resource.is_eero:
+    elif isinstance(resource, EeroDevice):
         model = resource.model
     elif resource.is_profile:
         model = MODEL_PROFILE
-    elif resource.is_client:
+    elif isinstance(resource, EeroClient):
         model = MODEL_CLIENT_WIRELESS if resource.wireless else MODEL_CLIENT_WIRED
         if miscellaneous.get(CONF_SUFFIX_CONNECTION_TYPE):
             name = resource.name_connection_type
@@ -245,14 +247,14 @@ def resource_device_info(
     entry_type, suggested_area, sw_version, hw_version = None, None, None, None
     if resource.is_backup_network or resource.is_network or resource.is_profile:
         entry_type = dr.DeviceEntryType.SERVICE
-    if resource.is_eero:
+    if isinstance(resource, EeroDevice):
         suggested_area = resource.location
         sw_version = resource.os_version
         hw_version = resource.model_number
     device_info = dr.DeviceInfo(
         entry_type=entry_type,
         hw_version=hw_version,
-        identifiers={(DOMAIN, resource.id)},
+        identifiers={(DOMAIN, resource.known_id)},
         manufacturer=MANUFACTURER,
         model=model,
         name=name,
@@ -265,7 +267,7 @@ def resource_device_info(
         # when the network device is not found, because Home Assistant
         # raises on an unknown via_device_id and drops the entity.
         network_device = dr.async_get(hass).async_get_device_by_identifier(
-            (DOMAIN, network.id), runtime.entry.entry_id
+            (DOMAIN, network.known_id), runtime.entry.entry_id
         )
         if network_device is not None:
             device_info["via_device_id"] = network_device.id
@@ -316,7 +318,7 @@ class EeroEntity(CoordinatorEntity[EeroTierCoordinator]):
         return self.runtime.account.network_by_id.get(self.network_id)
 
     @property
-    def resource(self) -> EeroResource | None:
+    def resource(self) -> EeroEntityResource | None:
         """Return the resource for this entity, or None if it is no longer reported."""
         if (network := self.network) is None:
             return None
@@ -431,7 +433,7 @@ async def async_call_mapped(
 
 def async_setup_port_entities[EntityT: "EeroPortEntity"](
     config_entry: EeroConfigEntry,
-    build: Callable[[EeroRuntime, str, str, dict], list[EntityT]],
+    build: Callable[[EeroRuntime, str, str, dict[str, Any]], list[EntityT]],
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Build per-port entities for every configured eero, and add new ports.
@@ -442,7 +444,7 @@ def async_setup_port_entities[EntityT: "EeroPortEntity"](
     tier, which is what fetches ports (eeros.get_connections).
     """
     runtime = config_entry.runtime_data
-    added: set[str] = set()
+    added: set[str | None] = set()
 
     def _new_entities() -> list[EntityT]:
         entities: list[EntityT] = []
@@ -450,12 +452,12 @@ def async_setup_port_entities[EntityT: "EeroPortEntity"](
             if network.id not in runtime.networks:
                 continue
             for eero in network.eeros:
-                if eero.id not in runtime.resources[network.id][CONF_EEROS]:
+                if eero.id not in runtime.resources[network.known_id][CONF_EEROS]:
                     continue
                 for port in eero.ports:
                     if port.get("interface_number") is None:
                         continue
-                    for entity in build(runtime, network.id, eero.id, port):
+                    for entity in build(runtime, network.known_id, eero.known_id, port):
                         if entity.unique_id not in added:
                             added.add(entity.unique_id)
                             entities.append(entity)
@@ -509,7 +511,7 @@ class EeroPortEntity(CoordinatorEntity[EeroTierCoordinator]):
         return self.runtime.account.network_by_id.get(self.network_id)
 
     @property
-    def eero(self) -> EeroResource | None:
+    def eero(self) -> EeroDevice | None:
         """Return the eero for this entity, or None if it is no longer reported."""
         if (network := self.network) is None:
             return None
@@ -519,13 +521,13 @@ class EeroPortEntity(CoordinatorEntity[EeroTierCoordinator]):
         return None
 
     @property
-    def port(self) -> dict | None:
+    def port(self) -> dict[str, Any] | None:
         """Return this entity's current port dict, or None if it no longer appears."""
         if (eero := self.eero) is None:
             return None
         for port in eero.ports:
             if port.get("interface_number") == self.interface_number:
-                return cast("dict | None", port)
+                return port
         return None
 
     @property

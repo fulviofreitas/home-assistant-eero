@@ -5,8 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from homeassistant.components.text import TextEntity, TextEntityDescription, TextMode
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .coordinator import EeroConfigEntry

@@ -6,8 +6,8 @@ from dataclasses import dataclass
 from datetime import time
 
 from homeassistant.components.time import TimeEntity, TimeEntityDescription
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import TIER_DAILY

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from .api.client import EeroClient
 from .const import (
@@ -17,7 +18,7 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
-def resource_supports(resource, key: str) -> bool:
+def resource_supports(resource: object, key: str) -> bool:
     """Return True if this resource reports the feature named by key.
 
     A resource type that simply does not have the property is not supported.
@@ -40,7 +41,7 @@ def resource_supports(resource, key: str) -> bool:
     return True
 
 
-def client_allowed(client: EeroClient, resources: dict) -> bool:
+def client_allowed(client: EeroClient, resources: dict[str, Any]) -> bool:
     """Validate client against configuration."""
     return any(
         [

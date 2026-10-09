@@ -3,19 +3,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
-from homeassistant.components.button import (
-    ButtonDeviceClass,
-    ButtonEntity,
-    ButtonEntityDescription,
-)
+from homeassistant.components.button import ButtonEntity, ButtonEntityDescription
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .api.const import PORT_ACTIONS
+from .api.eero import EeroDevice
 from .const import TIER_DAILY
-from .coordinator import EeroConfigEntry
+from .coordinator import EeroConfigEntry, EeroRuntime
 from .entity import (
     KIND_EEROS,
     KIND_NETWORK,
@@ -26,6 +24,13 @@ from .entity import (
     async_setup_port_entities,
     build_entities,
 )
+
+if TYPE_CHECKING:
+    # Moved to .const in Home Assistant 2026.10; still defined in the package
+    # itself before that, which is what runs on both.
+    from homeassistant.components.button.const import ButtonDeviceClass
+else:
+    from homeassistant.components.button import ButtonDeviceClass
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -91,6 +96,8 @@ async def async_setup_entry(
 class EeroButtonEntity(EeroEntity, ButtonEntity):
     """Representation of an Eero button entity."""
 
+    entity_description: EeroButtonEntityDescription
+
     async def async_press(self) -> None:
         """Press the button."""
         await self.async_write(f"async_{self.entity_description.key}")
@@ -109,11 +116,11 @@ class EeroPortButtonEntity(EeroPortEntity, ButtonEntity):
 
     def __init__(
         self,
-        runtime,
+        runtime: EeroRuntime,
         network_id: str,
         eero_id: str,
         interface_number: int,
-        action: dict,
+        action: dict[str, Any],
     ) -> None:
         """Initialize."""
         super().__init__(runtime, network_id, eero_id, interface_number)
@@ -130,7 +137,7 @@ class EeroPortButtonEntity(EeroPortEntity, ButtonEntity):
 
     async def async_press(self) -> None:
         """Press the button."""
-        if (eero := self.eero) is None:
+        if not isinstance(eero := self.eero, EeroDevice):
             return
         await async_call_mapped(
             self.hass,

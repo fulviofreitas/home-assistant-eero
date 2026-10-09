@@ -16,14 +16,15 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.const import (
     SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
+    EntityCategory,
     UnitOfDataRate,
     UnitOfInformation,
 )
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import StateType
 
+from .api.backup_network import EeroBackupNetwork
 from .api.const import (
     DEVICE_CATEGORY_COMPUTERS_PERSONAL,
     DEVICE_CATEGORY_ENTERTAINMENT,
@@ -37,9 +38,11 @@ from .api.const import (
     STATE_NETWORK,
     STATE_PROFILE,
 )
+from .api.eero import EeroDevice
+from .api.profile import EeroProfile
 from .api.util import sum_data_usage
 from .const import TIER_DAILY, TIER_HOURLY
-from .coordinator import EeroConfigEntry
+from .coordinator import EeroConfigEntry, EeroRuntime
 from .entity import (
     KIND_BACKUP_NETWORKS,
     KIND_CLIENTS,
@@ -57,7 +60,7 @@ from .util import resource_supports
 #: PhyRate enum (eero app's observed API schema) -> Mbit/s. Not documented
 #: or live-verified by eero-api itself, which has no reader for a port's
 #: speed at all.
-_PHY_RATE_MBPS = {
+_PHY_RATE_MBPS: dict[str | None, int] = {
     "P10": 10,
     "P100": 100,
     "P1000": 1000,
@@ -68,12 +71,12 @@ _PHY_RATE_MBPS = {
 }
 
 
-def _port_negotiated_speed(port: dict) -> int | None:
+def _port_negotiated_speed(port: dict[str, Any]) -> int | None:
     """Return a port's negotiated speed in Mbit/s, or None if unrecognised."""
     return _PHY_RATE_MBPS.get(port.get("negotiated_speed"))
 
 
-def _port_connection_status(port: dict) -> str | None:
+def _port_connection_status(port: dict[str, Any]) -> str | None:
     """Return a port's connection status.
 
     PortConnectionStatus is an opaque object in the observed schema; this
@@ -93,7 +96,7 @@ def _port_connection_status(port: dict) -> str | None:
 class EeroPortSensorEntityDescription(SensorEntityDescription):
     """Class to describe one per-port sensor field."""
 
-    value_fn: Callable[[dict], Any]
+    value_fn: Callable[[dict[str, Any]], Any]
     translation_key: str | None = None
     entity_category: EntityCategory | None = EntityCategory.DIAGNOSTIC
 
@@ -136,7 +139,11 @@ SPEED_UNIT_MAP = {
 class EeroSensorEntityDescription(EeroEntityDescription, SensorEntityDescription):
     """Class to describe an Eero sensor entity."""
 
-    native_value: Callable = lambda resource, key: getattr(resource, key)
+    native_value: Callable[[Any, str], Any] = lambda resource, key: getattr(resource, key)
+    # For a sensor whose unit comes from its value (the API reports it next
+    # to the number): called with the resource and the description key. When
+    # set, it takes the place of native_unit_of_measurement.
+    native_unit_fn: Callable[[Any, str], str | None] | None = None
     entity_category: EntityCategory | None = EntityCategory.DIAGNOSTIC
     # Only set for a SensorStateClass.TOTAL sensor: the period its value
     # resets at the start of, in the network's own timezone. A resource
@@ -345,7 +352,7 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
         device_class=SensorDeviceClass.SIGNAL_STRENGTH,
         state_class=SensorStateClass.MEASUREMENT,
         native_value=lambda resource, key: getattr(resource, key)[0],
-        native_unit_of_measurement=lambda resource, key: SIGNAL_STRENGTH_UNIT_MAP.get(
+        native_unit_fn=lambda resource, key: SIGNAL_STRENGTH_UNIT_MAP.get(
             getattr(resource, key)[1], getattr(resource, key)[1]
         ),
         wireless_only=True,
@@ -356,7 +363,7 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
         device_class=SensorDeviceClass.DATA_RATE,
         state_class=SensorStateClass.MEASUREMENT,
         native_value=lambda resource, key: getattr(resource, key)[0],
-        native_unit_of_measurement=lambda resource, key: SPEED_UNIT_MAP.get(
+        native_unit_fn=lambda resource, key: SPEED_UNIT_MAP.get(
             getattr(resource, key)[1], getattr(resource, key)[1]
         ),
         extra_attrs={
@@ -369,7 +376,7 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
         device_class=SensorDeviceClass.DATA_RATE,
         state_class=SensorStateClass.MEASUREMENT,
         native_value=lambda resource, key: getattr(resource, key)[0],
-        native_unit_of_measurement=lambda resource, key: SPEED_UNIT_MAP.get(
+        native_unit_fn=lambda resource, key: SPEED_UNIT_MAP.get(
             getattr(resource, key)[1], getattr(resource, key)[1]
         ),
         extra_attrs={
@@ -435,6 +442,8 @@ async def async_setup_entry(
 class EeroSensorEntity(EeroEntity, SensorEntity):
     """Representation of an Eero sensor entity."""
 
+    entity_description: EeroSensorEntityDescription
+
     @property
     def native_value(self) -> StateType | datetime:
         """Return the value reported by the sensor."""
@@ -464,13 +473,11 @@ class EeroSensorEntity(EeroEntity, SensorEntity):
         Home Assistant reads this even while the entity is unavailable, so it
         has to cope with a resource that is no longer reported.
         """
-        if callable(self.entity_description.native_unit_of_measurement):
+        if (unit_fn := self.entity_description.native_unit_fn) is not None:
             if self.resource is None:
                 return None
-            return cast("str | None", self.entity_description.native_unit_of_measurement(
-                self.resource, self.entity_description.key
-            ))
-        return cast("str | None", self.entity_description.native_unit_of_measurement)
+            return unit_fn(self.resource, self.entity_description.key)
+        return self.entity_description.native_unit_of_measurement
 
     @property
     def extra_state_attributes(self) -> Mapping[str, Any] | None:
@@ -480,37 +487,35 @@ class EeroSensorEntity(EeroEntity, SensorEntity):
         is lowercase snake_case.
         """
         attrs: dict[str, Any] = {}
-        if self.resource is None:
+        if (resource := self.resource) is None:
             return attrs
         if self.entity_description.extra_attrs:
             for key, func in self.entity_description.extra_attrs.items():
-                attrs[key] = func(self.resource)
+                attrs[key] = func(resource)
         if (
             self.entity_description.key.startswith("blocked")
-            and self.resource.is_network
+            and resource.is_network
         ):
-            data = getattr(self.resource, self.entity_description.key)
+            data = getattr(resource, self.entity_description.key)
             if isinstance(data, dict):
                 attrs = {key: value for key, value in data.items() if key != "blocked"}
         if self.entity_description.key.startswith("data_usage"):
             attrs["download"], attrs["upload"] = getattr(
-                self.resource, self.entity_description.key
+                resource, self.entity_description.key
             )
         if self.entity_description.key.endswith("clients_count"):
-            if self.resource.is_eero or self.resource.is_profile:
-                attrs["clients"] = sorted(self.resource.connected_clients_names)
+            if isinstance(resource, EeroDevice | EeroProfile):
+                attrs["clients"] = sorted(resource.connected_clients_names)
             for category in DEVICE_CATEGORIES:
                 attr = f"{self.entity_description.key}_{category}"
-                if resource_supports(self.resource, attr):
-                    attrs[category] = getattr(self.resource, attr)
-        if self.entity_description.key == "status" and self.resource.is_backup_network:
-            attrs["checked"] = self.resource.checked
-            if all(
-                [
-                    self.state == STATE_FAILURE,
-                    failure_reason := self.resource.failure_reason,
-                ]
-            ):
+                if resource_supports(resource, attr):
+                    attrs[category] = getattr(resource, attr)
+        if self.entity_description.key == "status" and isinstance(
+            resource, EeroBackupNetwork
+        ):
+            attrs["checked"] = resource.checked
+            failure_reason = resource.failure_reason
+            if self.state == STATE_FAILURE and failure_reason:
                 attrs["failure_reason"] = failure_reason.lower()
         return attrs
 
@@ -522,7 +527,7 @@ class EeroPortSensorEntity(EeroPortEntity, SensorEntity):
 
     def __init__(
         self,
-        runtime,
+        runtime: EeroRuntime,
         network_id: str,
         eero_id: str,
         interface_number: int,
