@@ -185,7 +185,9 @@
                 "blocked_week": "Threat Blocks (Week)",
                 "blocked_month": "Threat Blocks (Month)",
                 "unprofiled_data_usage_day": "Unprofiled Data Usage Day",
-                "eeros_data_usage_summary_day": "Eeros Data Usage Summary Day"
+                "eeros_data_usage_summary_day": "Eeros Data Usage Summary Day",
+                "app_events": "App Events",
+                "notifications_has_unread": "Unread Notifications"
             }
         }
     },
@@ -206,6 +208,9 @@
                         "name": "Operating band"
                     }
                 }
+            },
+            "notifications_has_unread": {
+                "name": "Unread notifications"
             }
         },
         "device_tracker": {
@@ -352,6 +357,11 @@
             },
             "guest_network_password": {
                 "name": "Guest network password"
+            }
+        },
+        "event": {
+            "app_events": {
+                "name": "App events"
             }
         }
     },

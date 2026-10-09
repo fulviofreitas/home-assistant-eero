@@ -15,6 +15,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from .const import TIER_HOURLY
 from .coordinator import EeroConfigEntry
 from .entity import (
     KIND_BACKUP_NETWORKS,
@@ -56,6 +57,12 @@ BINARY_SENSOR_DESCRIPTIONS: list[EeroBinarySensorEntityDescription] = [
             "channel": lambda resource: resource.channel,
             "operating_band": lambda resource: f"{resource.interface_frequency[0]} {resource.interface_frequency[1]}",
         },
+    ),
+    EeroBinarySensorEntityDescription(
+        key="notifications_has_unread",
+        translation_key="notifications_has_unread",
+        activity_type=True,
+        tier=TIER_HOURLY,
     ),
 ]
 

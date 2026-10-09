@@ -185,3 +185,19 @@ def test_unprofiled_and_eeros_summary_sum_like_data_usage_day() -> None:
     assert sum_data_usage(network, "unprofiled_data_usage_day") == 12
     assert network.eeros_data_usage_summary_day == (30, None)
     assert sum_data_usage(network, "eeros_data_usage_summary_day") == 30
+
+
+def test_app_events_and_notifications_has_unread_properties() -> None:
+    """EeroNetwork reads both straight from the hourly activity payload."""
+    network = network_with_activity(
+        {
+            "app_events": [{"id": "1", "message": "device connected"}],
+            "notifications_has_unread": {"has_unread": True},
+        }
+    )
+    assert network.app_events == [{"id": "1", "message": "device connected"}]
+    assert network.notifications_has_unread is True
+
+    empty_network = network_with_activity({})
+    assert empty_network.app_events == []
+    assert empty_network.notifications_has_unread is None

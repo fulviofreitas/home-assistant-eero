@@ -16,6 +16,20 @@
                 }
             }
         },
+        "binary_sensor": {
+            "notifications_has_unread": {
+                "default": "mdi:bell-outline",
+                "state": {
+                    "on": "mdi:bell-ring",
+                    "off": "mdi:bell-outline"
+                }
+            }
+        },
+        "event": {
+            "app_events": {
+                "default": "mdi:bell-alert-outline"
+            }
+        },
         "sensor": {
             "unprofiled_data_usage_day": {
                 "default": "mdi:help-network-outline"

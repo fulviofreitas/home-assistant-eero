@@ -108,6 +108,36 @@ async def test_unprofiled_and_eeros_summary_route_to_their_sdk_methods() -> None
     assert any(d == "data_usage" and m == "get_eeros_summary" for d, m, _a, _kw in sdk.calls)
 
 
+async def test_app_events_and_has_unread_route_to_their_sdk_methods_and_shapes() -> None:
+    """The two activities call events.get_app_events/notifications.has_unread.
+
+    has_unread's {"has_unread": bool} dict is returned verbatim, never run
+    through the insights/series/values extraction (which would discard it).
+    """
+    sdk = FakeSDK(
+        {
+            "events.get_app_events": {
+                "events": [{"id": "1", "message": "device connected"}]
+            },
+            "notifications.has_unread": {"has_unread": True},
+        }
+    )
+    hub = build_hub(sdk=sdk)
+
+    events = await hub.update_activity("app_events", NETWORK_ID, "network", "UTC")
+    unread = await hub.update_activity(
+        "notifications_has_unread", NETWORK_ID, "network", "UTC"
+    )
+
+    assert events == [{"id": "1", "message": "device connected"}]
+    assert unread == {"has_unread": True}
+    assert any(
+        d == "events" and m == "get_app_events" and kw.get("page_size") == 25
+        for d, m, _a, kw in sdk.calls
+    )
+    assert ("notifications", "has_unread", (NETWORK_ID,), {}) in sdk.calls
+
+
 # -- _optional -----------------------------------------------------------
 
 

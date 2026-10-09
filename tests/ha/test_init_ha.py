@@ -22,6 +22,7 @@ from custom_components.eero.const import (
     DOMAIN,
     TIER_DAILY,
     TIER_FAST,
+    TIER_HOURLY,
 )
 
 from conftest import NETWORK_ID, NETWORK_URL, entry_data, network_envelope
@@ -542,6 +543,78 @@ async def test_new_client_gets_entities_without_a_reload(hass, sdk_factory) -> N
     await entry.runtime_data.coordinator(TIER_FAST).async_refresh()
     await hass.async_block_till_done()
     assert len(er.async_entries_for_config_entry(registry, entry.entry_id)) == added_before
+
+
+async def test_event_app_events_fires_new_events_once_and_binary_sensor_has_unread(
+    hass, sdk_factory
+) -> None:
+    """The event entity fires once per new app event; has_unread tracks notifications."""
+    sdk = sdk_factory(
+        {
+            "networks.get_network": network_envelope(),
+            "eeros.get_eeros": [],
+            "entitlements.get_features": {"features": []},
+            "updates.get_updates": {},
+            "events.get_app_events": {
+                "events": [{"id": "1", "message": "device connected"}]
+            },
+            "notifications.has_unread": {"has_unread": False},
+        }
+    )
+    entry = make_entry(
+        hass,
+        **{
+            CONF_ACTIVITY: {
+                NETWORK_ID: {
+                    CONF_ACTIVITY_NETWORK: [
+                        "app_events",
+                        "notifications_has_unread",
+                    ]
+                }
+            }
+        },
+    )
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    event_id = "event.testnetwork_app_events"
+    unread_id = "binary_sensor.testnetwork_unread_notifications"
+    assert hass.states.get(event_id) is not None
+    assert hass.states.get(unread_id).state == "off"
+    # Nothing has fired yet: the data an entity is created with is read via
+    # its own properties, not via a coordinator-update event.
+    assert hass.states.get(event_id).state == "unknown"
+
+    # The next poll with the same data fires event "1" once -- this entity
+    # has not seen it before (a known limitation: see EeroEventEntity's
+    # docstring on the lack of a persisted cursor).
+    await entry.runtime_data.coordinator(TIER_HOURLY).async_refresh()
+    await hass.async_block_till_done()
+    first_state = hass.states.get(event_id).state
+    assert first_state != "unknown"
+
+    # Re-polling with the same event must not fire it again.
+    await entry.runtime_data.coordinator(TIER_HOURLY).async_refresh()
+    await hass.async_block_till_done()
+    assert hass.states.get(event_id).state == first_state
+
+    # A genuinely new event does fire.
+    sdk.set_route(
+        "events.get_app_events",
+        {
+            "events": [
+                {"id": "1", "message": "device connected"},
+                {"id": "2", "message": "device disconnected"},
+            ]
+        },
+    )
+    sdk.set_route("notifications.has_unread", {"has_unread": True})
+    await entry.runtime_data.coordinator(TIER_HOURLY).async_refresh()
+    await hass.async_block_till_done()
+
+    second_state = hass.states.get(event_id).state
+    assert second_state != first_state
+    assert hass.states.get(unread_id).state == "on"
 
 
 async def test_sensor_unprofiled_data_usage_has_a_tz_aware_last_reset(

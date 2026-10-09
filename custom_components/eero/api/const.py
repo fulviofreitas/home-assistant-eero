@@ -19,6 +19,12 @@ ACTIVITY_INSPECTED_MONTH = "inspected_month"
 ACTIVITY_UNPROFILED_DATA_USAGE_DAY = "unprofiled_data_usage_day"
 ACTIVITY_EEROS_DATA_USAGE_SUMMARY_DAY = "eeros_data_usage_summary_day"
 
+# Neither takes a time window at all (events.get_app_events/
+# notifications.has_unread); routed around the generic family/resource
+# branching the same way as the two activities above.
+ACTIVITY_APP_EVENTS = "app_events"
+ACTIVITY_NOTIFICATIONS_UNREAD = "notifications_has_unread"
+
 API_ENDPOINT = "https://api-user.e2ro.com"
 
 # A single float, seconds: passed straight to asyncio.timeout() by
@@ -219,6 +225,18 @@ ACTIVITY_MAP = {
     ],
     ACTIVITY_EEROS_DATA_USAGE_SUMMARY_DAY: [
         "{}/data_usage",
+        None,
+        PERIOD_DAY,
+    ],
+    # No time window at all; period/family placeholders unused, see
+    # EeroHub.update_activity.
+    ACTIVITY_APP_EVENTS: [
+        "{}/app_events",
+        None,
+        PERIOD_DAY,
+    ],
+    ACTIVITY_NOTIFICATIONS_UNREAD: [
+        "{}/notifications",
         None,
         PERIOD_DAY,
     ],

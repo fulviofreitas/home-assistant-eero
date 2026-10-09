@@ -197,6 +197,19 @@ UPnP, WPA3 and DDNS go through the SDK's methods, which send the same requests
   `inspected_*` sensors are left on `total_increasing` unchanged, so as
   not to disturb users' existing long-term statistics.
 
+- `event.<network>_app_events` (new `event` platform) and
+  `binary_sensor.<network>_notifications_has_unread`: two more opt-in
+  activity choices (`events.get_app_events`/`notifications.has_unread`,
+  hourly tier), selectable but never pre-selected. The event entity fires
+  a single generic `app_event` HA event for every app event the network
+  reports that this entity instance has not already seen (deduped
+  in-memory by id/timestamp, not persisted across a restart), carrying the
+  raw eero event as attributes; the eero API's own event schema is not
+  documented well enough to split these into distinct HA event types yet.
+  Latency: an event is only visible up to an hour after it happened (the
+  hourly tier's cadence), and a restart or a newly-added entity replays
+  whatever its first poll returns as new.
+
 ### Since 1.9.3, also in this release
 
 - Config entry diagnostics: the API payload, with tokens, secrets and contact

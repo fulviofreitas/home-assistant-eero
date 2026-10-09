@@ -40,8 +40,10 @@ from eero.exceptions import (
 
 from .account import EeroAccount
 from .const import (
+    ACTIVITY_APP_EVENTS,
     ACTIVITY_EEROS_DATA_USAGE_SUMMARY_DAY,
     ACTIVITY_MAP,
+    ACTIVITY_NOTIFICATIONS_UNREAD,
     ACTIVITY_UNPROFILED_DATA_USAGE_DAY,
     CADENCE_DAILY,
     CADENCE_HOURLY,
@@ -383,6 +385,15 @@ class EeroHub:
                 network_id, timezone=timezone, **window
             )
             name = f"/2.2/networks/{network_id}/data_usage/eeros/summary"
+        elif activity == ACTIVITY_APP_EVENTS:
+            # A bounded page: this is reported as new HA events on every
+            # entity not yet seen, so an unbounded page would replay a
+            # flood of history the first time the entity is added.
+            request = self.sdk.events.get_app_events(network_id, page_size=25)
+            name = f"/2.2/networks/{network_id}/app_events"
+        elif activity == ACTIVITY_NOTIFICATIONS_UNREAD:
+            request = self.sdk.notifications.has_unread(network_id)
+            name = f"/2.2/networks/{network_id}/notifications/has_unread"
         elif family == "data_usage":
             if resource == "network":
                 request = self.sdk.data_usage.get_data_usage(
@@ -422,8 +433,23 @@ class EeroHub:
                 params={**window, "insight_type": insight_type},
             )
         data = await self._optional(request, name, network_id, activity) or {}
+        if activity == ACTIVITY_NOTIFICATIONS_UNREAD:
+            # Always the {"has_unread": bool} shape has_unread's docstring
+            # describes; never routed through the insights/series/values
+            # extraction below, which would silently discard it (it has no
+            # "insights"/"series"/"values" key to find).
+            return data if isinstance(data, dict) else {}
         if not isinstance(data, dict):
             return data
+        if activity == ACTIVITY_APP_EVENTS:
+            # Shape not documented by the SDK beyond "raw response". A bare
+            # list (the common shape for this family, see data_usage_day)
+            # is already returned above, before this dict-only branch; a
+            # dict envelope is assumed to nest the list under "events".
+            # Never raises on an unexpected shape: an empty list is safer
+            # than guessing wrong.
+            events = data.get("events")
+            return events if isinstance(events, list) else []
         return data.get("insights", data.get("series", data.get("values")))
 
     # -- daily tier ------------------------------------------------------

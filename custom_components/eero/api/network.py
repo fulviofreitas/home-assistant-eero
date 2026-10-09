@@ -108,6 +108,17 @@ class EeroNetwork(EeroResource):
         return None
 
     @property
+    def app_events(self) -> list:
+        """Recent app events, newest-fetched call first.
+
+        A bounded page from the hourly tier's activity read
+        (events.get_app_events), only populated when the app_events
+        activity is configured for this network.
+        """
+        events = self.data.get("activity", {}).get("network", {}).get("app_events")
+        return events if isinstance(events, list) else []
+
+    @property
     def backup_internet_enabled(self) -> bool | None:
         """Backup internet enabled."""
         return self.data.get("backup_internet_enabled")
@@ -582,6 +593,22 @@ class EeroNetwork(EeroResource):
         if parts:
             return f"{label} ({', '.join(parts)})"
         return label
+
+    @property
+    def notifications_has_unread(self) -> bool | None:
+        """Whether this network has unread notifications.
+
+        None until the hourly tier has fetched this (only configured when
+        the notifications_has_unread activity is selected for this
+        network), not False: the activity reads {"has_unread": bool}
+        verbatim, so an unfetched value has no dict to read it from at all.
+        """
+        data = self.data.get("activity", {}).get("network", {}).get(
+            "notifications_has_unread"
+        )
+        if isinstance(data, dict):
+            return bool(data.get("has_unread"))
+        return None
 
     @property
     def password(self) -> str | None:
