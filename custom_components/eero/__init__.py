@@ -2,44 +2,26 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import dataclass
 from datetime import timedelta
 import logging
-from typing import Any
 
 import voluptuous as vol
 
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_NAME, CONF_SCAN_INTERVAL, Platform
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.config_entries import ConfigEntry, ConfigEntryState
+from homeassistant.const import CONF_SCAN_INTERVAL, Platform
+from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import (
     config_validation as cv,
     device_registry as dr,
     entity_registry as er,
 )
-from homeassistant.helpers.entity import EntityDescription
-from homeassistant.helpers.typing import UNDEFINED
-from homeassistant.helpers.update_coordinator import (
-    CoordinatorEntity,
-    DataUpdateCoordinator,
-    UpdateFailed,
-)
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.typing import ConfigType
 
-from .api import (
-    EeroAPI,
-    EeroException,
-    EeroRateLimited,
-    EeroSessionExpired,
-    EeroUpdateConfig,
-)
-from .api.const import CONNECT_TIMEOUT, SUPPORTED_APPS
-from .api.network import EeroNetwork
-from .api.resource import EeroResource
-from .backoff import backoff_interval
+from .api import EeroAuthenticationException, EeroException, EeroHub, EeroUpdateConfig
+from .api.const import SUPPORTED_APPS
 from .config_flow import EeroConfigFlow
-from .device_removal import can_remove_device
 from .const import (
     ACTIVITIES_PREMIUM,
     ATTR_BLOCKED_APPS,
@@ -68,10 +50,6 @@ from .const import (
     CONF_WIRED_CLIENTS_FILTER,
     CONF_WIRELESS_CLIENTS,
     CONF_WIRELESS_CLIENTS_FILTER,
-    DATA_API,
-    DATA_COORDINATOR,
-    DATA_OPTIONS,
-    DATA_UPDATE_LISTENER,
     DEFAULT_CONSIDER_HOME,
     DEFAULT_PREFIX_NETWORK_NAME,
     DEFAULT_SAVE_DIRECTORY,
@@ -83,14 +61,22 @@ from .const import (
     DEFAULT_WIRELESS_CLIENTS_FILTER,
     DOMAIN,
     MANUFACTURER,
+    MAX_TIMEOUT,
     MIN_SCAN_INTERVAL,
-    MODEL_BACKUP_NETWORK,
     MODEL_CLIENT_WIRED,
     MODEL_CLIENT_WIRELESS,
     MODEL_NETWORK,
     MODEL_PROFILE,
     SERVICE_SET_BLOCKED_APPS,
+    TIER_FAST,
 )
+from .coordinator import EeroConfigEntry, EeroRuntime
+from .device_removal import can_remove_device
+from .entity import EeroEntity, EeroEntityDescription
+
+__all__ = ["EeroEntity", "EeroEntityDescription"]
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 SET_BLOCKED_APPS_SCHEMA = vol.Schema(
     {
@@ -120,6 +106,54 @@ PLATFORMS = [
 ]
 
 _LOGGER = logging.getLogger(__name__)
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Register the integration's actions once, for every entry."""
+
+    async def async_set_blocked_apps(service: ServiceCall) -> None:
+        blocked_apps = service.data[ATTR_BLOCKED_APPS]
+        target_profile = service.data[ATTR_TARGET_PROFILE]
+        target_network = service.data[ATTR_TARGET_NETWORK]
+        for entry in hass.config_entries.async_entries(DOMAIN):
+            if entry.state is not ConfigEntryState.LOADED:
+                continue
+            runtime: EeroRuntime = entry.runtime_data
+            for network in runtime.account.networks:
+                if target_network and not (
+                    network.id in target_network or network.name in target_network
+                ):
+                    continue
+                for profile in network.profiles:
+                    if profile.id not in runtime.resources[network.id][CONF_PROFILES]:
+                        continue
+                    if target_profile and not (
+                        profile.id in target_profile or profile.name in target_profile
+                    ):
+                        continue
+                    try:
+                        await profile.async_set_blocked_applications(blocked_apps)
+                    except EeroAuthenticationException as error:
+                        entry.async_start_reauth(hass)
+                        raise HomeAssistantError(
+                            translation_domain=DOMAIN, translation_key="auth_failed"
+                        ) from error
+                    except (EeroException, TimeoutError) as error:
+                        raise HomeAssistantError(
+                            translation_domain=DOMAIN,
+                            translation_key="api_error",
+                            translation_placeholders={"error": str(error)},
+                        ) from error
+            await runtime.coordinator(TIER_FAST).async_request_refresh()
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SET_BLOCKED_APPS,
+        async_set_blocked_apps,
+        schema=SET_BLOCKED_APPS_SCHEMA,
+    )
+    return True
+
 
 
 async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
@@ -243,7 +277,32 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
     return True
 
 
-async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
+def _update_config(
+    conf_resources: dict, conf_activity: dict
+) -> dict[str, EeroUpdateConfig]:
+    """Work out what each configured network needs fetched."""
+    conf_update = {}
+    for network_id, resources in conf_resources.items():
+        conf_update[network_id] = EeroUpdateConfig(
+            activity=conf_activity.get(network_id, {}),
+            profiles=resources[CONF_PROFILES],
+            get_backup_access_points=bool(resources[CONF_BACKUP_NETWORKS]),
+            get_devices=any(
+                [
+                    resources[CONF_WIRED_CLIENTS_FILTER] == CONF_FILTER_EXCLUDE,
+                    resources[CONF_WIRED_CLIENTS_FILTER] == CONF_FILTER_INCLUDE
+                    and bool(resources[CONF_WIRED_CLIENTS]),
+                    resources[CONF_WIRELESS_CLIENTS_FILTER] == CONF_FILTER_EXCLUDE,
+                    resources[CONF_WIRELESS_CLIENTS_FILTER] == CONF_FILTER_INCLUDE
+                    and bool(resources[CONF_WIRELESS_CLIENTS]),
+                ]
+            ),
+            get_release_notes=bool(resources[CONF_EEROS]),
+        )
+    return conf_update
+
+
+async def async_setup_entry(hass: HomeAssistant, config_entry: EeroConfigEntry) -> bool:
     """Set up a config entry."""
     data = config_entry.data
     options = config_entry.options
@@ -266,7 +325,11 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
             CONF_SCAN_INTERVAL, data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
         ),
     )
-    conf_timeout = options.get(CONF_TIMEOUT, data.get(CONF_TIMEOUT, DEFAULT_TIMEOUT))
+    # Clamped too: eero-api gives every request ClientTimeout(total=30), so a
+    # longer timeout stored by 1.x could never take effect.
+    conf_timeout = min(
+        MAX_TIMEOUT, options.get(CONF_TIMEOUT, data.get(CONF_TIMEOUT, DEFAULT_TIMEOUT))
+    )
 
     device_registry = dr.async_get(hass)
     entity_registry = er.async_get(hass)
@@ -401,93 +464,30 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
                         )
                         entity_registry.async_remove(entity_entry.entity_id)
 
-    @callback
-    def _persist_token(token: str) -> None:
-        """Write a refreshed session token back to the config entry."""
-        if token and token != config_entry.data.get(CONF_USER_TOKEN):
-            hass.config_entries.async_update_entry(
-                config_entry, data={**config_entry.data, CONF_USER_TOKEN: token}
-            )
-
-    api = EeroAPI(
+    hub = EeroHub(
+        session=async_get_clientsession(hass),
         save_location=hass.config.path(".storage", DEFAULT_SAVE_DIRECTORY)
         if conf_save_responses
         else None,
-        user_token=data[CONF_USER_TOKEN],
-        request_timeout=(CONNECT_TIMEOUT, conf_timeout),
-        token_callback=lambda token: hass.loop.call_soon_threadsafe(
-            _persist_token, token
-        ),
+        request_timeout=conf_timeout,
     )
+    await hub.async_set_token(data[CONF_USER_TOKEN])
 
-    conf_update = {}
-    for network_id, resources in conf_resources.items():
-        conf_update[network_id] = EeroUpdateConfig(
-            activity=conf_activity.get(network_id, {}),
-            profiles=resources[CONF_PROFILES],
-            get_backup_access_points=bool(resources[CONF_BACKUP_NETWORKS]),
-            get_devices=any(
-                [
-                    resources[CONF_WIRED_CLIENTS_FILTER] == CONF_FILTER_EXCLUDE,
-                    all(
-                        [
-                            resources[CONF_WIRED_CLIENTS_FILTER] == CONF_FILTER_INCLUDE,
-                            bool(resources[CONF_WIRED_CLIENTS]),
-                        ]
-                    ),
-                    resources[CONF_WIRELESS_CLIENTS_FILTER] == CONF_FILTER_EXCLUDE,
-                    all(
-                        [
-                            resources[CONF_WIRELESS_CLIENTS_FILTER]
-                            == CONF_FILTER_INCLUDE,
-                            bool(resources[CONF_WIRELESS_CLIENTS]),
-                        ]
-                    ),
-                ]
-            ),
-            get_release_notes=True,
-        )
-
-    async def async_update_data():
-        """Fetch data from API endpoint.
-
-        No asyncio timeout around the poll: cancelling the await abandons the
-        coroutine without killing the worker thread, which is the leak H1 was
-        about. Each request carries its own (connect, read) timeout instead,
-        and a poll is many requests, so one budget for all of them was wrong
-        anyway.
-        """
-        try:
-            account = await hass.async_add_executor_job(api.update, conf_update)
-        except EeroSessionExpired as error:
-            raise ConfigEntryAuthFailed(
-                "Eero session expired, please sign in again"
-            ) from error
-        except EeroRateLimited as error:
-            coordinator.update_interval = backoff_interval(
-                coordinator.update_interval, scan_interval
-            )
-            raise UpdateFailed(
-                "Rate limited by the Eero API, next poll in "
-                f"{int(coordinator.update_interval.total_seconds())}s"
-            ) from error
-        except EeroException as error:
-            raise UpdateFailed(f"Error communicating with Eero API: {error}") from error
-        coordinator.update_interval = scan_interval
-        return account
-
-    scan_interval = timedelta(seconds=conf_scan_interval)
-    coordinator = DataUpdateCoordinator(
+    runtime = EeroRuntime(
         hass=hass,
-        logger=_LOGGER,
-        config_entry=config_entry,
-        name=f"Eero ({data[CONF_NAME]})",
-        update_method=async_update_data,
-        update_interval=scan_interval,
+        entry=config_entry,
+        hub=hub,
+        update_config=_update_config(conf_resources, conf_activity),
+        networks=conf_networks,
+        resources=conf_resources,
+        activity=conf_activity,
+        miscellaneous=conf_miscellaneous,
+        options=dict(config_entry.options),
     )
-    await coordinator.async_config_entry_first_refresh()
+    runtime.setup_coordinators(timedelta(seconds=conf_scan_interval))
+    await runtime.async_first_refresh()
 
-    for network in coordinator.data.networks:
+    for network in runtime.account.networks:
         if conf_miscellaneous_network := conf_miscellaneous.get(network.id):
             conf_consider_home = conf_miscellaneous_network[CONF_CONSIDER_HOME]
             if conf_consider_home and timedelta(
@@ -500,71 +500,10 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
                     int(conf_scan_interval),
                 )
 
-    hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][config_entry.entry_id] = {
-        CONF_ACTIVITY: conf_activity,
-        CONF_MISCELLANEOUS: conf_miscellaneous,
-        CONF_NETWORKS: conf_networks,
-        CONF_RESOURCES: conf_resources,
-        DATA_API: api,
-        DATA_COORDINATOR: coordinator,
-        DATA_OPTIONS: dict(config_entry.options),
-        DATA_UPDATE_LISTENER: config_entry.add_update_listener(async_update_listener),
-    }
+    config_entry.runtime_data = runtime
+    config_entry.async_on_unload(config_entry.add_update_listener(async_update_listener))
 
-    async def async_set_blocked_apps(service):
-        blocked_apps = service.data[ATTR_BLOCKED_APPS]
-        for profile in _validate_profile(
-            target_profile=service.data[ATTR_TARGET_PROFILE],
-            target_network=service.data[ATTR_TARGET_NETWORK],
-        ):
-            await hass.async_add_executor_job(
-                profile.set_blocked_applications, blocked_apps
-            )
-        await coordinator.async_request_refresh()
-
-    def _validate_network(target_network: str):
-        return [
-            network
-            for network in coordinator.data.networks
-            if any(
-                [
-                    not target_network,
-                    network.id in target_network,
-                    network.name in target_network,
-                ]
-            )
-        ]
-
-    def _validate_profile(target_profile: str, target_network: str):
-        validated_profile = []
-        for network in _validate_network(target_network=target_network):
-            validated_profile.extend(
-                profile
-                for profile in network.profiles
-                if any(
-                    [
-                        not target_profile,
-                        profile.id in target_profile,
-                        profile.name in target_profile,
-                    ]
-                )
-            )
-        return validated_profile
-
-    if [
-        profile
-        for resources in conf_resources.values()
-        for profile in resources[CONF_PROFILES]
-    ]:
-        hass.services.async_register(
-            DOMAIN,
-            SERVICE_SET_BLOCKED_APPS,
-            async_set_blocked_apps,
-            schema=SET_BLOCKED_APPS_SCHEMA,
-        )
-
-    for network in coordinator.data.networks:
+    for network in runtime.account.networks:
         if network.id in conf_networks:
             device_registry.async_get_or_create(
                 config_entry_id=config_entry.entry_id,
@@ -579,9 +518,8 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     return True
 
 
-
 async def async_remove_config_entry_device(
-    hass: HomeAssistant, config_entry: ConfigEntry, device_entry: dr.DeviceEntry
+    hass: HomeAssistant, config_entry: EeroConfigEntry, device_entry: dr.DeviceEntry
 ) -> bool:
     """Let Home Assistant delete a client device from its device page.
 
@@ -590,14 +528,10 @@ async def async_remove_config_entry_device(
     off, a phone that never came back) stay forever with their 8 entities each,
     logged by the recorder every poll. The rule itself is in device_removal.py.
     """
-    entry_data = hass.data.get(DOMAIN, {}).get(config_entry.entry_id)
-    if entry_data is None:
+    if config_entry.state is not ConfigEntryState.LOADED:
         return False
-    coordinator = entry_data[DATA_COORDINATOR]
     connected: set[str] = set()
-    for network in coordinator.data.networks:
-        if network is None:
-            continue
+    for network in config_entry.runtime_data.account.networks:
         for client in network.clients:
             if client is not None and client.connected and client.id:
                 connected.add(client.id)
@@ -610,214 +544,36 @@ async def async_remove_config_entry_device(
     )
 
 
-async def async_unload_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
-    """Unload a config entry."""
+async def async_unload_entry(hass: HomeAssistant, config_entry: EeroConfigEntry) -> bool:
+    """Unload a config entry.
+
+    The aiohttp session is Home Assistant's shared one: it is not ours to close.
+    """
     unload_ok = await hass.config_entries.async_unload_platforms(
         config_entry, PLATFORMS
     )
     if unload_ok:
-        entry_data = hass.data[DOMAIN].pop(config_entry.entry_id)
-        entry_data[DATA_UPDATE_LISTENER]()
-        await hass.async_add_executor_job(entry_data[DATA_API].session.close)
-
+        config_entry.runtime_data.clear_issues()
     return unload_ok
 
 
-async def async_update_listener(hass: HomeAssistant, config_entry: ConfigEntry) -> None:
+async def async_update_listener(hass: HomeAssistant, config_entry: EeroConfigEntry) -> None:
     """Reload when the options change, or when a new session arrives from a flow.
 
     Home Assistant fires update listeners on any change to the entry, data
-    included, and a refreshed session token is written back to the entry data
-    on every rotation. Rebuilding every entity in the house for that would
-    reset the device trackers' consider_home clocks, close a session an
-    executor thread is still using, and start a second poll on top of the one
-    in flight. The token this integration persisted itself is the one the
-    running API object already holds, so it is the one change that needs no
-    reload; a token that arrived from the reauth flow does not match, and does.
+    included, and a session token the integration persists itself is written
+    back to the entry data. Rebuilding every entity in the house for that would
+    reset the device trackers' consider_home clocks. The token this integration
+    persisted itself is the one the running hub already holds, so it is the one
+    change that needs no reload; a token that arrived from the reauth flow does
+    not match, and does.
     """
-    entry_data = hass.data.get(DOMAIN, {}).get(config_entry.entry_id)
-    if entry_data is None:
+    if config_entry.state is not ConfigEntryState.LOADED:
         return
-    options = dict(config_entry.options)
-    if all(
-        [
-            options == entry_data[DATA_OPTIONS],
-            config_entry.data.get(CONF_USER_TOKEN) == entry_data[DATA_API].user_token,
-        ]
+    runtime: EeroRuntime = config_entry.runtime_data
+    if (
+        dict(config_entry.options) == runtime.options
+        and config_entry.data.get(CONF_USER_TOKEN) == runtime.hub.user_token
     ):
         return
-    entry_data[DATA_OPTIONS] = options
     await hass.config_entries.async_reload(config_entry.entry_id)
-
-
-class EeroEntity(CoordinatorEntity):
-    """Representation of an Eero entity."""
-
-    _attr_has_entity_name = True
-
-    def __init__(
-        self,
-        coordinator: DataUpdateCoordinator,
-        network_id: str,
-        resource_id: str,
-        description: EeroEntityDescription,
-        miscellaneous: dict[str, Any],
-    ) -> None:
-        """Initialize device."""
-        super().__init__(coordinator)
-        self.network_id = network_id
-        self.resource_id = resource_id
-        self.entity_description = description
-        self.prefix_network_name = miscellaneous[CONF_PREFIX_NETWORK_NAME]
-        self.suffix_connection_type = miscellaneous[CONF_SUFFIX_CONNECTION_TYPE]
-
-    @property
-    def network(self) -> EeroNetwork | None:
-        """Return the network for this entity, or None if it is no longer reported."""
-        if (data := self.coordinator.data) is None:
-            return None
-        for network in data.networks:
-            if network.id == self.network_id:
-                return network
-        return None
-
-    @property
-    def resource(self) -> EeroResource | None:
-        """Return the resource for this entity, or None if it is no longer reported."""
-        if (network := self.network) is None:
-            return None
-        if self.resource_id is None:
-            return network
-        for resource in network.resources:
-            if resource.id == self.resource_id:
-                return resource
-        return None
-
-    @property
-    def available(self) -> bool:
-        """Return True if the coordinator succeeded and this resource still exists."""
-        return bool(
-            self.coordinator.last_update_success
-            and self.network is not None
-            and self.resource is not None
-        )
-
-    @property
-    def unique_id(self) -> str:
-        """Return a unique ID.
-
-        Built from the configured IDs rather than from live data, so a resource
-        that is missing at registration time cannot inherit the network's ID.
-        """
-        if self.resource_id is None:
-            return f"{self.network_id}-{self.entity_description.key}"
-        return f"{self.network_id}-{self.resource_id}-{self.entity_description.key}"
-
-    @property
-    def network_device(self) -> dr.DeviceEntry | None:
-        """Return the registry entry for this entity's network device."""
-        if (config_entry := self.coordinator.config_entry) is None:
-            return None
-        registry = dr.async_get(self.coordinator.hass)
-        return registry.async_get_device_by_identifier(
-            (DOMAIN, self.network_id), config_entry.entry_id
-        )
-
-    @property
-    def device_info(self) -> dr.DeviceInfo | None:
-        """Return device specific attributes.
-
-        None rather than the network's device: attaching to the wrong device
-        is permanent, because Home Assistant reads this once at registration.
-        Entities are only built from live resources, so this is unreachable in
-        practice.
-        """
-        if self.resource is None:
-            return None
-        name = self.resource.name
-        if self.resource.is_network:
-            model = MODEL_NETWORK
-        elif self.resource.is_backup_network:
-            model = MODEL_BACKUP_NETWORK
-        elif self.resource.is_eero:
-            model = self.resource.model
-        elif self.resource.is_profile:
-            model = MODEL_PROFILE
-        elif self.resource.is_client:
-            model = (
-                MODEL_CLIENT_WIRELESS if self.resource.wireless else MODEL_CLIENT_WIRED
-            )
-            if self.suffix_connection_type:
-                name = self.resource.name_connection_type
-        if self.prefix_network_name and not self.resource.is_network:
-            name = f"{self.network.name} {name}"
-
-        entry_type, suggested_area, sw_version, hw_version = (
-            None,
-            None,
-            None,
-            None,
-        )
-        if any(
-            [
-                self.resource.is_backup_network,
-                self.resource.is_network,
-                self.resource.is_profile,
-            ]
-        ):
-            entry_type = dr.DeviceEntryType.SERVICE
-        if self.resource.is_eero:
-            suggested_area = self.resource.location
-            sw_version = self.resource.os_version
-            hw_version = self.resource.model_number
-        device_info = dr.DeviceInfo(
-            entry_type=entry_type,
-            hw_version=hw_version,
-            identifiers={(DOMAIN, self.resource.id)},
-            manufacturer=MANUFACTURER,
-            model=model,
-            name=name,
-            suggested_area=suggested_area,
-            sw_version=sw_version,
-        )
-        if any(
-            [
-                self.resource.is_backup_network,
-                self.resource.is_eero,
-                self.resource.is_profile,
-                self.resource.is_client,
-            ]
-        ):
-            # The link to the network device is set as via_device_id, a device
-            # registry ID; the identifier-tuple via_device is deprecated and is
-            # removed in Home Assistant 2027.8. The key is left out entirely
-            # when the network device cannot be found, because Home Assistant
-            # raises on an unknown via_device_id and the platform then drops the
-            # entity. async_setup_entry registers every configured network
-            # before it forwards the platforms, so the lookup finds it.
-            if (network_device := self.network_device) is not None:
-                device_info["via_device_id"] = network_device.id
-        return device_info
-
-    @property
-    def name(self) -> str | None:
-        """Return the entity portion of the name.
-
-        has_entity_name is set, so Home Assistant prefixes the device name and
-        this returns the short suffix only. None means the entity carries the
-        device name alone.
-        """
-        name = self.entity_description.name
-        if name is UNDEFINED:
-            return None
-        return name
-
-
-@dataclass
-class EeroEntityDescription(EntityDescription):
-    """A class that describes Eero entities."""
-
-    extra_attrs: dict[str, Callable] | None = None
-    premium_type: bool = False
-    request_refresh: bool = True
-    translation_key: str | None = "all"

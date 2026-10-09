@@ -68,11 +68,6 @@ CONF_WIRED_CLIENTS_FILTER = "wired_clients_filter"
 CONF_WIRELESS_CLIENTS = "wireless_clients"
 CONF_WIRELESS_CLIENTS_FILTER = "wireless_clients_filter"
 
-DATA_API = "api"
-DATA_COORDINATOR = "coordinator"
-DATA_OPTIONS = "options"
-DATA_UPDATE_LISTENER = "update_listener"
-
 DOMAIN = "eero"
 
 MANUFACTURER = "eero"
@@ -108,7 +103,9 @@ MAX_SCAN_INTERVAL: int = 600
 STEP_SCAN_INTERVAL: int = 30
 
 MIN_TIMEOUT: int = 10
-MAX_TIMEOUT: int = 60
+# eero-api gives every request ClientTimeout(total=30, sock_read=10) and does
+# not let a caller raise it, so a longer timeout could never take effect.
+MAX_TIMEOUT: int = 30
 STEP_TIMEOUT: int = 5
 
 DEFAULT_CONSIDER_HOME: int = 0
@@ -120,3 +117,7 @@ DEFAULT_SUFFIX_CONNECTION_TYPE: bool = True
 DEFAULT_TIMEOUT: int = 30
 DEFAULT_WIRED_CLIENTS_FILTER: str = CONF_FILTER_INCLUDE
 DEFAULT_WIRELESS_CLIENTS_FILTER: str = CONF_FILTER_INCLUDE
+
+TIER_FAST = "fast"
+TIER_HOURLY = "hourly"
+TIER_DAILY = "daily"

@@ -1,27 +1,27 @@
 rules:
   # Bronze
   action-setup:
-    status: todo
+    status: done
     comment: >-
-      set_blocked_apps is registered in async_setup_entry, and only when a
-      profile is configured. It needs to move to async_setup and check the
-      config entry state inside the handler.
+      set_blocked_apps is registered in async_setup, whether or not a profile
+      is configured, and the handler skips entries that are not loaded.
   appropriate-polling:
     status: done
     comment: >-
-      Cloud polling, default 300 s, user-adjustable from 60 to 600 s in the
-      Advanced step. Rate-limit responses back the interval off.
+      Cloud polling in three tiers: the fast tier at the scan interval
+      (default 300 s, 60 to 600 s in the Advanced step), activity hourly, and
+      Thread, backup networks, entitlements and firmware daily. A rate-limited
+      tier backs its own interval off.
   brands:
     status: todo
     comment: >-
       No eero entry in home-assistant/brands (core_integrations or
       custom_integrations).
   common-modules:
-    status: todo
+    status: done
     comment: >-
-      The DataUpdateCoordinator is built inline in async_setup_entry and the
-      base entity lives in __init__.py. Move them to coordinator.py and
-      entity.py.
+      The coordinators and the per-entry runtime live in coordinator.py, the
+      base entity in entity.py.
   config-flow:
     status: todo
     comment: >-
@@ -29,15 +29,14 @@ rules:
       data_description for any step's fields.
   config-flow-test-coverage:
     status: todo
-    comment: >-
-      No tests drive the config, reauth or options flow. The existing suite
-      tests the API layer without Home Assistant.
+    comment: pending tests in this branch
   dependency-transparency:
-    status: todo
+    status: done
     comment: >-
-      The API client is vendored under custom_components/eero/api and
-      manifest requirements are empty. Done once the integration uses the
-      eero-api package from PyPI.
+      eero-api==8.0.6 from PyPI, MIT-licensed, source at
+      github.com/fulviofreitas/eero-api with tagged releases. Its release.yml
+      builds and publishes to PyPI from GitHub Actions via trusted publishing;
+      PyPI attestations are turned off, so the files carry no provenance.
   docs-actions:
     status: todo
     comment: >-
@@ -67,8 +66,8 @@ rules:
   has-entity-name:
     status: done
   runtime-data:
-    status: todo
-    comment: Per-entry objects are stored in hass.data[DOMAIN][entry_id].
+    status: done
+    comment: The per-entry EeroRuntime is stored in ConfigEntry.runtime_data.
   test-before-configure:
     status: done
     comment: >-
@@ -85,16 +84,17 @@ rules:
 
   # Silver
   action-exceptions:
-    status: todo
+    status: done
     comment: >-
-      Entity actions (switch, button, light, select, time, number) and
-      set_blocked_apps let EeroException propagate instead of raising
-      HomeAssistantError / ServiceValidationError.
+      Entity actions go through EeroEntity.async_write and the set_blocked_apps
+      action maps SDK errors the same way: HomeAssistantError with a
+      translation key, and reauthentication on an expired session.
   config-entry-unloading:
     status: done
     comment: >-
-      async_unload_entry unloads the platforms, removes the update listener
-      and closes the HTTP session.
+      async_unload_entry unloads the platforms and clears the entry's repair
+      issues; the update listener is removed through async_on_unload. The
+      aiohttp session is Home Assistant's shared one and is not closed.
   docs-configuration-parameters:
     status: todo
     comment: The README Options section is a summary, not a per-option list.
@@ -115,8 +115,10 @@ rules:
       logs once when it becomes unavailable and once when it recovers.
       Entities do not log on their own.
   parallel-updates:
-    status: todo
-    comment: No platform sets PARALLEL_UPDATES.
+    status: done
+    comment: >-
+      Every platform sets PARALLEL_UPDATES: 0 for the read-only platforms
+      (sensor, binary_sensor, device_tracker), 1 for the ones that write.
   reauthentication-flow:
     status: done
     comment: >-
@@ -124,9 +126,7 @@ rules:
       abort).
   test-coverage:
     status: todo
-    comment: >-
-      No tests for config flow, setup/unload or entity platforms; coverage
-      is not measured.
+    comment: pending tests in this branch
 
   # Gold
   devices:
@@ -181,7 +181,11 @@ rules:
       Entity names are hard-coded English in the entity descriptions; only
       state attributes and states are translated.
   exception-translations:
-    status: todo
+    status: done
+    comment: >-
+      Action errors and coordinator failures (UpdateFailed,
+      ConfigEntryAuthFailed) use translation keys from the exceptions section
+      of strings.json.
   icon-translations:
     status: todo
     comment: icons.json covers the service only; two entities still set icon=.
@@ -189,7 +193,11 @@ rules:
     status: todo
     comment: The options flow covers resource selection; no reconfigure step.
   repair-issues:
-    status: todo
+    status: done
+    comment: >-
+      premium_required / feature_unavailable issues for a tier read the
+      account is not entitled to or the network lacks; cleared when the read
+      succeeds again and on unload.
   stale-devices:
     status: done
     comment: >-
@@ -199,11 +207,12 @@ rules:
 
   # Platinum
   async-dependency:
-    status: todo
-    comment: >-
-      The vendored client uses requests in the executor. eero-api is
-      aiohttp-based.
+    status: done
+    comment: eero-api is asyncio/aiohttp-based; no executor jobs remain.
   inject-websession:
-    status: todo
+    status: done
+    comment: >-
+      EeroHub hands Home Assistant's shared session
+      (async_get_clientsession) to the SDK.
   strict-typing:
     status: todo

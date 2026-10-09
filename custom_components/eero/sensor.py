@@ -13,7 +13,6 @@ from homeassistant.components.sensor import (
     SensorEntityDescription,
     SensorStateClass,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
     UnitOfDataRate,
@@ -24,7 +23,6 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import StateType
 
-from . import EeroEntity, EeroEntityDescription
 from .api.const import (
     DEVICE_CATEGORY_COMPUTERS_PERSONAL,
     DEVICE_CATEGORY_ENTERTAINMENT,
@@ -36,22 +34,19 @@ from .api.const import (
     STATE_PROFILE,
 )
 from .api.util import sum_data_usage
-from .const import (
-    CONF_ACTIVITY,
-    CONF_ACTIVITY_CLIENTS,
-    CONF_ACTIVITY_EEROS,
-    CONF_ACTIVITY_NETWORK,
-    CONF_ACTIVITY_PROFILES,
-    CONF_BACKUP_NETWORKS,
-    CONF_EEROS,
-    CONF_MISCELLANEOUS,
-    CONF_NETWORKS,
-    CONF_PROFILES,
-    CONF_RESOURCES,
-    DATA_COORDINATOR,
-    DOMAIN as EERO_DOMAIN,
+from .const import TIER_HOURLY
+from .coordinator import EeroConfigEntry
+from .entity import (
+    KIND_BACKUP_NETWORKS,
+    KIND_CLIENTS,
+    KIND_EEROS,
+    KIND_NETWORK,
+    KIND_PROFILES,
+    EeroEntity,
+    EeroEntityDescription,
+    build_entities,
 )
-from .util import client_allowed, resource_supports
+from .util import resource_supports
 
 DEVICE_CATEGORIES = [
     DEVICE_CATEGORY_COMPUTERS_PERSONAL,
@@ -71,14 +66,12 @@ SPEED_UNIT_MAP = {
 }
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class EeroSensorEntityDescription(EeroEntityDescription, SensorEntityDescription):
     """Class to describe an Eero sensor entity."""
 
     native_value: Callable = lambda resource, key: getattr(resource, key)
     entity_category: EntityCategory | None = EntityCategory.DIAGNOSTIC
-    activity_type: bool = False
-    wireless_only: bool = False
 
 
 SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
@@ -95,6 +88,7 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
         native_unit_of_measurement="ads",
         state_class=SensorStateClass.TOTAL_INCREASING,
         activity_type=True,
+        tier=TIER_HOURLY,
     ),
     EeroSensorEntityDescription(
         key="adblock_week",
@@ -102,6 +96,7 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
         native_unit_of_measurement="ads",
         state_class=SensorStateClass.TOTAL_INCREASING,
         activity_type=True,
+        tier=TIER_HOURLY,
     ),
     EeroSensorEntityDescription(
         key="adblock_month",
@@ -109,6 +104,7 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
         native_unit_of_measurement="ads",
         state_class=SensorStateClass.TOTAL_INCREASING,
         activity_type=True,
+        tier=TIER_HOURLY,
     ),
     EeroSensorEntityDescription(
         key="blocked_day",
@@ -119,6 +115,7 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
         if resource.is_network
         else getattr(resource, key),
         activity_type=True,
+        tier=TIER_HOURLY,
     ),
     EeroSensorEntityDescription(
         key="blocked_week",
@@ -129,6 +126,7 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
         if resource.is_network
         else getattr(resource, key),
         activity_type=True,
+        tier=TIER_HOURLY,
     ),
     EeroSensorEntityDescription(
         key="blocked_month",
@@ -139,6 +137,7 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
         if resource.is_network
         else getattr(resource, key),
         activity_type=True,
+        tier=TIER_HOURLY,
     ),
     EeroSensorEntityDescription(
         key="connected_clients_count",
@@ -160,6 +159,7 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
         native_value=sum_data_usage,
         native_unit_of_measurement=UnitOfInformation.BYTES,
         activity_type=True,
+        tier=TIER_HOURLY,
     ),
     EeroSensorEntityDescription(
         key="data_usage_week",
@@ -169,6 +169,7 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
         native_value=sum_data_usage,
         native_unit_of_measurement=UnitOfInformation.BYTES,
         activity_type=True,
+        tier=TIER_HOURLY,
     ),
     EeroSensorEntityDescription(
         key="data_usage_month",
@@ -178,6 +179,7 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
         native_value=sum_data_usage,
         native_unit_of_measurement=UnitOfInformation.BYTES,
         activity_type=True,
+        tier=TIER_HOURLY,
     ),
     EeroSensorEntityDescription(
         key="gateway_ip",
@@ -193,6 +195,7 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
         native_unit_of_measurement="scans",
         state_class=SensorStateClass.TOTAL_INCREASING,
         activity_type=True,
+        tier=TIER_HOURLY,
     ),
     EeroSensorEntityDescription(
         key="inspected_week",
@@ -200,6 +203,7 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
         native_unit_of_measurement="scans",
         state_class=SensorStateClass.TOTAL_INCREASING,
         activity_type=True,
+        tier=TIER_HOURLY,
     ),
     EeroSensorEntityDescription(
         key="inspected_month",
@@ -207,6 +211,7 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
         native_unit_of_measurement="scans",
         state_class=SensorStateClass.TOTAL_INCREASING,
         activity_type=True,
+        tier=TIER_HOURLY,
     ),
     EeroSensorEntityDescription(
         key="ip",
@@ -286,131 +291,23 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
 ]
 
 
+PARALLEL_UPDATES = 0
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: ConfigEntry,
+    config_entry: EeroConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up an Eero sensor entity based on a config entry."""
-    entry = hass.data[EERO_DOMAIN][config_entry.entry_id]
-    coordinator = entry[DATA_COORDINATOR]
-    entities: list[EeroSensorEntity] = []
-
-    SUPPORTED_KEYS = {
-        description.key: description for description in SENSOR_DESCRIPTIONS
-    }
-
-    for network in coordinator.data.networks:
-        if network.id in entry[CONF_NETWORKS]:
-            activity = entry[CONF_ACTIVITY].get(network.id, {})
-            for key, description in SUPPORTED_KEYS.items():
-                if any(
-                    [
-                        description.premium_type and not network.premium_enabled,
-                        description.activity_type
-                        and key not in activity.get(CONF_ACTIVITY_NETWORK, []),
-                    ]
-                ):
-                    continue
-                if resource_supports(network, key):
-                    entities.append(
-                        EeroSensorEntity(
-                            coordinator,
-                            network.id,
-                            None,
-                            description,
-                            entry[CONF_MISCELLANEOUS][network.id],
-                        )
-                    )
-
-            for backup_network in network.backup_networks:
-                if (
-                    backup_network.id
-                    in entry[CONF_RESOURCES][network.id][CONF_BACKUP_NETWORKS]
-                ):
-                    for key, description in SUPPORTED_KEYS.items():
-                        if resource_supports(backup_network, key):
-                            entities.append(
-                                EeroSensorEntity(
-                                    coordinator,
-                                    network.id,
-                                    backup_network.id,
-                                    description,
-                                    entry[CONF_MISCELLANEOUS][network.id],
-                                )
-                            )
-
-            for eero in network.eeros:
-                if eero.id in entry[CONF_RESOURCES][network.id][CONF_EEROS]:
-                    for key, description in SUPPORTED_KEYS.items():
-                        if any(
-                            [
-                                description.premium_type
-                                and not network.premium_enabled,
-                                description.activity_type
-                                and key not in activity.get(CONF_ACTIVITY_EEROS, []),
-                            ]
-                        ):
-                            continue
-                        if resource_supports(eero, key):
-                            entities.append(
-                                EeroSensorEntity(
-                                    coordinator,
-                                    network.id,
-                                    eero.id,
-                                    description,
-                                    entry[CONF_MISCELLANEOUS][network.id],
-                                )
-                            )
-
-            for profile in network.profiles:
-                if profile.id in entry[CONF_RESOURCES][network.id][CONF_PROFILES]:
-                    for key, description in SUPPORTED_KEYS.items():
-                        if any(
-                            [
-                                description.premium_type
-                                and not network.premium_enabled,
-                                description.activity_type
-                                and key not in activity.get(CONF_ACTIVITY_PROFILES, []),
-                            ]
-                        ):
-                            continue
-                        if resource_supports(profile, key):
-                            entities.append(
-                                EeroSensorEntity(
-                                    coordinator,
-                                    network.id,
-                                    profile.id,
-                                    description,
-                                    entry[CONF_MISCELLANEOUS][network.id],
-                                )
-                            )
-
-            for client in network.clients:
-                if client_allowed(client, entry[CONF_RESOURCES][network.id]):
-                    for key, description in SUPPORTED_KEYS.items():
-                        if any(
-                            [
-                                description.premium_type
-                                and not network.premium_enabled,
-                                description.activity_type
-                                and key not in activity.get(CONF_ACTIVITY_CLIENTS, []),
-                                description.wireless_only and not client.wireless,
-                            ]
-                        ):
-                            continue
-                        if resource_supports(client, key):
-                            entities.append(
-                                EeroSensorEntity(
-                                    coordinator,
-                                    network.id,
-                                    client.id,
-                                    description,
-                                    entry[CONF_MISCELLANEOUS][network.id],
-                                )
-                            )
-
-    async_add_entities(entities)
+    async_add_entities(
+        build_entities(
+            config_entry.runtime_data,
+            SENSOR_DESCRIPTIONS,
+            EeroSensorEntity,
+            (KIND_NETWORK, KIND_BACKUP_NETWORKS, KIND_EEROS, KIND_PROFILES, KIND_CLIENTS),
+        )
+    )
 
 
 class EeroSensorEntity(EeroEntity, SensorEntity):
@@ -445,7 +342,9 @@ class EeroSensorEntity(EeroEntity, SensorEntity):
         Implemented by platform classes. Convention for attribute names
         is lowercase snake_case.
         """
-        attrs = {}
+        attrs: dict[str, Any] = {}
+        if self.resource is None:
+            return attrs
         if self.entity_description.extra_attrs:
             for key, func in self.entity_description.extra_attrs.items():
                 attrs[key] = func(self.resource)

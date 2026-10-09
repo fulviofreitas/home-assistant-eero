@@ -3,7 +3,8 @@
         "abort": {
             "already_configured": "The desired network is already configured",
             "reauth_successful": "Re-authentication was successful",
-            "wrong_account": "The verified account is not the account this entry was set up with"
+            "wrong_account": "The verified account is not the account this entry was set up with",
+            "cannot_connect": "Could not read the account's networks from the eero API. Try again later."
         },
         "error": {
             "invalid_code": "Invalid code",
@@ -140,6 +141,10 @@
                 },
                 "title": "Advanced options"
             }
+        },
+        "abort": {
+            "not_loaded": "The integration is not loaded. Fix the problem shown on the integration first, then open the options again.",
+            "cannot_connect": "Could not read the account's networks from the eero API. Try again later."
         }
     },
     "services": {
@@ -309,6 +314,33 @@
                     }
                 }
             }
+        }
+    },
+    "exceptions": {
+        "api_error": {
+            "message": "The eero API rejected the request: {error}"
+        },
+        "auth_failed": {
+            "message": "The eero session has expired. Sign in again from the integration page."
+        },
+        "resource_unavailable": {
+            "message": "This eero resource is no longer reported by the API."
+        },
+        "rate_limited": {
+            "message": "Rate limited by the eero API; the next poll is in {seconds} seconds."
+        },
+        "timeout": {
+            "message": "Timed out talking to the eero API."
+        }
+    },
+    "issues": {
+        "premium_required": {
+            "title": "eero Plus required for {feature}",
+            "description": "Network {network} is not entitled to {feature}: it needs an eero Plus subscription. The entities that depend on it are not created. This notice clears itself once the subscription is active."
+        },
+        "feature_unavailable": {
+            "title": "{feature} is not available",
+            "description": "Network {network} does not offer {feature} (the hardware or the account does not support it). The entities that depend on it are not created. This notice clears itself if the feature becomes available."
         }
     }
 }

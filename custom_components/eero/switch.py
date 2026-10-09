@@ -11,25 +11,26 @@ from homeassistant.components.switch import (
     SwitchEntity,
     SwitchEntityDescription,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from . import EeroEntity, EeroEntityDescription
-from .const import (
-    CONF_BACKUP_NETWORKS,
-    CONF_MISCELLANEOUS,
-    CONF_NETWORKS,
-    CONF_PROFILES,
-    CONF_RESOURCES,
-    DATA_COORDINATOR,
-    DOMAIN as EERO_DOMAIN,
+from .const import TIER_DAILY, TIER_FAST
+from .coordinator import EeroConfigEntry
+from .entity import (
+    KIND_BACKUP_NETWORKS,
+    KIND_CLIENTS,
+    KIND_NETWORK,
+    KIND_PROFILES,
+    EeroEntity,
+    EeroEntityDescription,
+    build_entities,
 )
-from .util import client_allowed, resource_supports
+
+PARALLEL_UPDATES = 1
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class EeroSwitchEntityDescription(EeroEntityDescription, SwitchEntityDescription):
     """Class to describe an Eero switch entity."""
 
@@ -52,6 +53,8 @@ SWITCH_DESCRIPTIONS: list[EeroSwitchEntityDescription] = [
         key="backup_internet_enabled",
         name="Backup Internet Enabled",
         premium_type=True,
+        extra_tiers=(TIER_DAILY,),
+        refresh_tiers=(TIER_FAST, TIER_DAILY),
     ),
     EeroSwitchEntityDescription(
         key="band_steering",
@@ -113,6 +116,7 @@ SWITCH_DESCRIPTIONS: list[EeroSwitchEntityDescription] = [
     EeroSwitchEntityDescription(
         key="dns_caching",
         name="Local DNS Caching",
+        # A DNS write reboots every eero on the network a few minutes later.
         request_refresh=False,
     ),
     EeroSwitchEntityDescription(
@@ -156,6 +160,7 @@ SWITCH_DESCRIPTIONS: list[EeroSwitchEntityDescription] = [
     EeroSwitchEntityDescription(
         key="thread_enabled",
         name="Thread Enabled",
+        tier=TIER_DAILY,
         extra_attrs={
             "thread_network_name": lambda resource: resource.thread_name,
             "channel": lambda resource: resource.thread_channel,
@@ -181,84 +186,18 @@ SWITCH_DESCRIPTIONS: list[EeroSwitchEntityDescription] = [
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: ConfigEntry,
+    config_entry: EeroConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up an Eero switch entity based on a config entry."""
-    entry = hass.data[EERO_DOMAIN][config_entry.entry_id]
-    coordinator = entry[DATA_COORDINATOR]
-    entities: list[EeroSwitchEntity] = []
-
-    SUPPORTED_KEYS = {
-        description.key: description for description in SWITCH_DESCRIPTIONS
-    }
-
-    for network in coordinator.data.networks:
-        if network.id in entry[CONF_NETWORKS]:
-            for key, description in SUPPORTED_KEYS.items():
-                if description.premium_type and not network.premium_enabled:
-                    continue
-                if resource_supports(network, key):
-                    entities.append(
-                        EeroSwitchEntity(
-                            coordinator,
-                            network.id,
-                            None,
-                            description,
-                            entry[CONF_MISCELLANEOUS][network.id],
-                        )
-                    )
-
-            for backup_network in network.backup_networks:
-                if (
-                    backup_network.id
-                    in entry[CONF_RESOURCES][network.id][CONF_BACKUP_NETWORKS]
-                ):
-                    for key, description in SUPPORTED_KEYS.items():
-                        if resource_supports(backup_network, key):
-                            entities.append(
-                                EeroSwitchEntity(
-                                    coordinator,
-                                    network.id,
-                                    backup_network.id,
-                                    description,
-                                    entry[CONF_MISCELLANEOUS][network.id],
-                                )
-                            )
-
-            for profile in network.profiles:
-                if profile.id in entry[CONF_RESOURCES][network.id][CONF_PROFILES]:
-                    for key, description in SUPPORTED_KEYS.items():
-                        if description.premium_type and not network.premium_enabled:
-                            continue
-                        if resource_supports(profile, key):
-                            entities.append(
-                                EeroSwitchEntity(
-                                    coordinator,
-                                    network.id,
-                                    profile.id,
-                                    description,
-                                    entry[CONF_MISCELLANEOUS][network.id],
-                                )
-                            )
-
-            for client in network.clients:
-                if client_allowed(client, entry[CONF_RESOURCES][network.id]):
-                    for key, description in SUPPORTED_KEYS.items():
-                        if description.premium_type and not network.premium_enabled:
-                            continue
-                        if resource_supports(client, key):
-                            entities.append(
-                                EeroSwitchEntity(
-                                    coordinator,
-                                    network.id,
-                                    client.id,
-                                    description,
-                                    entry[CONF_MISCELLANEOUS][network.id],
-                                )
-                            )
-
-    async_add_entities(entities)
+    async_add_entities(
+        build_entities(
+            config_entry.runtime_data,
+            SWITCH_DESCRIPTIONS,
+            EeroSwitchEntity,
+            (KIND_NETWORK, KIND_BACKUP_NETWORKS, KIND_PROFILES, KIND_CLIENTS),
+        )
+    )
 
 
 class EeroSwitchEntity(EeroEntity, SwitchEntity):
@@ -271,33 +210,25 @@ class EeroSwitchEntity(EeroEntity, SwitchEntity):
 
     @property
     def extra_state_attributes(self) -> Mapping[str, Any] | None:
-        """Return entity specific state attributes.
-
-        Implemented by platform classes. Convention for attribute names
-        is lowercase snake_case.
-        """
+        """Return entity specific state attributes."""
         attrs = {}
         if self.entity_description.extra_attrs and self.is_on:
             for key, func in self.entity_description.extra_attrs.items():
                 attrs[key] = func(self.resource)
         return attrs
 
-    def turn_on(self, **kwargs: Any) -> None:
-        """Turn the entity on."""
-        setattr(self.resource, self.entity_description.key, True)
+    async def _async_set(self, value: bool) -> None:
+        await self.async_write(
+            f"async_set_{self.entity_description.key}",
+            value,
+            current=self.is_on,
+            target=value,
+        )
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the entity on."""
-        await super().async_turn_on()
-        if self.entity_description.request_refresh:
-            await self.coordinator.async_request_refresh()
-
-    def turn_off(self, **kwargs: Any) -> None:
-        """Turn the entity off."""
-        setattr(self.resource, self.entity_description.key, False)
+        await self._async_set(True)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the entity off."""
-        await super().async_turn_off()
-        if self.entity_description.request_refresh:
-            await self.coordinator.async_request_refresh()
+        await self._async_set(False)

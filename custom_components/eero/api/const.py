@@ -18,9 +18,10 @@ ACTIVITY_INSPECTED_MONTH = "inspected_month"
 
 API_ENDPOINT = "https://api-user.e2ro.com"
 
-CONNECT_TIMEOUT = 10
-READ_TIMEOUT = 30
-DEFAULT_REQUEST_TIMEOUT = (CONNECT_TIMEOUT, READ_TIMEOUT)
+# A single float, seconds: passed straight to asyncio.timeout() by
+# EeroHub.call(). The SDK's own per-request ClientTimeout(total=30,
+# sock_read=10) is the real floor/ceiling; this can only ever shorten it.
+DEFAULT_REQUEST_TIMEOUT = 30.0
 METHOD_DELETE = "DELETE"
 METHOD_GET = "GET"
 METHOD_POST = "POST"

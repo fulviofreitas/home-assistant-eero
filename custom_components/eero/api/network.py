@@ -9,9 +9,6 @@ from .const import (
     DEVICE_CATEGORY_ENTERTAINMENT,
     DEVICE_CATEGORY_HOME,
     DEVICE_CATEGORY_OTHER,
-    METHOD_DELETE,
-    METHOD_POST,
-    METHOD_PUT,
     MODEL_BEACON,
     PREFERRED_UPDATE_HOUR_MAP,
     STATE_DISABLED,
@@ -23,6 +20,12 @@ from .firmware import EeroFirmware
 from .profile import EeroProfile
 from .resource import EeroResource
 from .util import premium_ok
+
+# The no-SDK-method writes below (DNS-policy settings, hide_5g, preferred
+# update hour, ipv6_upstream on its own, the Thread enable path) go through
+# the SDK's public put/post/delete with the exact request the integration has
+# always sent: eero-api has no reader-verified method for them, or its method
+# sends a different request (see CHANGELOG 2.0.0).
 
 
 class EeroNetwork(EeroResource):
@@ -45,17 +48,9 @@ class EeroNetwork(EeroResource):
             ]
         )
 
-    @ad_block.setter
-    def ad_block(self, value: bool) -> None:
-        if not isinstance(value, bool):
-            return
-        self.api.call(
-            method=METHOD_POST,
-            url=f"{self.url_dns_policies}/adblock",
-            json={
-                "enable": value,
-            },
-        )
+    async def async_set_ad_block(self, value: bool) -> None:
+        """Set network-wide ad blocking."""
+        await self.api.post(f"{self.url_dns_policies}/adblock", json={"enable": value})
 
     @property
     def ad_block_enabled(self) -> bool | None:
@@ -117,16 +112,11 @@ class EeroNetwork(EeroResource):
         """Backup internet enabled."""
         return self.data.get("backup_internet_enabled")
 
-    @backup_internet_enabled.setter
-    def backup_internet_enabled(self, value: bool) -> None:
-        if not isinstance(value, bool):
-            return
-        self.api.call(
-            method=METHOD_PUT,
-            url=f"{self.url}/backupinternet",
-            json={
-                "backup_internet_enabled": value,
-            },
+    async def async_set_backup_internet_enabled(self, value: bool) -> None:
+        """Set backup internet."""
+        await self.api.call(
+            self.api.sdk.backup.set_backup_internet(self.id, value),
+            name=f"{self.url}/backupinternet",
         )
 
     @property
@@ -134,16 +124,11 @@ class EeroNetwork(EeroResource):
         """Band steering."""
         return self.data.get("band_steering")
 
-    @band_steering.setter
-    def band_steering(self, value: bool) -> None:
-        if not isinstance(value, bool):
-            return
-        self.api.call(
-            method=METHOD_PUT,
-            url=self.url_settings,
-            json={
-                "band_steering": value,
-            },
+    async def async_set_band_steering(self, value: bool) -> None:
+        """Set band steering."""
+        await self.api.call(
+            self.api.sdk.security.set_band_steering(self.id, value, parent=self.data),
+            name=f"{self.url}/settings",
         )
 
     @property
@@ -155,16 +140,10 @@ class EeroNetwork(EeroResource):
             .get("block_malware")
         )
 
-    @block_malware.setter
-    def block_malware(self, value: bool) -> None:
-        if not isinstance(value, bool):
-            return
-        self.api.call(
-            method=METHOD_POST,
-            url=f"{self.url_dns_policies}/network",
-            json={
-                "block_malware": value,
-            },
+    async def async_set_block_malware(self, value: bool) -> None:
+        """Set Advanced Security malware blocking."""
+        await self.api.post(
+            f"{self.url_dns_policies}/network", json={"block_malware": value}
         )
 
     @property
@@ -398,14 +377,14 @@ class EeroNetwork(EeroResource):
         """DDNS enabled."""
         return self.data.get("ddns", {}).get("enabled")
 
-    @ddns_enabled.setter
-    def ddns_enabled(self, value: bool) -> None:
-        if not isinstance(value, bool):
-            return
-        target = "enable" if value else "disable"
-        self.api.call(
-            method=METHOD_PUT,
-            url=f"/2.2/networks/{self.id}/ddns/{target}",
+    async def async_set_ddns_enabled(self, value: bool) -> None:
+        """Set dynamic DNS."""
+        ddns = self.api.sdk.ddns
+        await self.api.call(
+            ddns.enable(self.id, parent=self.data)
+            if value
+            else ddns.disable(self.id, parent=self.data),
+            name=f"{self.url}/ddns",
         )
 
     @property
@@ -418,16 +397,11 @@ class EeroNetwork(EeroResource):
         """DNS caching."""
         return self.data.get("dns", {}).get("caching")
 
-    @dns_caching.setter
-    def dns_caching(self, value: bool) -> None:
-        if not isinstance(value, bool):
-            return
-        self.api.call(
-            method=METHOD_PUT,
-            url=f"/2.2/networks/{self.id}/dns",
-            json={
-                "caching": value,
-            },
+    async def async_set_dns_caching(self, value: bool) -> None:
+        """Set local DNS caching. The API reboots every eero after a DNS write."""
+        await self.api.call(
+            self.api.sdk.dns.set_dns_caching(self.id, value, parent=self.data),
+            name=f"{self.url}/settings",
         )
 
     @property
@@ -469,16 +443,11 @@ class EeroNetwork(EeroResource):
         """Guest network enabled."""
         return self.data.get("guest_network", {}).get("enabled")
 
-    @guest_network_enabled.setter
-    def guest_network_enabled(self, value: bool) -> None:
-        if not isinstance(value, bool):
-            return
-        self.api.call(
-            method=METHOD_PUT,
-            url=f"/2.2/networks/{self.id}/guestnetwork",
-            json={
-                "enabled": value,
-            },
+    async def async_set_guest_network_enabled(self, value: bool) -> None:
+        """Set the guest network."""
+        await self.api.call(
+            self.api.sdk.networks.set_guest_network(self.id, enabled=value),
+            name=f"{self.url}/guestnetwork",
         )
 
     @property
@@ -541,17 +510,9 @@ class EeroNetwork(EeroResource):
         """IPV6 upstream."""
         return self.data.get("ipv6_upstream")
 
-    @ipv6_upstream.setter
-    def ipv6_upstream(self, value: bool) -> None:
-        if not isinstance(value, bool):
-            return
-        self.api.call(
-            method=METHOD_PUT,
-            url=self.url_settings,
-            json={
-                "ipv6_upstream": value,
-            },
-        )
+    async def async_set_ipv6_upstream(self, value: bool) -> None:
+        """Set IPv6 upstream only; security.set_ipv6 would set downstream too."""
+        await self.api.put(self.url_settings, json={"ipv6_upstream": value})
 
     @property
     def isp(self) -> str | None:
@@ -597,24 +558,13 @@ class EeroNetwork(EeroResource):
         """Pause 5G expiration."""
         return self.data.get("temporary_flags", {}).get("hide_5g", {}).get("expires_on")
 
-    @pause_5g_enabled.setter
-    def pause_5g_enabled(self, value: bool) -> None:
-        if not isinstance(value, bool):
-            return
+    async def async_set_pause_5g_enabled(self, value: bool) -> None:
+        """Pause or resume the 5 GHz band."""
         url = f"{self.url}/temporary_flags/hide_5g"
         if value:
-            self.api.call(
-                method=METHOD_PUT,
-                url=url,
-                json={
-                    "value": True,
-                },
-            )
+            await self.api.put(url, json={"value": True})
         else:
-            self.api.call(
-                method=METHOD_DELETE,
-                url=url,
-            )
+            await self.api.delete(url)
 
     @property
     def postal_code(self) -> str | None:
@@ -631,16 +581,13 @@ class EeroNetwork(EeroResource):
             hour
         )
 
-    @preferred_update_hour.setter
-    def preferred_update_hour(self, value: str) -> None:
+    async def async_set_preferred_update_hour(self, value: str) -> None:
+        """Set the hour firmware updates may install."""
         if value not in self.preferred_update_hour_options:
             return
-        self.api.call(
-            method=METHOD_POST,
-            url=f"/2.2/networks/{self.id}/updates/preferred_update_hour",
-            json={
-                "preferred_update_hour": PREFERRED_UPDATE_HOUR_MAP[value],
-            },
+        await self.api.post(
+            f"{self.url}/updates/preferred_update_hour",
+            json={"preferred_update_hour": PREFERRED_UPDATE_HOUR_MAP[value]},
         )
 
     @property
@@ -660,7 +607,14 @@ class EeroNetwork(EeroResource):
 
     @property
     def premium_enabled(self) -> bool:
-        """Premium enabled."""
+        """Premium enabled.
+
+        From the entitlements read when the daily tier has one; from
+        premium_status otherwise.
+        """
+        features = self.data.get("entitlements")
+        if isinstance(features, dict) and isinstance(features.get("features"), list):
+            return bool(features["features"])
         return premium_ok(
             capable=self.premium_capable,
             status=self.premium_status,
@@ -671,9 +625,11 @@ class EeroNetwork(EeroResource):
         """Public IP."""
         return self.data.get("ip_settings", {}).get("public_ip")
 
-    def reboot(self) -> None:
-        """Reboot."""
-        self.api.call(method=METHOD_POST, url=self.url_reboot)
+    async def async_reboot(self) -> None:
+        """Reboot every eero on the network."""
+        await self.api.call(
+            self.api.sdk.networks.reboot_network(self.id), name=f"{self.url}/reboot"
+        )
 
     @property
     def region(self) -> str | None:
@@ -685,16 +641,18 @@ class EeroNetwork(EeroResource):
         """Region name."""
         return self.data.get("geo_ip", {}).get("regionName")
 
-    def run_internet_backup_test(self) -> None:
+    async def async_run_internet_backup_test(self) -> None:
         """Run internet backup test."""
-        self.api.call(
-            method=METHOD_POST,
-            url=f"{self.url}/backup_access_points/connectivity_check",
+        await self.api.call(
+            self.api.sdk.backup_access_points.connectivity_check(self.id),
+            name=f"{self.url}/backup_access_points/connectivity_check",
         )
 
-    def run_speed_test(self) -> None:
+    async def async_run_speed_test(self) -> None:
         """Run speed test."""
-        self.api.call(method=METHOD_POST, url=f"{self.url}/speedtest")
+        await self.api.call(
+            self.api.sdk.networks.run_speed_test(self.id), name=f"{self.url}/speedtest"
+        )
 
     @property
     def speed_date(self) -> str | None:
@@ -722,17 +680,11 @@ class EeroNetwork(EeroResource):
         """SQM."""
         return self.data.get("sqm")
 
-    @sqm.setter
-    def sqm(self, value: bool) -> None:
-        if not isinstance(value, bool):
-            return
-        self.api.call(
-            method=METHOD_PUT,
-            url=self.url_settings,
-            json={
-                "sqm": value,
-            },
-        )
+    async def async_set_sqm(self, value: bool) -> None:
+        """Set Smart Queue Management."""
+        # Not sqm.set_sqm: it sends the value as a query parameter, a request
+        # eero-api has not verified; this is the JSON body 1.x always sent.
+        await self.api.put(self.url_settings, json={"sqm": value})
 
     @property
     def ssid(self) -> str | None:
@@ -769,17 +721,9 @@ class EeroNetwork(EeroResource):
         """Thread enabled."""
         return self.data.get("thread", {}).get("enabled")
 
-    @thread_enabled.setter
-    def thread_enabled(self, value: bool) -> None:
-        if not isinstance(value, bool):
-            return
-        self.api.call(
-            method=METHOD_PUT,
-            url=f"{self.url_thread}/enable",
-            json={
-                "enabled": value,
-            },
-        )
+    async def async_set_thread_enabled(self, value: bool) -> None:
+        """Set Thread. Keeps the {thread}/enable path the integration has always used."""
+        await self.api.put(f"{self.url_thread}/enable", json={"enabled": value})
 
     @property
     def thread_master_key(self) -> str | None:
@@ -801,25 +745,21 @@ class EeroNetwork(EeroResource):
         """Thread XPAN ID."""
         return self.data.get("thread", {}).get("xpan_id")
 
-    def install_firmware_update(self) -> None:
+    async def async_install_firmware_update(self) -> None:
         """Trigger a firmware update for every eero on this network."""
-        self.api.call(method=METHOD_POST, url=self.url_updates)
+        await self.api.call(
+            self.api.sdk.updates.apply_update(self.id), name=f"{self.url}/updates"
+        )
 
     @property
     def upnp(self) -> bool | None:
         """UPNP."""
         return self.data.get("upnp")
 
-    @upnp.setter
-    def upnp(self, value: bool) -> None:
-        if not isinstance(value, bool):
-            return
-        self.api.call(
-            method=METHOD_PUT,
-            url=self.url_settings,
-            json={
-                "upnp": value,
-            },
+    async def async_set_upnp(self, value: bool) -> None:
+        """Set UPnP."""
+        await self.api.call(
+            self.api.sdk.security.set_upnp(self.id, value, parent=self.data), name=f"{self.url}/settings"
         )
 
     @property
@@ -867,16 +807,10 @@ class EeroNetwork(EeroResource):
         """WPA3."""
         return self.data.get("wpa3")
 
-    @wpa3.setter
-    def wpa3(self, value: bool) -> None:
-        if not isinstance(value, bool):
-            return
-        self.api.call(
-            method=METHOD_PUT,
-            url=self.url_settings,
-            json={
-                "wpa3": value,
-            },
+    async def async_set_wpa3(self, value: bool) -> None:
+        """Set WPA3."""
+        await self.api.call(
+            self.api.sdk.security.set_wpa3(self.id, value, parent=self.data), name=f"{self.url}/settings"
         )
 
     @property

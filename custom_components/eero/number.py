@@ -5,25 +5,21 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from homeassistant.components.number import NumberEntity, NumberEntityDescription
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import PERCENTAGE
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from . import EeroEntity, EeroEntityDescription
-from .const import (
-    CONF_EEROS,
-    CONF_MISCELLANEOUS,
-    CONF_NETWORKS,
-    CONF_RESOURCES,
-    DATA_COORDINATOR,
-    DOMAIN as EERO_DOMAIN,
+from .coordinator import EeroConfigEntry
+from .entity import (
+    KIND_EEROS,
+    EeroEntity,
+    EeroEntityDescription,
+    build_entities,
 )
-from .util import resource_supports
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class EeroNumberEntityDescription(EeroEntityDescription, NumberEntityDescription):
     """Class to describe an Eero number entity."""
 
@@ -38,40 +34,23 @@ NUMBER_DESCRIPTIONS: list[EeroNumberEntityDescription] = [
     ),
 ]
 
+PARALLEL_UPDATES = 1
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: ConfigEntry,
+    config_entry: EeroConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up an Eero number entity based on a config entry."""
-    entry = hass.data[EERO_DOMAIN][config_entry.entry_id]
-    coordinator = entry[DATA_COORDINATOR]
-    entities: list[EeroNumberEntity] = []
-
-    SUPPORTED_KEYS = {
-        description.key: description for description in NUMBER_DESCRIPTIONS
-    }
-
-    for network in coordinator.data.networks:
-        if network.id in entry[CONF_NETWORKS]:
-            for eero in network.eeros:
-                if eero.id in entry[CONF_RESOURCES][network.id][CONF_EEROS]:
-                    for key, description in SUPPORTED_KEYS.items():
-                        if description.premium_type and not network.premium_enabled:
-                            continue
-                        if resource_supports(eero, key):
-                            entities.append(
-                                EeroNumberEntity(
-                                    coordinator,
-                                    network.id,
-                                    eero.id,
-                                    description,
-                                    entry[CONF_MISCELLANEOUS][network.id],
-                                )
-                            )
-
-    async_add_entities(entities)
+    async_add_entities(
+        build_entities(
+            config_entry.runtime_data,
+            NUMBER_DESCRIPTIONS,
+            EeroNumberEntity,
+            (KIND_EEROS,),
+        )
+    )
 
 
 class EeroNumberEntity(EeroEntity, NumberEntity):
@@ -84,12 +63,11 @@ class EeroNumberEntity(EeroEntity, NumberEntity):
         """Return the value reported by the number."""
         return getattr(self.resource, self.entity_description.key)
 
-    def set_native_value(self, value: float) -> None:
-        """Set new value."""
-        setattr(self.resource, self.entity_description.key, value)
-
     async def async_set_native_value(self, value: float) -> None:
         """Set new value."""
-        await super().async_set_native_value(value)
-        if self.entity_description.request_refresh:
-            await self.coordinator.async_request_refresh()
+        await self.async_write(
+            f"async_set_{self.entity_description.key}",
+            value,
+            current=self.native_value,
+            target=value,
+        )

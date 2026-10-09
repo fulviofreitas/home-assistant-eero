@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from .const import METHOD_PUT
 from .resource import EeroResource
 
 
@@ -14,18 +13,17 @@ class EeroBackupNetwork(EeroResource):
         """Auto join enabled."""
         return self.data.get("enabled")
 
-    @auto_join_enabled.setter
-    def auto_join_enabled(self, value: bool) -> None:
-        if not isinstance(value, bool):
-            return
-        self.api.call(
-            method=METHOD_PUT,
-            url=self.url,
-            json={
-                "enabled": value,
-                "ssid": self.ssid,
-                "password": self.password,
-            },
+    async def async_set_auto_join_enabled(self, value: bool) -> None:
+        """Set auto-join, re-sending SSID and password as the API expects."""
+        await self.api.call(
+            self.api.sdk.backup_access_points.update(
+                self.network.id,
+                self.uuid,
+                enabled=value,
+                ssid=self.ssid,
+                password=self.password,
+            ),
+            name=self.url,
         )
 
     @property

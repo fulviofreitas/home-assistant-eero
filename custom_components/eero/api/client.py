@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 import logging
 
-from .const import DEVICE_CATEGORY_TYPE_MAP, METHOD_PUT
+from .const import DEVICE_CATEGORY_TYPE_MAP
 from .resource import EeroResource
 
 _LOGGER = logging.getLogger(__name__)
@@ -19,7 +19,7 @@ class EeroClient(EeroResource):
         """Adblock day."""
         for device in (
             self.network.data.get("activity", {})
-            .get("network", {})
+            .get("devices", {})
             .get("adblock_day", [])
         ):
             if device["insights_url"] == self.url_insights:
@@ -31,7 +31,7 @@ class EeroClient(EeroResource):
         """Adblock month."""
         for device in (
             self.network.data.get("activity", {})
-            .get("network", {})
+            .get("devices", {})
             .get("adblock_month", [])
         ):
             if device["insights_url"] == self.url_insights:
@@ -43,7 +43,7 @@ class EeroClient(EeroResource):
         """Adblock week."""
         for device in (
             self.network.data.get("activity", {})
-            .get("network", {})
+            .get("devices", {})
             .get("adblock_week", [])
         ):
             if device["insights_url"] == self.url_insights:
@@ -55,7 +55,7 @@ class EeroClient(EeroResource):
         """Blocked day."""
         for device in (
             self.network.data.get("activity", {})
-            .get("network", {})
+            .get("devices", {})
             .get("blocked_day", [])
         ):
             if device["insights_url"] == self.url_insights:
@@ -67,7 +67,7 @@ class EeroClient(EeroResource):
         """Blocked month."""
         for device in (
             self.network.data.get("activity", {})
-            .get("network", {})
+            .get("devices", {})
             .get("blocked_month", [])
         ):
             if device["insights_url"] == self.url_insights:
@@ -79,7 +79,7 @@ class EeroClient(EeroResource):
         """Blocked week."""
         for device in (
             self.network.data.get("activity", {})
-            .get("network", {})
+            .get("devices", {})
             .get("blocked_week", [])
         ):
             if device["insights_url"] == self.url_insights:
@@ -277,14 +277,11 @@ class EeroClient(EeroResource):
         """Paused."""
         return self.data.get("paused")
 
-    @paused.setter
-    def paused(self, value: bool) -> None:
-        if not isinstance(value, bool):
-            return
-        self.api.call(
-            method=METHOD_PUT,
-            url=f"/2.3/networks/{self.network.id}/devices/{self.mac}",
-            json={"paused": value},
+    async def async_set_paused(self, value: bool) -> None:
+        """Pause or resume the client."""
+        await self.api.call(
+            self.api.sdk.devices.pause_device(self.network.id, self.mac, value),
+            name=f"/2.3/networks/{self.network.id}/devices",
         )
 
     @property
@@ -292,14 +289,11 @@ class EeroClient(EeroResource):
         """Whether this client may use the internet backup connection."""
         return not self.data.get("secondary_wan_deny_access")
 
-    @secondary_wan_allow_access.setter
-    def secondary_wan_allow_access(self, value: bool) -> None:
-        if not isinstance(value, bool):
-            return
-        self.api.call(
-            method=METHOD_PUT,
-            url=f"/2.3/networks/{self.network.id}/devices/{self.mac}",
-            json={"secondary_wan_deny_access": bool(not value)},
+    async def async_set_secondary_wan_allow_access(self, value: bool) -> None:
+        """Allow or deny this client the internet backup connection."""
+        await self.api.put(
+            f"/2.3/networks/{self.network.id}/devices/{self.mac}",
+            json={"secondary_wan_deny_access": not value},
         )
 
     @property

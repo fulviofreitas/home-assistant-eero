@@ -5,8 +5,6 @@ from __future__ import annotations
 from datetime import time
 
 from .const import (
-    METHOD_POST,
-    METHOD_PUT,
     STATE_AMBIENT,
     STATE_DISABLED,
     STATE_SCHEDULE,
@@ -118,45 +116,38 @@ class EeroDevice(EeroResource):
         """OS version."""
         return self.data.get("os_version")
 
-    def reboot(self) -> None:
-        """Reboot."""
-        self.api.call(method=METHOD_POST, url=self.url_reboot)
+    async def async_reboot(self) -> None:
+        """Reboot this eero."""
+        await self.api.call(
+            self.api.sdk.eeros.reboot_eero(self.network.id, self.id),
+            name=f"{self.url}/reboot",
+        )
 
     @property
     def serial(self) -> str | None:
         """Serial."""
         return self.data.get("serial")
 
-    def set_status_light(self, value: bool) -> None:
-        """Set status light."""
-        if not isinstance(value, bool):
-            return
-        self.api.call(
-            method=METHOD_PUT,
-            url=self.url_led,
-            json={"led_on": value},
+    async def async_set_status_light(self, value: bool) -> None:
+        """Turn the status light on or off."""
+        await self.api.call(
+            self.api.sdk.eeros.set_led(
+                self.network.id, self.id, value, parent=self.data
+            ),
+            name=f"{self.url}/led",
         )
 
-    def set_status_light_brightness(self, value: int) -> None:
-        """Set status light brightness."""
-        if not isinstance(value, int):
-            return None
+    async def async_set_status_light_brightness(self, value: int) -> None:
+        """Set status light brightness; 0 turns it off."""
         if not value:
-            return self.set_status_light_off()
-        self.api.call(
-            method=METHOD_PUT,
-            url=self.url_led,
-            json={"led_brightness": value},
+            await self.async_set_status_light(False)
+            return
+        await self.api.call(
+            self.api.sdk.eeros.set_led_brightness(
+                self.network.id, self.id, int(value), parent=self.data
+            ),
+            name=f"{self.url}/led",
         )
-        return None
-
-    def set_status_light_off(self) -> None:
-        """Set status light off."""
-        self.set_status_light(value=False)
-
-    def set_status_light_on(self) -> None:
-        """Set status light on."""
-        self.set_status_light(value=True)
 
     @property
     def status(self) -> str | None:
@@ -221,11 +212,9 @@ class EeroDeviceBeacon(EeroDevice):
         """Nightlight brightness percentage."""
         return self.data.get("nightlight", {}).get("brightness_percentage")
 
-    @nightlight_brightness_percentage.setter
-    def nightlight_brightness_percentage(self, value: float) -> None:
-        if not isinstance(value, (float, int)):
-            return
-        self.set_nightlight_brightness(value=int(value))
+    async def async_set_nightlight_brightness_percentage(self, value: float) -> None:
+        """Set nightlight brightness."""
+        await self.async_set_nightlight_brightness(int(value))
 
     @property
     def nightlight_enabled(self) -> bool | None:
@@ -241,14 +230,14 @@ class EeroDeviceBeacon(EeroDevice):
             return STATE_AMBIENT
         return STATE_SCHEDULE
 
-    @nightlight_mode.setter
-    def nightlight_mode(self, value: str) -> None:
+    async def async_set_nightlight_mode(self, value: str) -> None:
+        """Set nightlight mode."""
         if value == STATE_DISABLED:
-            self.set_nightlight_disabled()
-        if value == STATE_AMBIENT:
-            self.set_nightlight_ambient()
-        if value == STATE_SCHEDULE:
-            self.set_nightlight_schedule()
+            await self.async_set_nightlight_disabled()
+        elif value == STATE_AMBIENT:
+            await self.async_set_nightlight_ambient()
+        elif value == STATE_SCHEDULE:
+            await self.async_set_nightlight_schedule(*self.nightlight_schedule)
 
     @property
     def nightlight_mode_options(self) -> list[str]:
@@ -276,11 +265,9 @@ class EeroDeviceBeacon(EeroDevice):
             minute=int(self.nightlight_schedule_off_minute),
         )
 
-    @nightlight_schedule_off.setter
-    def nightlight_schedule_off(self, value: time) -> None:
-        if not isinstance(value, time):
-            return
-        self.set_nightlight_schedule(
+    async def async_set_nightlight_schedule_off(self, value: time) -> None:
+        """Set the nightlight off time."""
+        await self.async_set_nightlight_schedule(
             time_on=self.nightlight_schedule[0],
             time_off=f"{self._format_time(value.hour)}:{self._format_time(value.minute)}",
         )
@@ -303,11 +290,9 @@ class EeroDeviceBeacon(EeroDevice):
             minute=int(self.nightlight_schedule_on_minute),
         )
 
-    @nightlight_schedule_on.setter
-    def nightlight_schedule_on(self, value: time) -> None:
-        if not isinstance(value, time):
-            return
-        self.set_nightlight_schedule(
+    async def async_set_nightlight_schedule_on(self, value: time) -> None:
+        """Set the nightlight on time."""
+        await self.async_set_nightlight_schedule(
             time_on=f"{self._format_time(value.hour)}:{self._format_time(value.minute)}",
             time_off=self.nightlight_schedule[1],
         )
@@ -322,61 +307,40 @@ class EeroDeviceBeacon(EeroDevice):
         """Nightlight schedule on minute."""
         return self.nightlight_schedule[0].split(":")[1]
 
-    def _set_nightlight(self, json: dict) -> None:
-        if not isinstance(json, dict):
-            return
-        self.api.call(
-            method=METHOD_PUT,
-            url=f"/2.2/eeros/{self.id}/nightlight/settings",
-            json=json,
+    async def _set_nightlight(self, **settings) -> None:
+        await self.api.call(
+            self.api.sdk.eeros.set_nightlight(
+                self.network.id, self.id, parent=self.data, **settings
+            ),
+            name=f"{self.url}/nightlight",
         )
 
-    def set_nightlight_ambient(self) -> None:
+    async def async_set_nightlight_ambient(self) -> None:
         """Set nightlight ambient."""
-        self._set_nightlight(
-            json={
-                "enabled": True,
-                "schedule": {
-                    "enabled": False,
-                },
-            },
-        )
+        await self._set_nightlight(enabled=True, schedule={"enabled": False})
 
-    def set_nightlight_brightness(self, value: int) -> None:
+    async def async_set_nightlight_brightness(self, value: int) -> None:
         """Set nightlight brightness."""
-        if not isinstance(value, int):
-            return
-        self._set_nightlight(
-            json={
+        await self._set_nightlight(
+            enabled=True,
+            brightness_percentage=value,
+            schedule={
                 "enabled": True,
-                "brightness_percentage": value,
-                "schedule": {
-                    "enabled": True,
-                    "on": self.nightlight_schedule[0],
-                    "off": self.nightlight_schedule[1],
-                },
+                "on": self.nightlight_schedule[0],
+                "off": self.nightlight_schedule[1],
             },
         )
 
-    def set_nightlight_disabled(self) -> None:
+    async def async_set_nightlight_disabled(self) -> None:
         """Set nightlight disabled."""
-        self._set_nightlight(
-            json={
-                "enabled": False,
-            },
-        )
+        await self._set_nightlight(enabled=False)
 
-    def set_nightlight_schedule(self, time_on: str, time_off: str) -> None:
+    async def async_set_nightlight_schedule(
+        self, time_on: str | None, time_off: str | None
+    ) -> None:
         """Set nightlight schedule."""
         if not isinstance(time_on, str) or not isinstance(time_off, str):
             return
-        self._set_nightlight(
-            json={
-                "enabled": True,
-                "schedule": {
-                    "enabled": True,
-                    "on": time_on,
-                    "off": time_off,
-                },
-            },
+        await self._set_nightlight(
+            enabled=True, schedule={"enabled": True, "on": time_on, "off": time_off}
         )
