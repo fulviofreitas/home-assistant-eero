@@ -4,7 +4,6 @@
 # custom_components/eero against that same Home Assistant -- mypy run here
 # rather than in the 3.13 job because it needs BaseScannerEntity, only
 # available from the HA version this pin brings in.
-pytest==9.0.0
 pytest-homeassistant-custom-component==0.13.371
 mypy==2.4.0
 eero-api==8.0.6
