@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from helpers import build_hub, eero_api
 
 sum_data_usage = eero_api.util.sum_data_usage
@@ -201,3 +203,45 @@ def test_app_events_and_notifications_has_unread_properties() -> None:
     empty_network = network_with_activity({})
     assert empty_network.app_events == []
     assert empty_network.notifications_has_unread is None
+
+
+def test_power_saving_enabled_reads_the_plain_top_level_boolean() -> None:
+    """power_saving is a plain top-level boolean on the network envelope, not nested."""
+    api = build_hub()
+    network = eero_api.network.EeroNetwork(
+        api, None, {"url": "/2.2/networks/1234567", "name": "TestNetwork", "power_saving": True}
+    )
+    assert network.power_saving_enabled is True
+
+    off_network = eero_api.network.EeroNetwork(
+        api, None, {"url": "/2.2/networks/1234567", "name": "TestNetwork", "power_saving": False}
+    )
+    assert off_network.power_saving_enabled is False
+
+
+def test_mlo_mode_requires_capability_and_a_parseable_value() -> None:
+    """mlo_mode raises (so the select is never created) when not capable or unparseable."""
+    api = build_hub()
+
+    def _network(**overrides):
+        data = {"url": "/2.2/networks/1234567", "name": "TestNetwork"}
+        data.update(overrides)
+        return eero_api.network.EeroNetwork(api, None, data)
+
+    capable = {"capabilities": {"mlo_mode": {"capable": True}}}
+
+    not_capable = _network(mlo_mode="disabled")
+    with pytest.raises(AttributeError):
+        _ = not_capable.mlo_mode
+
+    unparseable = _network(mlo_mode="bogus", **capable)
+    with pytest.raises(AttributeError):
+        _ = unparseable.mlo_mode
+
+    string_shaped = _network(mlo_mode="single", **capable)
+    assert string_shaped.mlo_mode == "single"
+
+    dict_shaped = _network(mlo_mode={"mode": "multi"}, **capable)
+    assert dict_shaped.mlo_mode == "multi"
+
+    assert string_shaped.mlo_mode_options == ["disabled", "single", "multi"]

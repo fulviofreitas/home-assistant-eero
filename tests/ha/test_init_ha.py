@@ -164,11 +164,65 @@ async def test_switch_turn_on_calls_the_sdk_and_skips_when_already_on(
     )
 
 
+async def test_mlo_mode_select_only_created_when_capable(hass, sdk_factory) -> None:
+    """mlo_mode is read from the network envelope; not created when not capable."""
+    sdk_factory(
+        {
+            "networks.get_network": network_envelope(mlo_mode="single"),
+            "eeros.get_eeros": [],
+            "entitlements.get_features": {"features": []},
+            "updates.get_updates": {},
+            "reservations.get_reservations": [],
+            "forwards.get_forwards": [],
+            "security.get_fast_transition": {"fast_transition": False},
+        }
+    )
+    entry = make_entry(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert hass.states.get("select.testnetwork_mlo_mode") is None
+
+
+async def test_mlo_mode_select_reads_and_writes_when_capable(hass, sdk_factory) -> None:
+    """mlo_mode reads the network envelope and writes via security.set_mlo_mode."""
+    sdk = sdk_factory(
+        {
+            "networks.get_network": network_envelope(
+                mlo_mode="single",
+                capabilities={"mlo_mode": {"capable": True}},
+            ),
+            "eeros.get_eeros": [],
+            "entitlements.get_features": {"features": []},
+            "updates.get_updates": {},
+            "reservations.get_reservations": [],
+            "forwards.get_forwards": [],
+            "security.get_fast_transition": {"fast_transition": False},
+        }
+    )
+    entry = make_entry(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    entity_id = "select.testnetwork_mlo_mode"
+    state = hass.states.get(entity_id)
+    assert state is not None
+    assert state.state == "single"
+    assert set(state.attributes["options"]) == {"disabled", "single", "multi"}
+
+    sdk.calls.clear()
+    sdk.set_route("security.set_mlo_mode", {})
+    await hass.services.async_call(
+        "select", "select_option", {"entity_id": entity_id, "option": "multi"}, blocking=True
+    )
+    assert any(d == "security" and m == "set_mlo_mode" for d, m, _a, _kw in sdk.calls)
+
+
 async def test_power_saving_and_fast_transition_switches(hass, sdk_factory) -> None:
     """power_saving (fast tier) and fast_transition (daily tier) read and write."""
     sdk = sdk_factory(
         {
-            "networks.get_network": network_envelope(power_saving={"enable": False}),
+            "networks.get_network": network_envelope(power_saving=False),
             "eeros.get_eeros": [],
             "entitlements.get_features": {"features": []},
             "updates.get_updates": {},

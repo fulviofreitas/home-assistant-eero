@@ -400,6 +400,15 @@ SETTER_CASES = [
         ),
     ),
     _case(
+        "network.mlo_mode",
+        {"security.set_mlo_mode": {}},
+        lambda hub: make_network(hub).async_set_mlo_mode("multi"),
+        lambda sdk: any(
+            d == "security" and m == "set_mlo_mode" and a[:2] == (NETWORK_ID, "multi")
+            for d, m, a, _kw in sdk.calls
+        ),
+    ),
+    _case(
         "network.fast_transition_enabled",
         {"security.set_fast_transition": {}},
         lambda hub: make_network(hub).async_set_fast_transition_enabled(True),

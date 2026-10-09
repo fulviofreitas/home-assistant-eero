@@ -241,15 +241,24 @@ UPnP, WPA3 and DDNS go through the SDK's methods, which send the same requests
   case it is equally disruptive). Both writes
   (`power_saving.set_power_saving`/`security.set_fast_transition`) are
   unconfirmed against a live network by the SDK.
-  **Gap:** MLO mode and Passpoint (`security.set_mlo_mode`/
-  `set_passpoint_enabled`) are not implemented this phase. Neither has an
-  SDK read method, and whether either field is already present on the
-  base network envelope (the way wpa3/upnp/band_steering are) is not
-  confirmed either; shipping a switch with no reliable state would always
-  write and never skip a redundant one, which the project's own
-  read-compare-skip discipline treats as mandatory for exactly this kind
-  of settings write. Revisit once either is confirmed against a live
-  network or the SDK adds a reader.
+  `select.<network>_mlo_mode` (disabled/single/multi): no extra request,
+  read from the network envelope's own `mlo_mode` field, gated on the
+  network's `capabilities.mlo_mode.capable` flag and on the value
+  actually parsing -- the entity is never created otherwise, so there is
+  never a blind write with nothing confirmed to compare against. The
+  eero-api SDK itself has no reader for this field and does not
+  characterise `set_mlo_mode`'s write against a live network; the read
+  shape (a plain string, or possibly a dict carrying one under "mode"/
+  "value") comes from the eero app's own observed API schema, not from
+  eero-api, so treat it as unconfirmed until checked against a live
+  network.
+  **Gap:** Passpoint (`security.set_passpoint_enabled`) is not
+  implemented this phase: unlike MLO mode, nothing in either the eero-api
+  SDK or the app's observed API schema documents a way to read it back
+  (only the `PUT passpoint/enabled` write exists anywhere), so a switch
+  for it would always write and never skip a redundant one, which the
+  project's own read-compare-skip discipline treats as mandatory for
+  exactly this kind of settings write. Revisit once a reader exists.
 - **Gap:** Per-port status sensors and port action buttons (`eeros.
   port_action`) are not implemented this phase. `eeros.get_ports` does
   not exist, and the SDK has no other read for "the eero's own port

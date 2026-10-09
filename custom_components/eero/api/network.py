@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from ipaddress import ip_address
 import logging
+from typing import Any
+
+from eero.api.security import MLO_MODE_DISABLED, MLO_MODE_MULTI, MLO_MODE_SINGLE
 
 from .backup_network import EeroBackupNetwork
 from .client import EeroClient
@@ -774,6 +777,44 @@ class EeroNetwork(EeroResource):
         return self.data.get("geo_ip", {}).get("isp")
 
     @property
+    def mlo_mode(self) -> str | None:
+        """MLO (Multi-Link Operation) mode: "disabled", "single", or "multi".
+
+        Confirmed present on the network envelope by the eero app's own
+        observed API schema (``Network.mlo_mode``, typed there as an
+        opaque object; eero-api's set_mlo_mode writes/reads it as a plain
+        string) -- not live-verified by eero-api itself, so this parses
+        defensively: a string in the three known values, or a dict
+        carrying one of them under "mode"/"value". Raises AttributeError
+        (so the select entity is never created) when the network reports
+        itself incapable, or the value does not parse: never a blind
+        write with no confirmed state to compare against.
+        """
+        if not self.data.get("capabilities", {}).get("mlo_mode", {}).get("capable"):
+            raise AttributeError("mlo_mode: network is not capable")
+        raw = self.data.get("mlo_mode")
+        value: Any = None
+        if isinstance(raw, str):
+            value = raw
+        elif isinstance(raw, dict):
+            value = raw.get("mode") or raw.get("value")
+        if value not in (MLO_MODE_DISABLED, MLO_MODE_SINGLE, MLO_MODE_MULTI):
+            raise AttributeError("mlo_mode: value did not parse")
+        return value
+
+    @property
+    def mlo_mode_options(self) -> list[str]:
+        """Every selectable MLO mode."""
+        return [MLO_MODE_DISABLED, MLO_MODE_SINGLE, MLO_MODE_MULTI]
+
+    async def async_set_mlo_mode(self, value: str) -> None:
+        """Set the network's MLO mode. Unconfirmed write: may reboot every eero."""
+        await self.api.call(
+            self.api.sdk.security.set_mlo_mode(self.id, value, parent=self.data),
+            name=f"{self.url}/mlo_mode",
+        )
+
+    @property
     def manifest_resource(self) -> str | None:
         """Manifest resource."""
         return self.data.get("updates", {}).get("manifest_resource")
@@ -845,11 +886,11 @@ class EeroNetwork(EeroResource):
     def power_saving_enabled(self) -> bool | None:
         """Power saving enabled.
 
-        Already published on the network envelope (set_power_saving's own
-        docstring points at "the network envelope's power_saving fields");
-        no extra request.
+        A plain top-level boolean on the network envelope (confirmed by
+        the eero app's own observed API schema: ``Network.power_saving``),
+        not nested under a "power_saving" object; no extra request.
         """
-        return self.data.get("power_saving", {}).get("enable")
+        return self.data.get("power_saving")
 
     async def async_set_power_saving_enabled(self, value: bool) -> None:
         """Turn network-wide power saving on or off. Unconfirmed write."""

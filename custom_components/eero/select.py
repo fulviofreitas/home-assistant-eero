@@ -40,6 +40,14 @@ SELECT_DESCRIPTIONS: list[EeroSelectEntityDescription] = [
         options="nightlight_mode_options",
     ),
     EeroSelectEntityDescription(
+        key="mlo_mode",
+        translation_key="mlo_mode",
+        options="mlo_mode_options",
+        # Unconfirmed write: may reboot every eero, like the confirmed DNS
+        # write path.
+        request_refresh=False,
+    ),
+    EeroSelectEntityDescription(
         key="preferred_update_hour",
         name="Preferred Update Time",
         options="preferred_update_hour_options",

@@ -56,6 +56,9 @@
         "select": {
             "profile_assignment": {
                 "default": "mdi:account-group"
+            },
+            "mlo_mode": {
+                "default": "mdi:wifi-arrow-up-down"
             }
         },
         "text": {

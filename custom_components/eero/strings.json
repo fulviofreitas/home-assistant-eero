@@ -373,6 +373,9 @@
             },
             "profile_assignment": {
                 "name": "Profile"
+            },
+            "mlo_mode": {
+                "name": "MLO mode"
             }
         },
         "sensor": {
