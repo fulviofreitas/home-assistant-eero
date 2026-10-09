@@ -134,20 +134,16 @@ rules:
       reauth_confirm / reauth_verify; the account must match (wrong_account
       abort).
   test-coverage:
-    status: todo
+    status: done
     comment: >-
       `pytest --cov=custom_components.eero -o addopts="" tests tests/ha`
-      (3.14 venv, standalone + HA suites combined) measures 84% line
-      coverage (3377 statements, 554 missed), short of Gold's >95%. Weakest
-      spots: __init__.py 58% (service handlers, the device-removal and
-      entitlement-repair branches of async_setup_entry), api/__init__.py's
-      profile/client/network property classes in the 60-80% range (most
-      properties are read by the live poll tests, but many of the
-      less-common ones, e.g. less-used activity/insight branches, are not),
-      and config_flow.py 89% (a handful of per-network loop edges and the
-      multi-network resources/activity "next network" branches).
-      config_flow-test-coverage above and the per-platform state tests in
-      test_init_ha.py account for most of what is covered.
+      (3.14 venv, standalone + HA suites combined) measures 97% line
+      coverage (3456 statements, 115 missed). Every api module is at or near
+      100%; the lowest are config_flow.py 89% (per-network loop edges and
+      the multi-network "next network" branches), __init__.py 91%
+      and device_tracker.py 88%. tests/ha/test_full_fixture.py also asserts
+      that every description key of every platform produces an entity on a
+      fully-featured network and that every writable entity reaches the SDK.
 
   # Gold
   devices:
