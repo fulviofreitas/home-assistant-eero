@@ -164,6 +164,83 @@ async def test_switch_turn_on_calls_the_sdk_and_skips_when_already_on(
     )
 
 
+async def test_reservation_forward_and_dns_services_call_the_sdk(hass, sdk_factory) -> None:
+    """Each of the five new actions calls its SDK method on the right network."""
+    sdk = sdk_factory()
+    entry = make_entry(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    sdk.set_route("reservations.create_reservation", {})
+    await hass.services.async_call(
+        DOMAIN,
+        "create_reservation",
+        {
+            "target_network": ["TestNetwork"],
+            "ip": "192.168.4.100",
+            "mac": "aa:bb:cc:dd:ee:ff",
+        },
+        blocking=True,
+    )
+    assert any(
+        d == "reservations" and m == "create_reservation" for d, m, _a, _kw in sdk.calls
+    )
+
+    sdk.set_route("reservations.delete_reservation", {})
+    await hass.services.async_call(
+        DOMAIN,
+        "delete_reservation",
+        {"target_network": ["TestNetwork"], "reservation": "r1", "delete_forwards": True},
+        blocking=True,
+    )
+    assert any(
+        d == "reservations" and m == "delete_reservation" for d, m, _a, _kw in sdk.calls
+    )
+
+    sdk.set_route("forwards.create_forward", {})
+    await hass.services.async_call(
+        DOMAIN,
+        "create_port_forward",
+        {
+            "target_network": ["TestNetwork"],
+            "ip": "192.168.4.100",
+            "client_port": 8080,
+            "gateway_port": 8080,
+            "protocol": "tcp",
+        },
+        blocking=True,
+    )
+    assert any(d == "forwards" and m == "create_forward" for d, m, _a, _kw in sdk.calls)
+
+    sdk.set_route("forwards.delete_forward", {})
+    await hass.services.async_call(
+        DOMAIN,
+        "delete_port_forward",
+        {"target_network": ["TestNetwork"], "forward": "f1"},
+        blocking=True,
+    )
+    assert any(d == "forwards" and m == "delete_forward" for d, m, _a, _kw in sdk.calls)
+
+    sdk.set_route("dns.set_custom_dns_ipv4", {})
+    await hass.services.async_call(
+        DOMAIN,
+        "set_custom_dns",
+        {"target_network": ["TestNetwork"], "ipv4": ["1.1.1.1"]},
+        blocking=True,
+    )
+    assert any(d == "dns" and m == "set_custom_dns_ipv4" for d, m, _a, _kw in sdk.calls)
+
+    # target_network filters: a non-matching target calls nothing.
+    sdk.calls.clear()
+    await hass.services.async_call(
+        DOMAIN,
+        "delete_port_forward",
+        {"target_network": ["no-such-network"], "forward": "f1"},
+        blocking=True,
+    )
+    assert not sdk.calls
+
+
 def client_entry_data(**overrides) -> dict:
     """Entry data with wired clients discovered (exclude filter -> any device qualifies)."""
     resources = {

@@ -491,6 +491,24 @@ class EeroHub:
                     or []
                 )
             payload["schedules"] = schedules
+        payload["reservations"] = (
+            await self._optional(
+                self.sdk.reservations.get_reservations(network_id),
+                f"/2.2/networks/{network_id}/reservations",
+                network_id,
+                "reservations",
+            )
+            or []
+        )
+        payload["forwards"] = (
+            await self._optional(
+                self.sdk.forwards.get_forwards(network_id),
+                f"/2.2/networks/{network_id}/forwards",
+                network_id,
+                "forwards",
+            )
+            or []
+        )
         if resources.get("thread"):
             payload["thread"] = await self._optional(
                 self.sdk.thread.get_thread(network_id),
@@ -621,6 +639,10 @@ class EeroHub:
                 network["blacklist"] = _counted(tier["blacklist"])
             if "schedules" in tier:
                 network["schedules"] = tier["schedules"]
+            if "reservations" in tier:
+                network["reservations"] = _counted(tier["reservations"])
+            if "forwards" in tier:
+                network["forwards"] = _counted(tier["forwards"])
             if isinstance(tier.get("updates"), dict):
                 network["updates"] = tier["updates"]
             networks.append(network)

@@ -57,7 +57,21 @@ ACTIVITIES_DATA_USAGE_PREMIUM = [
     ACTIVITY_DATA_USAGE_MONTH,
 ]
 
+ATTR_AUTOMATIC = "automatic"
 ATTR_BLOCKED_APPS = "blocked_apps"
+ATTR_CLIENT_PORT = "client_port"
+ATTR_DELETE_FORWARDS = "delete_forwards"
+ATTR_DESCRIPTION = "description"
+ATTR_ENABLED = "enabled"
+ATTR_FORWARD = "forward"
+ATTR_GATEWAY_PORT = "gateway_port"
+ATTR_IP = "ip"
+ATTR_IPV4 = "ipv4"
+ATTR_IPV6 = "ipv6"
+ATTR_MAC = "mac"
+ATTR_PROTOCOL = "protocol"
+ATTR_PUBLIC_STATIC_IP = "public_static_ip"
+ATTR_RESERVATION = "reservation"
 ATTR_TARGET_NETWORK = "target_network"
 ATTR_TARGET_PROFILE = "target_profile"
 
@@ -98,7 +112,12 @@ RELEASE_URL = (
     "https://support.eero.com/hc/en-us/articles/209636523-eero-Software-Release-Notes"
 )
 
+SERVICE_CREATE_PORT_FORWARD = "create_port_forward"
+SERVICE_CREATE_RESERVATION = "create_reservation"
+SERVICE_DELETE_PORT_FORWARD = "delete_port_forward"
+SERVICE_DELETE_RESERVATION = "delete_reservation"
 SERVICE_SET_BLOCKED_APPS = "set_blocked_apps"
+SERVICE_SET_CUSTOM_DNS = "set_custom_dns"
 
 CONF_MISCELLANEOUS = "miscellaneous"
 CONF_PREFIX_NETWORK_NAME = "prefix_network_name"

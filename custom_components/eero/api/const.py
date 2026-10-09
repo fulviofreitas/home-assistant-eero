@@ -157,6 +157,8 @@ RESOURCE_MAP = {"clients": "devices"}
 
 STATE_ACTIVE = "active"
 STATE_AMBIENT = "ambient"
+STATE_AUTOMATIC = "automatic"
+STATE_CUSTOM = "custom"
 STATE_DISABLED = "disabled"
 STATE_ENABLED = "enabled"
 STATE_FAILURE = "failure"

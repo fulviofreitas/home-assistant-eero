@@ -30,13 +30,15 @@ from .api.const import (
     DEVICE_CATEGORY_HOME,
     DEVICE_CATEGORY_OTHER,
     PERIOD_DAY,
+    STATE_AUTOMATIC,
+    STATE_CUSTOM,
     STATE_DISABLED,
     STATE_FAILURE,
     STATE_NETWORK,
     STATE_PROFILE,
 )
 from .api.util import sum_data_usage
-from .const import TIER_HOURLY
+from .const import TIER_DAILY, TIER_HOURLY
 from .coordinator import EeroConfigEntry
 from .entity import (
     KIND_BACKUP_NETWORKS,
@@ -211,6 +213,19 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
         tier=TIER_HOURLY,
     ),
     EeroSensorEntityDescription(
+        key="dns_mode",
+        translation_key="dns_mode",
+        device_class=SensorDeviceClass.ENUM,
+        options=[STATE_CUSTOM, STATE_AUTOMATIC],
+    ),
+    EeroSensorEntityDescription(
+        key="forward_count",
+        translation_key="forward_count",
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement="forwards",
+        tier=TIER_DAILY,
+    ),
+    EeroSensorEntityDescription(
         key="gateway_ip",
         name="Gateway IP",
         extra_attrs={
@@ -254,6 +269,13 @@ SENSOR_DESCRIPTIONS: list[EeroSensorEntityDescription] = [
     EeroSensorEntityDescription(
         key="public_ip",
         name="Public IP",
+    ),
+    EeroSensorEntityDescription(
+        key="reservation_count",
+        translation_key="reservation_count",
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement="reservations",
+        tier=TIER_DAILY,
     ),
     EeroSensorEntityDescription(
         key="signal",

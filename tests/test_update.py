@@ -20,6 +20,8 @@ def full_sdk(network: dict | None = None, devices: list | None = None) -> FakeSD
             "thread.get_thread": fixture("thread"),
             "entitlements.get_features": {"features": []},
             "updates.get_updates": {},
+            "reservations.get_reservations": [],
+            "forwards.get_forwards": [],
         }
     )
 
@@ -70,6 +72,8 @@ async def test_blacklist_fetched_only_when_configured_and_matched_by_mac() -> No
             "thread.get_thread": fixture("thread"),
             "entitlements.get_features": {"features": []},
             "updates.get_updates": {},
+            "reservations.get_reservations": [],
+            "forwards.get_forwards": [],
             "blacklist.get_blacklist": [{"mac": "AA:BB:CC:DD:EE:FF"}],
         }
     )
@@ -106,6 +110,8 @@ async def test_schedules_fetched_only_when_profiles_configured_and_parsed_by_nam
             "thread.get_thread": fixture("thread"),
             "entitlements.get_features": {"features": []},
             "updates.get_updates": {},
+            "reservations.get_reservations": [],
+            "forwards.get_forwards": [],
             "schedule.get_schedules": [
                 {
                     "name": "Bedtime",
@@ -234,6 +240,37 @@ async def test_client_profile_assignment_is_none_when_no_profiles_configured() -
     assert client.profile_assignment_options == []
 
 
+async def test_reservations_and_forwards_counted_in_the_daily_tier() -> None:
+    """reservation_count/forward_count/dns_mode are always read in the daily tier."""
+    network = dict(fixture("network"))
+    network["dns"] = {"mode": "custom", "caching": True}
+    sdk = FakeSDK(
+        {
+            "networks.get_network": network,
+            "eeros.get_eeros": [],
+            "thread.get_thread": fixture("thread"),
+            "entitlements.get_features": {"features": []},
+            "updates.get_updates": {},
+            "reservations.get_reservations": [{"ip": "192.168.4.100"}],
+            "forwards.get_forwards": [
+                {"ip": "192.168.4.100", "client_port": 8080},
+                {"ip": "192.168.4.101", "client_port": 9090},
+            ],
+        }
+    )
+    hub = build_hub(sdk=sdk)
+    config = eero_api.EeroUpdateConfig()
+
+    fast = await hub.fetch_fast(NETWORK_ID, config)
+    daily = await hub.fetch_daily(NETWORK_ID, fast["network"], config)
+    account = hub.assemble(None, {NETWORK_ID: fast}, {}, {NETWORK_ID: daily})
+    net = account.networks[0]
+
+    assert net.reservation_count == 1
+    assert net.forward_count == 2
+    assert net.dns_mode == "custom"
+
+
 async def test_network_without_a_thread_resource() -> None:
     """A network with no Thread border router must not raise KeyError (H4)."""
     sdk = FakeSDK(
@@ -243,6 +280,8 @@ async def test_network_without_a_thread_resource() -> None:
             "eeros.get_eeros": [],
             "entitlements.get_features": {"features": []},
             "updates.get_updates": {},
+            "reservations.get_reservations": [],
+            "forwards.get_forwards": [],
         }
     )
     hub = build_hub(sdk=sdk)
@@ -271,6 +310,8 @@ async def test_network_missing_capabilities_updates_and_timezone() -> None:
             "eeros.get_eeros": [],
             "entitlements.get_features": {"features": []},
             "updates.get_updates": {},
+            "reservations.get_reservations": [],
+            "forwards.get_forwards": [],
         }
     )
     hub = build_hub(sdk=sdk)

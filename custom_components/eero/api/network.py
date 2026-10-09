@@ -436,6 +436,99 @@ class EeroNetwork(EeroResource):
         )
 
     @property
+    def dns_mode(self) -> str | None:
+        """DNS mode ("custom" or "automatic"), the IPv4 selector.
+
+        Already published on the network envelope the fast tier fetches:
+        no extra request. The diagnostic sensor reads this, not a fresh
+        dns.get_dns_settings call.
+        """
+        return self.data.get("dns", {}).get("mode")
+
+    async def async_set_custom_dns(
+        self,
+        ipv4: list[str] | None = None,
+        ipv6: list[str] | None = None,
+        automatic: bool = False,
+    ) -> None:
+        """Set custom DNS servers, or switch back to automatic.
+
+        Every DNS write reboots the entire mesh a few minutes later. Each
+        family is written independently (a family not supplied is left
+        untouched), except automatic=True, which switches both families
+        back in a single write and ignores ipv4/ipv6.
+        """
+        if automatic:
+            await self.api.call(
+                self.api.sdk.dns.set_dns_mode(self.id, "automatic", parent=self.data),
+                name=f"{self.url}/settings",
+            )
+            return
+        if ipv4 is not None:
+            await self.api.call(
+                self.api.sdk.dns.set_custom_dns_ipv4(self.id, ipv4, parent=self.data),
+                name=f"{self.url}/settings",
+            )
+        if ipv6 is not None:
+            await self.api.call(
+                self.api.sdk.dns.set_custom_dns_ipv6(self.id, ipv6, parent=self.data),
+                name=f"{self.url}/settings",
+            )
+
+    @property
+    def reservation_count(self) -> int | None:
+        """Number of DHCP reservations, from the daily-tier reservations read."""
+        reservations = self.data.get("reservations")
+        if not isinstance(reservations, dict):
+            return None
+        return reservations.get("count")
+
+    async def async_create_reservation(self, reservation_data: dict) -> None:
+        """Create a DHCP reservation. Fields: description, ip, mac, public_static_ip."""
+        await self.api.call(
+            self.api.sdk.reservations.create_reservation(self.id, reservation_data),
+            name=f"{self.url}/reservations",
+        )
+
+    async def async_delete_reservation(
+        self, reservation_id: str, delete_forwards: bool | None = None
+    ) -> None:
+        """Delete a DHCP reservation, optionally deleting forwards that reference it."""
+        kwargs = {} if delete_forwards is None else {"delete_forwards": delete_forwards}
+        await self.api.call(
+            self.api.sdk.reservations.delete_reservation(
+                self.id, reservation_id, **kwargs
+            ),
+            name=f"{self.url}/reservations/{reservation_id}",
+        )
+
+    @property
+    def forward_count(self) -> int | None:
+        """Number of port forwards, from the daily-tier forwards read."""
+        forwards = self.data.get("forwards")
+        if not isinstance(forwards, dict):
+            return None
+        return forwards.get("count")
+
+    async def async_create_port_forward(self, forward_data: dict) -> None:
+        """Create a port forward.
+
+        Fields: client_port, description, enabled, gateway_port, ip,
+        protocol.
+        """
+        await self.api.call(
+            self.api.sdk.forwards.create_forward(self.id, forward_data),
+            name=f"{self.url}/forwards",
+        )
+
+    async def async_delete_port_forward(self, forward_id: str) -> None:
+        """Delete a port forward."""
+        await self.api.call(
+            self.api.sdk.forwards.delete_forward(self.id, forward_id),
+            name=f"{self.url}/forwards/{forward_id}",
+        )
+
+    @property
     def _release_notes(self) -> dict:
         """Release notes block, or an empty dict when the network reports none."""
         return self.data.get("updates", {}).get("release_notes") or {}

@@ -317,6 +317,83 @@ SETTER_CASES = [
         in sdk.calls,
     ),
     _case(
+        "network.create_reservation",
+        {"reservations.create_reservation": {}},
+        lambda hub: make_network(hub).async_create_reservation(
+            {"ip": "192.168.4.100", "mac": "aa:bb:cc:dd:ee:ff"}
+        ),
+        lambda sdk: (
+            "reservations",
+            "create_reservation",
+            (NETWORK_ID, {"ip": "192.168.4.100", "mac": "aa:bb:cc:dd:ee:ff"}),
+            {},
+        )
+        in sdk.calls,
+    ),
+    _case(
+        "network.delete_reservation",
+        {"reservations.delete_reservation": {}},
+        lambda hub: make_network(hub).async_delete_reservation("r1", True),
+        lambda sdk: (
+            "reservations",
+            "delete_reservation",
+            (NETWORK_ID, "r1"),
+            {"delete_forwards": True},
+        )
+        in sdk.calls,
+    ),
+    _case(
+        "network.create_port_forward",
+        {"forwards.create_forward": {}},
+        lambda hub: make_network(hub).async_create_port_forward(
+            {"ip": "192.168.4.100", "client_port": 8080, "gateway_port": 8080}
+        ),
+        lambda sdk: (
+            "forwards",
+            "create_forward",
+            (
+                NETWORK_ID,
+                {"ip": "192.168.4.100", "client_port": 8080, "gateway_port": 8080},
+            ),
+            {},
+        )
+        in sdk.calls,
+    ),
+    _case(
+        "network.delete_port_forward",
+        {"forwards.delete_forward": {}},
+        lambda hub: make_network(hub).async_delete_port_forward("f1"),
+        lambda sdk: ("forwards", "delete_forward", (NETWORK_ID, "f1"), {}) in sdk.calls,
+    ),
+    _case(
+        "network.set_custom_dns.ipv4_and_ipv6",
+        {"dns.set_custom_dns_ipv4": {}, "dns.set_custom_dns_ipv6": {}},
+        lambda hub: make_network(hub).async_set_custom_dns(
+            ipv4=["1.1.1.1"], ipv6=["2606:4700:4700::1111"]
+        ),
+        lambda sdk: (
+            any(
+                d == "dns" and m == "set_custom_dns_ipv4" and a[1] == ["1.1.1.1"]
+                for d, m, a, _kw in sdk.calls
+            )
+            and any(
+                d == "dns"
+                and m == "set_custom_dns_ipv6"
+                and a[1] == ["2606:4700:4700::1111"]
+                for d, m, a, _kw in sdk.calls
+            )
+        ),
+    ),
+    _case(
+        "network.set_custom_dns.automatic",
+        {"dns.set_dns_mode": {}},
+        lambda hub: make_network(hub).async_set_custom_dns(automatic=True),
+        lambda sdk: any(
+            d == "dns" and m == "set_dns_mode" and a[1] == "automatic"
+            for d, m, a, _kw in sdk.calls
+        ),
+    ),
+    _case(
         "network.thread_enabled",
         {"PUT /2.2/networks/1234567/thread/enable": {}},
         lambda hub: make_network(hub).async_set_thread_enabled(True),

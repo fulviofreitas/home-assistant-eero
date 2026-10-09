@@ -165,6 +165,120 @@
                     "description": "(Optional) Name(s) or ID(s) of network(s) in which desired profile(s) are located. Defaults to all networks if not specified."
                 }
             }
+        },
+        "create_reservation": {
+            "name": "Create reservation",
+            "description": "Create a DHCP reservation on a network.",
+            "fields": {
+                "target_network": {
+                    "name": "Target network(s)",
+                    "description": "(Required) Name(s) or ID(s) of network(s) to create the reservation on."
+                },
+                "ip": {
+                    "name": "IP address",
+                    "description": "(Required) The reserved IP address."
+                },
+                "mac": {
+                    "name": "MAC address",
+                    "description": "(Required) The device's MAC address."
+                },
+                "description": {
+                    "name": "Description",
+                    "description": "(Optional) A label for the reservation."
+                },
+                "public_static_ip": {
+                    "name": "Public static IP",
+                    "description": "(Optional) Whether this reservation also has a public static IP."
+                }
+            }
+        },
+        "delete_reservation": {
+            "name": "Delete reservation",
+            "description": "Delete a DHCP reservation from a network.",
+            "fields": {
+                "target_network": {
+                    "name": "Target network(s)",
+                    "description": "(Required) Name(s) or ID(s) of network(s) to delete the reservation from."
+                },
+                "reservation": {
+                    "name": "Reservation",
+                    "description": "(Required) The reservation's own ID, as reported by the eero API."
+                },
+                "delete_forwards": {
+                    "name": "Delete forwards",
+                    "description": "(Optional) Whether to also delete port forwards referencing this reservation's IP."
+                }
+            }
+        },
+        "create_port_forward": {
+            "name": "Create port forward",
+            "description": "Create a port forward on a network.",
+            "fields": {
+                "target_network": {
+                    "name": "Target network(s)",
+                    "description": "(Required) Name(s) or ID(s) of network(s) to create the forward on."
+                },
+                "ip": {
+                    "name": "IP address",
+                    "description": "(Required) The internal IP address to forward to."
+                },
+                "client_port": {
+                    "name": "Client port",
+                    "description": "(Required) The internal port to forward to."
+                },
+                "gateway_port": {
+                    "name": "Gateway port",
+                    "description": "(Required) The external port to forward from."
+                },
+                "protocol": {
+                    "name": "Protocol",
+                    "description": "(Required) The protocol, e.g. tcp or udp."
+                },
+                "description": {
+                    "name": "Description",
+                    "description": "(Optional) A label for the forward."
+                },
+                "enabled": {
+                    "name": "Enabled",
+                    "description": "(Optional) Whether the forward is active. Defaults to true."
+                }
+            }
+        },
+        "delete_port_forward": {
+            "name": "Delete port forward",
+            "description": "Delete a port forward from a network.",
+            "fields": {
+                "target_network": {
+                    "name": "Target network(s)",
+                    "description": "(Required) Name(s) or ID(s) of network(s) to delete the forward from."
+                },
+                "forward": {
+                    "name": "Forward",
+                    "description": "(Required) The forward's own ID, as reported by the eero API."
+                }
+            }
+        },
+        "set_custom_dns": {
+            "name": "Set custom DNS",
+            "description": "Set custom DNS servers for a network, or switch it back to automatic. Warning: every DNS write reboots the entire mesh a few minutes later.",
+            "fields": {
+                "target_network": {
+                    "name": "Target network(s)",
+                    "description": "(Required) Name(s) or ID(s) of network(s) to set custom DNS for."
+                },
+                "ipv4": {
+                    "name": "IPv4 servers",
+                    "description": "(Optional) IPv4 DNS server addresses. A family not supplied is left untouched."
+                },
+                "ipv6": {
+                    "name": "IPv6 servers",
+                    "description": "(Optional) IPv6 DNS server addresses. A family not supplied is left untouched."
+                },
+                "automatic": {
+                    "name": "Automatic",
+                    "description": "(Optional) Switch both families back to automatic (ISP-provided) DNS, ignoring ipv4/ipv6. Defaults to false."
+                }
+            }
         }
     },
     "selector": {
@@ -302,6 +416,15 @@
             },
             "eeros_data_usage_summary_day": {
                 "name": "Eeros data usage summary"
+            },
+            "dns_mode": {
+                "name": "DNS mode"
+            },
+            "forward_count": {
+                "name": "Port forwards"
+            },
+            "reservation_count": {
+                "name": "Reservations"
             }
         },
         "switch": {

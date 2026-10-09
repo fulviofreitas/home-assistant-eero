@@ -212,6 +212,20 @@ UPnP, WPA3 and DDNS go through the SDK's methods, which send the same requests
   entity never replays history as live HA events; an event that happened
   while Home Assistant was down is not replayed once it comes back either.
 
+- Reservations, port forwards and custom DNS actions:
+  `eero.create_reservation`/`eero.delete_reservation`,
+  `eero.create_port_forward`/`eero.delete_port_forward`, and
+  `eero.set_custom_dns` (IPv4/IPv6 server lists, or `automatic` to switch
+  both families back). **Every DNS write reboots the entire mesh a few
+  minutes later** — the service's description says so; follow
+  read-compare-skip and never retry a failed call in a loop. Plus three
+  diagnostic sensors, all in the daily tier:
+  `sensor.<network>_reservation_count`, `sensor.<network>_forward_count`
+  (one more request each, every network, every daily poll — reservations
+  and forwards have no per-network opt-in, since the daily tier already
+  costs one poll a day) and `sensor.<network>_dns_mode` (no extra request:
+  already published on the network envelope the fast tier fetches).
+
 ### Since 1.9.3, also in this release
 
 - Config entry diagnostics: the API payload, with tokens, secrets and contact

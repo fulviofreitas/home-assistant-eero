@@ -36,6 +36,15 @@
             },
             "eeros_data_usage_summary_day": {
                 "default": "mdi:router-network"
+            },
+            "dns_mode": {
+                "default": "mdi:dns"
+            },
+            "reservation_count": {
+                "default": "mdi:ip-network"
+            },
+            "forward_count": {
+                "default": "mdi:router-network"
             }
         },
         "select": {
@@ -69,6 +78,21 @@
     "services": {
         "set_blocked_apps": {
             "service": "mdi:account-cancel"
+        },
+        "create_reservation": {
+            "service": "mdi:ip-network-outline"
+        },
+        "delete_reservation": {
+            "service": "mdi:ip-network-outline"
+        },
+        "create_port_forward": {
+            "service": "mdi:router-network"
+        },
+        "delete_port_forward": {
+            "service": "mdi:router-network"
+        },
+        "set_custom_dns": {
+            "service": "mdi:dns"
         }
     }
 }

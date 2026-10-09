@@ -19,6 +19,8 @@ def network_sdk() -> FakeSDK:
             "thread.get_thread": fixture("thread"),
             "entitlements.get_features": {"features": []},
             "updates.get_updates": {},
+            "reservations.get_reservations": [],
+            "forwards.get_forwards": [],
         }
     )
 

@@ -67,6 +67,8 @@ def default_routes() -> dict:
         "eeros.get_eeros": [],
         "entitlements.get_features": {"features": []},
         "updates.get_updates": {},
+        "reservations.get_reservations": [],
+        "forwards.get_forwards": [],
     }
 
 
