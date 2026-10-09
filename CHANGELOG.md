@@ -38,7 +38,8 @@ carry over.
 - On a rate limit, each tier doubles its interval, up to 15 minutes, and goes
   back to normal after the next successful poll.
 - Only the fast tier has to succeed for the integration to load. A failing
-  hourly or daily tier makes only its own entities unavailable.
+  hourly or daily tier makes only its own entities unavailable, and retries
+  within 5 to 15 minutes instead of waiting for its next hourly or daily poll.
 - A configured network that no longer exists, or that the account lost access
   to, is skipped with a Repairs issue. The other networks keep working.
 - All I/O is async on Home Assistant's shared HTTP session, with no executor
@@ -119,6 +120,9 @@ carry over.
 
 - Config entry diagnostics, with tokens, passwords, keys and contact details
   redacted.
+- The integration ships its own icon, so Home Assistant and HACS show it.
+- The README documents setup, every option, entity and action, examples,
+  limitations and troubleshooting.
 - The manifest's code owner, documentation and issue tracker point at this
   fork.
 - CI checks every change with lint, hassfest, HACS validation, tests and type
