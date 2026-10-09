@@ -198,7 +198,6 @@
             }
         },
         "abort": {
-            "not_loaded": "The integration is not loaded. Fix the problem shown on the integration first, then open the options again.",
             "cannot_connect": "Could not read the account's networks from the eero API. Try again later."
         }
     },
@@ -821,6 +820,10 @@
         "feature_unavailable": {
             "title": "{feature} is not available",
             "description": "Network {network} does not offer {feature} (the hardware or the account does not support it). The entities that depend on it are not created. This notice clears itself if the feature becomes available."
+        },
+        "network_unavailable": {
+            "title": "Network {network} is unavailable",
+            "description": "Network {network} is configured, but the eero API no longer finds it (it was removed from the account, or this account lost access to it). Its entities are unavailable. Remove it in the integration's options, or restore access; this notice clears itself once the network answers again."
         }
     }
 }

@@ -726,10 +726,15 @@ class EeroOptionsFlowHandler(config_entries.OptionsFlow):
 
     async def async_step_init(self, user_input=None):
         """Manage the options."""
-        if self.config_entry.state is not config_entries.ConfigEntryState.LOADED:
-            return self.async_abort(reason="not_loaded")
-        self.api = self.config_entry.runtime_data.hub
         try:
+            if self.config_entry.state is config_entries.ConfigEntryState.LOADED:
+                self.api = self.config_entry.runtime_data.hub
+            else:
+                # Not loaded, e.g. because a configured network is gone:
+                # the options flow is how that network gets deselected, so
+                # it must work without the running entry.
+                self.api = EeroHub(session=async_get_clientsession(self.hass))
+                await self.api.async_set_token(self.data[CONF_USER_TOKEN])
             self.response = await self.api.snapshot()
         except (EeroException, TimeoutError) as exception:
             _LOGGER.error(

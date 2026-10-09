@@ -498,9 +498,9 @@ class EeroNetwork(EeroResource):
         Every DNS write reboots the entire mesh a few minutes later, so
         read-compare-skip is mandatory here, not just good practice: each
         family's write is skipped when the network already reports the
-        target state. Each family is written independently (a family not
-        supplied is left untouched), except automatic=True, which switches
-        both families back in a single write and ignores ipv4/ipv6.
+        target state. The families that change are sent in one write (a
+        family not supplied, or already as asked, is left untouched);
+        automatic=True switches both back in one write and ignores ipv4/ipv6.
         """
         current = await self._current_dns()
         if automatic:
@@ -514,32 +514,31 @@ class EeroNetwork(EeroResource):
                 name=f"{self.url}/settings",
             )
             return
-        if ipv4 is not None:
+        # Both families go in one write: two writes would mean two reboots.
+        changed: list[str] = []
+        if ipv4:
             dns = current.get("dns", {})
             if dns.get("mode") == "custom" and _same_dns_servers(
                 dns.get("custom", {}).get("ips") or [], ipv4
             ):
                 _LOGGER.debug("Skipping set_custom_dns ipv4: already set")
             else:
-                await self.api.call(
-                    self.api.sdk.dns.set_custom_dns_ipv4(
-                        self.id, ipv4, parent=self.data
-                    ),
-                    name=f"{self.url}/settings",
-                )
-        if ipv6 is not None:
+                changed.extend(ipv4)
+        if ipv6:
             name_servers = current.get("ipv6", {}).get("name_servers", {})
             if name_servers.get("mode") == "custom" and _same_dns_servers(
                 name_servers.get("custom") or [], ipv6
             ):
                 _LOGGER.debug("Skipping set_custom_dns ipv6: already set")
             else:
-                await self.api.call(
-                    self.api.sdk.dns.set_custom_dns_ipv6(
-                        self.id, ipv6, parent=self.data
-                    ),
-                    name=f"{self.url}/settings",
-                )
+                changed.extend(ipv6)
+        if not changed:
+            return
+        # set_custom_dns leaves a family that is not in the list untouched.
+        await self.api.call(
+            self.api.sdk.dns.set_custom_dns(self.id, changed, parent=self.data),
+            name=f"{self.url}/settings",
+        )
 
     @property
     def reservation_count(self) -> int | None:

@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import datetime
 import logging
 
+from eero.exceptions import EeroException
+
 from .const import DEVICE_CATEGORY_TYPE_MAP
 from .resource import EeroResource
 
@@ -369,6 +371,13 @@ class EeroClient(EeroResource):
                 current = profile
             if value != UNASSIGNED_PROFILE and profile.name == value:
                 target = profile
+        for profile in (current, target):
+            if profile is not None and not isinstance(profile.data.get("devices"), list):
+                # set_profile_devices replaces the whole list: without the
+                # profile's current list, writing would drop its other clients.
+                raise EeroException(
+                    "The profile's current device list is unknown; not changing it"
+                )
         if current is not None and current is not target:
             urls = [
                 assigned.url

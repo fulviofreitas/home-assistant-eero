@@ -27,6 +27,7 @@ import aiohttp
 from eero import EeroAPI as EeroSDK
 from eero.const import API_ENDPOINT
 from eero.exceptions import (
+    EeroAccessDeniedException,
     EeroAPIException,
     EeroAuthenticationException,
     EeroException,
@@ -192,7 +193,7 @@ class EeroHub:
         async with asyncio.timeout(self.request_timeout):
             envelope = await request
         data = envelope.get("data") if isinstance(envelope, dict) else None
-        self.save_response(response=data, name=name)
+        await self.save_response(response=data, name=name)
         return data
 
     async def get(self, path: str, **kwargs: Any) -> Any:
@@ -232,13 +233,21 @@ class EeroHub:
         network_id: str,
         feature: str,
     ) -> Any:
-        """Like call(), but a feature the network lacks yields None, not a failed poll."""
+        """Like call(), but a feature the network lacks yields None, not a failed poll.
+
+        A premium or unavailable feature also raises a repair issue. A 404 or a
+        403 does not: hardware without the feature answers 404, and an admin
+        without access to it 403, and neither is something to repair.
+        """
         try:
             return await self.call(request, name)
         except EeroPremiumRequiredException:
             unavailable = UnavailableFeature(network_id, feature, True)
-        except (EeroFeatureUnavailableException, EeroNotFoundException):
+        except EeroFeatureUnavailableException:
             unavailable = UnavailableFeature(network_id, feature, False)
+        except (EeroNotFoundException, EeroAccessDeniedException):
+            _LOGGER.debug("%s not readable on this network", feature)
+            return None
         if (found := _UNAVAILABLE.get()) is not None:
             found.append(unavailable)
         return None
@@ -296,9 +305,19 @@ class EeroHub:
         when it does not, and clients and profiles are only fetched when
         something on that network uses them.
         """
-        network = await self.call(
-            self.sdk.networks.get_network(network_id), name=f"/2.2/networks/{network_id}"
-        )
+        try:
+            network = await self.call(
+                self.sdk.networks.get_network(network_id),
+                name=f"/2.2/networks/{network_id}",
+            )
+        except (EeroNotFoundException, EeroAccessDeniedException):
+            # The network was removed from the account, or this account lost
+            # access to it. Skip it, with a repair issue, rather than failing
+            # the poll for every other network and keeping the entry from
+            # loading (and so from its options flow) for good.
+            if (found := _UNAVAILABLE.get()) is not None:
+                found.append(UnavailableFeature(network_id, "network", False))
+            return {}
         if not isinstance(network, dict):
             raise EeroException(f"Network {network_id} returned no data")
         payload: dict[str, Any] = {"network": network}
@@ -619,7 +638,7 @@ class EeroHub:
             raise EeroException("Unable to decode release notes") from error
         if not isinstance(notes, dict):
             raise EeroException("Release notes are not a JSON object")
-        self.save_response(response=notes, name="release_notes")
+        await self.save_response(response=notes, name="release_notes")
         self.release_notes_cache[url] = notes
         return notes
 
@@ -635,6 +654,8 @@ class EeroHub:
         """Build the property-object tree from the three tiers' payloads."""
         networks = []
         for network_id, payload in fast.items():
+            if not payload.get("network"):
+                continue
             network = dict(payload["network"])
             if "devices" in payload:
                 network["devices"] = _counted(payload["devices"])
@@ -669,7 +690,13 @@ class EeroHub:
             if "connections" in tier:
                 network["connections"] = tier["connections"]
             if isinstance(tier.get("updates"), dict):
-                network["updates"] = tier["updates"]
+                # The network envelope's own updates block is re-read every
+                # fast poll (preferred_update_hour lives there); the daily
+                # read adds the target firmware and release notes.
+                network["updates"] = {
+                    **tier["updates"],
+                    **(network.get("updates") or {}),
+                }
             networks.append(network)
         account = dict(account or {})
         account["networks"] = {"count": len(networks), "data": networks}
@@ -678,44 +705,32 @@ class EeroHub:
     # -- helpers ---------------------------------------------------------
 
     def define_period(self, period: str, timezone: str) -> tuple:
-        """Define period."""
-        # Imported here so this package can be imported, and unit tested,
-        # without python-dateutil, which arrives with Home Assistant rather
-        # than through this integration's requirements.
-        from dateutil import relativedelta  # noqa: PLC0415
+        """Return the (start, end, cadence) of the day, week or month so far.
 
-        start, end, cadence = None, None, None
+        Weeks start on Sunday, as the eero app's do. Standard library only:
+        python-dateutil is not a Home Assistant dependency.
+        """
         now = datetime.datetime.now(tz=ZoneInfo(timezone))
+        today = now.replace(hour=0, minute=0, second=0, microsecond=0)
         if period == PERIOD_DAY:
-            start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-            end = (
-                start
-                + relativedelta.relativedelta(days=1)
-                - datetime.timedelta(seconds=1)
-            )
-            cadence = CADENCE_HOURLY
+            start, cadence = today, CADENCE_HOURLY
+            following = start + datetime.timedelta(days=1)
         elif period == PERIOD_WEEK:
-            start = now - relativedelta.relativedelta(days=now.weekday() + 1)
-            start = start.replace(hour=0, minute=0, second=0, microsecond=0)
-            end = (
-                start
-                + relativedelta.relativedelta(weeks=1)
-                - datetime.timedelta(seconds=1)
-            )
+            start = today - datetime.timedelta(days=(now.weekday() + 1) % 7)
+            following = start + datetime.timedelta(weeks=1)
             cadence = CADENCE_DAILY
         elif period == PERIOD_MONTH:
-            start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-            end = (
-                start
-                + relativedelta.relativedelta(months=1)
-                - datetime.timedelta(seconds=1)
-            )
+            start = today.replace(day=1)
+            following = (start + datetime.timedelta(days=32)).replace(day=1)
             cadence = CADENCE_DAILY
         else:
-            return (start, end, cadence)
-        start = f"{start.astimezone(datetime.UTC).replace(tzinfo=None).isoformat()}Z"
-        end = f"{end.astimezone(datetime.UTC).replace(tzinfo=None).isoformat()}Z"
-        return (start, end, cadence)
+            return (None, None, None)
+        end = following - datetime.timedelta(seconds=1)
+        return (
+            f"{start.astimezone(datetime.UTC).replace(tzinfo=None).isoformat()}Z",
+            f"{end.astimezone(datetime.UTC).replace(tzinfo=None).isoformat()}Z",
+            cadence,
+        )
 
     def redact(self, obj: Any) -> Any:
         """Return a copy of obj with every secret value replaced."""
@@ -728,29 +743,33 @@ class EeroHub:
             return [self.redact(item) for item in obj]
         return obj
 
-    def save_response(self, response: Any, name: str = "response") -> None:
+    async def save_response(self, response: Any, name: str = "response") -> None:
         """Save a redacted response for debugging.
 
         Auth exchanges are never written to disk: their bodies are the session
-        token itself.
+        token itself. Redaction and serialisation happen here, on the event
+        loop, so the caller can go on changing the response afterwards; only
+        the file write goes to a thread, because it blocks.
         """
         if not self.save_location or not response:
             return
         if "/login" in name:
             _LOGGER.debug("Not saving response for auth endpoint: %s", name)
             return
-        Path(self.save_location).mkdir(parents=True, exist_ok=True)
-        name = name.replace("/", "_").replace(".", "_")
-        file_path_name = f"{self.save_location}/{name}.json"
-        _LOGGER.debug("Saving response: %s", file_path_name)
-        with Path(file_path_name).open(mode="w", encoding="utf-8") as file:
-            json.dump(
-                obj=self.redact(response),
-                fp=file,
-                indent=4,
-                default=lambda o: "not-serializable",
-                sort_keys=True,
-            )
+        text = json.dumps(
+            self.redact(response),
+            indent=4,
+            default=lambda o: "not-serializable",
+            sort_keys=True,
+        )
+        file_name = f"{name.replace('/', '_').replace('.', '_')}.json"
+        _LOGGER.debug("Saving response: %s", file_name)
+        await asyncio.to_thread(_write_text, Path(self.save_location), file_name, text)
+
+
+def _write_text(directory: Path, file_name: str, text: str) -> None:
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / file_name).write_text(text, encoding="utf-8")
 
 
 def _counted(items: Any) -> dict[str, Any]:

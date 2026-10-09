@@ -22,6 +22,7 @@ from .entity import (
     EeroEntity,
     EeroEntityDescription,
     EeroPortEntity,
+    async_call_mapped,
     async_setup_port_entities,
     build_entities,
 )
@@ -128,5 +129,9 @@ class EeroPortButtonEntity(EeroPortEntity, ButtonEntity):
         """Press the button."""
         if (eero := self.eero) is None:
             return
-        await eero.async_port_action(self.interface_number, self._action)
+        await async_call_mapped(
+            self.hass,
+            self.runtime,
+            eero.async_port_action(self.interface_number, self._action),
+        )
         await self.runtime.coordinator(TIER_DAILY).async_request_refresh()

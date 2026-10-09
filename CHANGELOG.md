@@ -130,7 +130,31 @@ UPnP, WPA3 and DDNS go through the SDK's methods, which send the same requests
   loaded eero entry (filtered by `target_network` and `target_profile`).
 - Config flow: a new `cannot_connect` abort when the account's networks
   cannot be read after login, in both the config and the options flow. The
-  options flow aborts with `not_loaded` when the entry is not loaded.
+  options flow also works while the entry is not loaded (it signs in with
+  the stored session), so a network that is gone can be deselected there.
+- A configured network that the API no longer finds (removed from the
+  account, or access revoked) is skipped with a Repairs issue; the other
+  networks keep working and the entry still loads. In 1.x it was skipped
+  silently.
+- Only the fast tier has to succeed for the entry to load. A failure in the
+  hourly or daily tier makes only that tier's entities unavailable until its
+  next poll. A daily read the network does not offer (404) or this admin
+  cannot see (403) is skipped quietly, without a Repairs issue.
+- A switch whose state is not known shows as unknown rather than off, and
+  the block, bedtime, power saving and fast transition switches are only
+  created once their state has been read (they appear on a later poll if
+  the first read failed).
+- Setting the guest password to the password it already has sends nothing
+  (re-sending it disconnects every guest).
+- Moving a client between profiles refuses to write when a profile's
+  current device list is not known, rather than replacing that list with
+  this client alone.
+- A stored session token the SDK rejects starts reauthentication instead of
+  failing setup.
+- Saved responses are written from a worker thread instead of the event
+  loop.
+- The week used by the "week" activity sensors starts on the current
+  Sunday; on a Sunday, 1.x reported the previous week.
 
 ### New entities and actions
 
@@ -230,7 +254,8 @@ UPnP, WPA3 and DDNS go through the SDK's methods, which send the same requests
   (compared order-insensitively, and through `ipaddress` for IPv6 so a
   compressed literal matches the API's fully-expanded stored form), using
   the network envelope's own `dns`/`ipv6` fields and falling back to one
-  `dns.get_dns_settings` read only when those are absent.
+  `dns.get_dns_settings` read only when those are absent. The families that
+  do change are sent in one write, so one action means at most one reboot.
   `create_reservation`/`create_port_forward` also skip creating an exact
   duplicate of an entry the daily-tier read already reports.
 - `switch.<network>_power_saving` (no extra request: `set_power_saving`'s

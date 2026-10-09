@@ -15,6 +15,7 @@ import sys
 import pytest
 
 from eero.exceptions import (
+    EeroAccessDeniedException,
     EeroFeatureUnavailableException,
     EeroNotFoundException,
     EeroPremiumRequiredException,
@@ -146,7 +147,6 @@ async def test_app_events_and_has_unread_route_to_their_sdk_methods_and_shapes()
     [
         (EeroPremiumRequiredException("nope"), True),
         (EeroFeatureUnavailableException("nope"), False),
-        (EeroNotFoundException("thread", NETWORK_ID), False),
     ],
 )
 async def test_optional_collects_unavailable_features(exc, expected_premium) -> None:
@@ -164,6 +164,41 @@ async def test_optional_collects_unavailable_features(exc, expected_premium) -> 
     assert found[0].network_id == NETWORK_ID
     assert found[0].feature == "thread"
     assert found[0].premium is expected_premium
+
+
+@pytest.mark.parametrize(
+    "exc",
+    [
+        EeroNotFoundException("thread", NETWORK_ID),
+        EeroAccessDeniedException(403, "no access"),
+    ],
+)
+async def test_optional_absorbs_not_found_and_access_denied_silently(exc) -> None:
+    """Hardware without a feature (404) or an admin without access (403): None, no issue."""
+    hub = build_hub()
+
+    async def failing():
+        raise exc
+
+    with eero_api.collect_unavailable() as found:
+        result = await hub._optional(failing(), "name", NETWORK_ID, "thread")
+
+    assert result is None
+    assert found == []
+
+
+async def test_a_network_that_is_gone_is_skipped_with_an_issue() -> None:
+    """A configured network answering 404 is skipped, not a failed poll (B2)."""
+    hub = build_hub(
+        routes={"networks.get_network": EeroNotFoundException("network", NETWORK_ID)}
+    )
+
+    with eero_api.collect_unavailable() as found:
+        payload = await hub.fetch_fast(NETWORK_ID, eero_api.EeroUpdateConfig())
+
+    assert payload == {}
+    assert [(item.network_id, item.feature) for item in found] == [(NETWORK_ID, "network")]
+    assert hub.assemble(None, {NETWORK_ID: payload}, {}, {}).networks == []
 
 
 async def test_optional_propagates_other_exceptions() -> None:
@@ -367,24 +402,17 @@ SETTER_CASES = [
     ),
     _case(
         "network.set_custom_dns.ipv4_and_ipv6",
-        {"dns.set_custom_dns_ipv4": {}, "dns.set_custom_dns_ipv6": {}},
+        {"dns.set_custom_dns": {}},
         lambda hub: make_network(
             hub,
             dns={"mode": "custom", "custom": {"ips": ["9.9.9.9"]}},
             ipv6={"name_servers": {"mode": "automatic", "custom": []}},
         ).async_set_custom_dns(ipv4=["1.1.1.1"], ipv6=["2606:4700:4700::1111"]),
-        lambda sdk: (
-            any(
-                d == "dns" and m == "set_custom_dns_ipv4" and a[1] == ["1.1.1.1"]
-                for d, m, a, _kw in sdk.calls
-            )
-            and any(
-                d == "dns"
-                and m == "set_custom_dns_ipv6"
-                and a[1] == ["2606:4700:4700::1111"]
-                for d, m, a, _kw in sdk.calls
-            )
-        ),
+        # One write for both families: two would reboot the mesh twice.
+        lambda sdk: [
+            (m, a[1]) for d, m, a, _kw in sdk.calls if d == "dns"
+        ]
+        == [("set_custom_dns", ["1.1.1.1", "2606:4700:4700::1111"])],
     ),
     _case(
         "network.set_custom_dns.automatic",

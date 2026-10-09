@@ -406,14 +406,14 @@ async def test_reservation_forward_and_dns_services_call_the_sdk(hass, sdk_facto
         "dns.get_dns_settings",
         {"dns": {"mode": "automatic"}, "ipv6": {"name_servers": {"mode": "automatic"}}},
     )
-    sdk.set_route("dns.set_custom_dns_ipv4", {})
+    sdk.set_route("dns.set_custom_dns", {})
     await hass.services.async_call(
         DOMAIN,
         "set_custom_dns",
         {"target_network": ["TestNetwork"], "ipv4": ["1.1.1.1"]},
         blocking=True,
     )
-    assert any(d == "dns" and m == "set_custom_dns_ipv4" for d, m, _a, _kw in sdk.calls)
+    assert any(d == "dns" and m == "set_custom_dns" for d, m, _a, _kw in sdk.calls)
 
     # target_network filters: a non-matching target calls nothing.
     sdk.calls.clear()

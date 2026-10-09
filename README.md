@@ -55,7 +55,7 @@ Custom component to allow control of Eero networks in [Home Assistant](https://h
 - Block or unblock a client, and move a client to a different profile
 - Profile bedtime schedules: on/off plus weekday and weekend start and end times
 - New clients get their entities as they appear, without reloading the integration (respecting the include/exclude filter)
-- Guest network name, and a write-only guest password (the password is never shown as state)
+- Guest network name, and a write-only guest password (the password is never shown as state; note that Home Assistant itself records the data of the `text.set_value` call that sets it, e.g. in automation traces)
 - Power saving and fast transition switches, and MLO mode where the network supports it
 - Per-port connection status and speed for each eero, and port action buttons (disabled by default)
 - Actions to create and delete DHCP reservations and port forwards, and to set custom DNS (a DNS change makes every eero reboot a few minutes later)

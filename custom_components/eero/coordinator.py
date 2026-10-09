@@ -133,7 +133,7 @@ class EeroRuntime:
     options: dict[str, Any]
     coordinators: dict[str, EeroTierCoordinator] = field(default_factory=dict)
     _account: EeroAccount | None = None
-    _account_key: tuple[int, int, int] | None = None
+    _account_sources: tuple[Any, Any, Any] | None = None
     _issues: dict[str, set[str]] = field(default_factory=dict)
 
     def setup_coordinators(self, scan_interval: timedelta) -> None:
@@ -165,10 +165,15 @@ class EeroRuntime:
             )
 
     async def async_first_refresh(self) -> None:
-        """Refresh the fast tier first: the other two read its network payload."""
+        """Refresh the fast tier first: the other two read its network payload.
+
+        Only the fast tier gates setup. A failure in the hourly or daily tier
+        makes that tier's entities unavailable until its next poll; it does
+        not hold the whole entry in setup-retry.
+        """
         await self.coordinators[TIER_FAST].async_config_entry_first_refresh()
-        await self.coordinators[TIER_DAILY].async_config_entry_first_refresh()
-        await self.coordinators[TIER_HOURLY].async_config_entry_first_refresh()
+        await self.coordinators[TIER_DAILY].async_refresh()
+        await self.coordinators[TIER_HOURLY].async_refresh()
 
     def previous(self, tier: str, network_id: str) -> dict[str, Any]:
         """Return a tier's last data for a network.
@@ -186,14 +191,21 @@ class EeroRuntime:
     @property
     def account(self) -> EeroAccount:
         """Return the property-object tree, rebuilt when any tier has new data."""
-        fast, hourly, daily = (
-            self.coordinators[tier].data or {}
-            for tier in (TIER_FAST, TIER_HOURLY, TIER_DAILY)
+        sources = tuple(
+            self.coordinators[tier].data for tier in (TIER_FAST, TIER_HOURLY, TIER_DAILY)
         )
-        key = (id(fast), id(hourly), id(daily))
-        if self._account is None or key != self._account_key:
+        # Compared by identity, holding references: a coordinator replaces
+        # its data dict on every refresh, and an id() of a freed dict could be
+        # reused by the next one.
+        previous = self._account_sources
+        if (
+            self._account is None
+            or previous is None
+            or any(a is not b for a, b in zip(sources, previous, strict=True))
+        ):
+            fast, hourly, daily = (data or {} for data in sources)
             self._account = self.hub.assemble(None, fast, hourly, daily)
-            self._account_key = key
+            self._account_sources = sources
         return self._account
 
     def coordinator(self, tier: str) -> EeroTierCoordinator:
@@ -235,7 +247,11 @@ class EeroRuntime:
                 is_fixable=False,
                 severity=ir.IssueSeverity.WARNING,
                 translation_key=(
-                    "premium_required" if item.premium else "feature_unavailable"
+                    "network_unavailable"
+                    if item.feature == "network"
+                    else "premium_required"
+                    if item.premium
+                    else "feature_unavailable"
                 ),
                 translation_placeholders={
                     "feature": item.feature,

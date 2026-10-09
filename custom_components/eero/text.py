@@ -87,6 +87,13 @@ class EeroTextEntity(EeroEntity, TextEntity):
         so it always writes rather than skipping a redundant write.
         """
         if self.entity_description.write_only:
+            # Compared here, not passed to async_write as target: the value
+            # is a secret and must not reach a log line. Re-sending the same
+            # password still disconnects every guest client.
+            if (resource := self.resource) is not None and value == getattr(
+                resource, self.entity_description.key, None
+            ):
+                return
             await self.async_write(f"async_set_{self.entity_description.key}", value)
             return
         await self.async_write(

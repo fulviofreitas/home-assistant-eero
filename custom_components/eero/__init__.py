@@ -10,7 +10,7 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import CONF_SCAN_INTERVAL, Platform
 from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
 from homeassistant.helpers import (
     config_validation as cv,
     device_registry as dr,
@@ -673,7 +673,13 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: EeroConfigEntry) 
         else None,
         request_timeout=conf_timeout,
     )
-    await hub.async_set_token(data[CONF_USER_TOKEN])
+    try:
+        await hub.async_set_token(data[CONF_USER_TOKEN])
+    except (KeyError, EeroException) as error:
+        # No token stored, or one the SDK rejects as a header value.
+        raise ConfigEntryAuthFailed(
+            translation_domain=DOMAIN, translation_key="auth_failed"
+        ) from error
 
     runtime = EeroRuntime(
         hass=hass,

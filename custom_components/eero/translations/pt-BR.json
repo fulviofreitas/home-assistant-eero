@@ -198,7 +198,6 @@
             }
         },
         "abort": {
-            "not_loaded": "A integração não está carregada. Corrija primeiro o problema exibido na integração e depois abra as opções novamente.",
             "cannot_connect": "Não foi possível ler as redes da conta pela API do eero. Tente novamente mais tarde."
         }
     },
@@ -821,6 +820,10 @@
         "feature_unavailable": {
             "title": "{feature} não está disponível",
             "description": "A rede {network} não oferece {feature} (o hardware ou a conta não oferece suporte). As entidades que dependem desse recurso não são criadas. Este aviso desaparece sozinho se o recurso ficar disponível."
+        },
+        "network_unavailable": {
+            "title": "Rede {network} indisponível",
+            "description": "A rede {network} está configurada, mas a API da eero não a encontra mais (foi removida da conta ou esta conta perdeu o acesso a ela). As entidades dela ficam indisponíveis. Remova-a nas opções da integração, ou restaure o acesso; este aviso some sozinho quando a rede voltar a responder."
         }
     }
 }

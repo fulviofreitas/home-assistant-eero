@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator
+from collections.abc import Awaitable, Callable, Iterator
 from dataclasses import dataclass
 import logging
 from typing import Any
 
-from homeassistant.core import callback
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.entity import EntityDescription
@@ -74,6 +74,11 @@ class EeroEntityDescription(EntityDescription):
     activity_type: bool = False
     wireless_only: bool = False
     check_support: bool = True
+    # Don't create the entity while its value is None: an optional read that
+    # failed or is not offered (a daily-tier 404, a blacklist not yet read).
+    # A platform using async_setup_platform_entities picks it up later, on
+    # the first fast poll after the value appears.
+    requires_value: bool = False
     # True only for entities that read the fast tier's profiles payload
     # (e.g. a client's profile_assignment select): that payload is only
     # fetched for a network with at least one profile configured, so an
@@ -138,6 +143,11 @@ def build_entities[EntityT: "EeroEntity"](
                     continue
                 if description.check_support and not resource_supports(
                     resource, description.key
+                ):
+                    continue
+                if (
+                    description.requires_value
+                    and getattr(resource, description.key, None) is None
                 ):
                     continue
                 entities.append(
@@ -366,27 +376,38 @@ class EeroEntity(CoordinatorEntity[EeroTierCoordinator]):
                 translation_domain=DOMAIN, translation_key="resource_unavailable"
             )
         if target is not UNDEFINED and current == target:
-            _LOGGER.debug(
-                "Skipping %s on %s: already %s", method, self.entity_id, target
-            )
+            # The value is not logged: some targets are secrets.
+            _LOGGER.debug("Skipping %s on %s: no change", method, self.entity_id)
             return
-        try:
-            await getattr(resource, method)(*args)
-        except EeroAuthenticationException as error:
-            self.runtime.entry.async_start_reauth(self.hass)
-            raise HomeAssistantError(
-                translation_domain=DOMAIN, translation_key="auth_failed"
-            ) from error
-        except (EeroException, TimeoutError) as error:
-            raise HomeAssistantError(
-                translation_domain=DOMAIN,
-                translation_key="api_error",
-                translation_placeholders={"error": str(error)},
-            ) from error
+        await async_call_mapped(
+            self.hass, self.runtime, getattr(resource, method)(*args)
+        )
         if self.entity_description.request_refresh:
             await self.runtime.async_refresh_tiers(
                 self.entity_description.refresh_tiers or (self.tier,)
             )
+
+
+async def async_call_mapped(
+    hass: HomeAssistant, runtime: EeroRuntime, request: Awaitable[Any]
+) -> None:
+    """Await an SDK write, turning its failures into readable action errors.
+
+    An expired session also starts reauthentication.
+    """
+    try:
+        await request
+    except EeroAuthenticationException as error:
+        runtime.entry.async_start_reauth(hass)
+        raise HomeAssistantError(
+            translation_domain=DOMAIN, translation_key="auth_failed"
+        ) from error
+    except (EeroException, TimeoutError) as error:
+        raise HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="api_error",
+            translation_placeholders={"error": str(error)},
+        ) from error
 
 
 def async_setup_port_entities[EntityT: "EeroPortEntity"](

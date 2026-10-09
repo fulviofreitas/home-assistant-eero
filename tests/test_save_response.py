@@ -46,11 +46,11 @@ async def test_saved_responses_are_redacted(tmp_path) -> None:
     assert thread["channel"] == 15
 
 
-def test_nested_and_listed_secrets_are_redacted(tmp_path) -> None:
+async def test_nested_and_listed_secrets_are_redacted(tmp_path) -> None:
     """Redaction walks lists and nested dicts (C1)."""
     hub = build_hub(save_location=str(tmp_path))
 
-    hub.save_response(
+    await hub.save_response(
         response={
             "devices": [{"nickname": "iPad", "psk": "hunter2"}],
             "guest_network": {"password": "guest-pass"},
@@ -64,7 +64,7 @@ def test_nested_and_listed_secrets_are_redacted(tmp_path) -> None:
     assert saved["guest_network"]["password"] == "**REDACTED**"
 
 
-def test_auth_responses_are_never_written(tmp_path) -> None:
+async def test_auth_responses_are_never_written(tmp_path) -> None:
     """The login/refresh exchange carries the session token, never saved (C1).
 
     The SDK now owns the refresh handshake internally (never surfaced to this
@@ -73,7 +73,7 @@ def test_auth_responses_are_never_written(tmp_path) -> None:
     """
     hub = build_hub(save_location=str(tmp_path))
 
-    hub.save_response({"user_token": "NEW-TOKEN"}, name="/2.2/login/refresh")
+    await hub.save_response({"user_token": "NEW-TOKEN"}, name="/2.2/login/refresh")
 
     assert list(tmp_path.iterdir()) == []
 

@@ -254,14 +254,18 @@ async def test_reconfigure_overrides_an_existing_options_value(hass, sdk_factory
     assert entry.options[CONF_TIMEOUT] == 15
 
 
-async def test_options_flow_not_loaded_aborts(hass) -> None:
-    """Opening options on an entry that is not loaded aborts not_loaded."""
+async def test_options_flow_runs_when_the_entry_is_not_loaded(
+    hass, config_flow_sdk_factory
+) -> None:
+    """An entry that failed to load can still open options (to drop a gone network)."""
+    sdk = config_flow_sdk_factory()
     entry = make_entry(hass)
 
     result = await hass.config_entries.options.async_init(entry.entry_id)
 
-    assert result["type"] is FlowResultType.ABORT
-    assert result["reason"] == "not_loaded"
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "networks"
+    assert sdk.auth.token == "OLD-TOKEN"
 
 
 async def test_options_flow_happy_path_updates_entry(hass, sdk_factory) -> None:

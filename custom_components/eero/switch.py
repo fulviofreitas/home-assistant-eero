@@ -64,6 +64,7 @@ SWITCH_DESCRIPTIONS: list[EeroSwitchEntityDescription] = [
         key="bedtime_enabled",
         translation_key="bedtime_enabled",
         tier=TIER_DAILY,
+        requires_value=True,
     ),
     EeroSwitchEntityDescription(
         key="blocked",
@@ -72,6 +73,7 @@ SWITCH_DESCRIPTIONS: list[EeroSwitchEntityDescription] = [
         # Blocking removes the device from the network entirely: the fast
         # tier's device list changes too, not just the daily-tier blacklist.
         refresh_tiers=(TIER_FAST, TIER_DAILY),
+        requires_value=True,
     ),
     EeroSwitchEntityDescription(
         key="block_gaming_content",
@@ -136,9 +138,12 @@ SWITCH_DESCRIPTIONS: list[EeroSwitchEntityDescription] = [
         key="fast_transition_enabled",
         translation_key="fast_transition_enabled",
         tier=TIER_DAILY,
-        # Unconfirmed write: may reboot every eero, like the confirmed DNS
-        # write path.
-        request_refresh=False,
+        # Unconfirmed write: may reboot every eero. Re-reading the daily
+        # tier afterwards is a GET, and without it the switch would show
+        # the old state for a day and read-compare-skip would compare
+        # against it.
+        refresh_tiers=(TIER_DAILY,),
+        requires_value=True,
     ),
     EeroSwitchEntityDescription(
         key="guest_network_enabled",
@@ -167,9 +172,9 @@ SWITCH_DESCRIPTIONS: list[EeroSwitchEntityDescription] = [
     EeroSwitchEntityDescription(
         key="power_saving_enabled",
         translation_key="power_saving_enabled",
-        # Unconfirmed write: may reboot every eero, like the confirmed DNS
-        # write path.
-        request_refresh=False,
+        # Unconfirmed write: may reboot every eero. Re-read afterwards (a
+        # GET) so the state, and read-compare-skip, are not left stale.
+        requires_value=True,
     ),
     EeroSwitchEntityDescription(
         key="safe_search_enabled",
@@ -232,8 +237,10 @@ class EeroSwitchEntity(EeroEntity, SwitchEntity):
 
     @property
     def is_on(self) -> bool | None:
-        """Return True if entity is on."""
-        return bool(getattr(self.resource, self.entity_description.key))
+        """Return True if entity is on; None when the state is not known."""
+        if (value := getattr(self.resource, self.entity_description.key, None)) is None:
+            return None
+        return bool(value)
 
     @property
     def extra_state_attributes(self) -> Mapping[str, Any] | None:
