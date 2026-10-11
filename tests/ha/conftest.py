@@ -97,7 +97,7 @@ def config_flow_routes() -> dict:
         "auth.verify": True,
         "devices.get_devices": [],
         "profiles.get_profiles": [],
-        "GET /account": account_envelope(),
+        "account.get_account": account_envelope(),
     }
 
 

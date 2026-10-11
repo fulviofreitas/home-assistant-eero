@@ -49,7 +49,7 @@ async def test_login_verify_returns_the_account_on_success() -> None:
     sdk = FakeSDK(
         {
             "auth.verify": True,
-            "GET /account": {"name": "Jane", "networks": {"data": []}},
+            "account.get_account": {"name": "Jane", "networks": {"data": []}},
         },
         token="SESSION-TOKEN",
     )
@@ -70,7 +70,7 @@ async def test_token_raises_when_the_sdk_has_none() -> None:
 
 
 async def test_get_account_raises_when_the_response_has_no_networks() -> None:
-    sdk = FakeSDK({"GET /account": {"name": "Jane"}})
+    sdk = FakeSDK({"account.get_account": {"name": "Jane"}})
     hub = build_hub(sdk=sdk)
 
     with pytest.raises(eero_api.EeroException):
@@ -89,7 +89,7 @@ def test_network_ids_skips_an_entry_with_no_url() -> None:
 async def test_snapshot_fetches_fast_and_daily_tiers_for_every_network() -> None:
     sdk = FakeSDK(
         {
-            "GET /account": {
+            "account.get_account": {
                 "name": "Jane",
                 "networks": {"data": [{"url": NETWORK_URL}]},
             },

@@ -163,7 +163,7 @@ async def test_reauth_flow_success_updates_token(hass, config_flow_sdk_factory) 
 async def test_reauth_flow_wrong_account_aborts(hass, config_flow_sdk_factory) -> None:
     """A code verified against a different account aborts wrong_account."""
     entry = make_entry(hass)
-    config_flow_sdk_factory({"GET /account": account_envelope(log_id="someone-else")})
+    config_flow_sdk_factory({"account.get_account": account_envelope(log_id="someone-else")})
 
     result = await entry.start_reauth_flow(hass)
     result = await hass.config_entries.flow.async_configure(
@@ -274,7 +274,7 @@ async def test_options_flow_happy_path_updates_entry(hass, sdk_factory) -> None:
         {
             "devices.get_devices": [],
             "profiles.get_profiles": [],
-            "GET /account": account_envelope(),
+            "account.get_account": account_envelope(),
         }
     )
     entry = make_entry(hass)
