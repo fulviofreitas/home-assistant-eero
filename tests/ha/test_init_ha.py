@@ -131,6 +131,42 @@ async def test_rate_limit_doubles_the_fast_interval_and_resets_on_success(
     assert coordinator.update_interval == base
 
 
+async def test_rate_limit_honours_retry_after_capped_at_an_hour(hass, sdk_factory) -> None:
+    """A Retry-After longer than the backoff is waited out, up to one hour, on every tier."""
+    from datetime import timedelta
+
+    from custom_components.eero.const import TIER_DAILY
+
+    sdk = sdk_factory()
+    entry = make_entry(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    fast = entry.runtime_data.coordinator(TIER_FAST)
+    sdk.set_route(
+        "networks.get_network", EeroRateLimitException("slow down", retry_after=1800)
+    )
+    await fast.async_refresh()
+    assert fast.update_interval == timedelta(minutes=30)
+
+    sdk.set_route(
+        "networks.get_network", EeroRateLimitException("slow down", retry_after=86400)
+    )
+    await fast.async_refresh()
+    assert fast.update_interval == timedelta(hours=1)
+
+    sdk.set_route("networks.get_network", network_envelope())
+    await fast.async_refresh()
+    assert fast.update_interval == fast.base_interval
+
+    daily = entry.runtime_data.coordinator(TIER_DAILY)
+    sdk.set_route(
+        "updates.get_updates", EeroRateLimitException("slow down", retry_after=1200)
+    )
+    await daily.async_refresh()
+    assert daily.update_interval == timedelta(minutes=20)
+
+
 async def test_a_failed_daily_poll_retries_within_minutes_then_resets(
     hass, sdk_factory
 ) -> None:

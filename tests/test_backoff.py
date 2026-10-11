@@ -40,3 +40,20 @@ def test_missing_interval_starts_from_the_base():
 def test_base_above_the_cap_is_never_shortened():
     base = timedelta(minutes=20)
     assert backoff.backoff_interval(base, base) == base
+
+
+def test_retry_after_longer_than_the_backoff_wins():
+    assert backoff.respect_retry_after(timedelta(minutes=10), 1800) == timedelta(minutes=30)
+
+
+def test_retry_after_shorter_than_the_backoff_is_ignored():
+    assert backoff.respect_retry_after(timedelta(minutes=10), 60) == timedelta(minutes=10)
+
+
+def test_retry_after_is_capped_at_an_hour():
+    assert backoff.respect_retry_after(timedelta(minutes=10), 86400) == timedelta(hours=1)
+
+
+def test_missing_or_nonsense_retry_after_changes_nothing():
+    for value in (None, 0, -5):
+        assert backoff.respect_retry_after(timedelta(minutes=10), value) == timedelta(minutes=10)
