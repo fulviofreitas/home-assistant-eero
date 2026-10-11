@@ -11,7 +11,7 @@ ruff==0.16.10
 # custom_components/eero/api imports the eero-api SDK directly, and
 # tests/helpers.py loads that package standalone (no Home Assistant), so
 # these three are needed to collect and run tests/*.py.
-eero-api==8.0.6
+eero-api==8.2.0
 aiohttp==3.13.3
 # Test-only too: the 1.9.3 client measured by tests/test_hub.py imports it.
 python-dateutil==2.9.0.post0
