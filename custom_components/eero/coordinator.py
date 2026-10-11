@@ -38,7 +38,7 @@ from .api import (
     UnavailableFeature,
     collect_unavailable,
 )
-from .backoff import backoff_interval
+from .backoff import backoff_interval, respect_retry_after
 from .const import CONF_USER_TOKEN, DOMAIN, TIER_DAILY, TIER_FAST, TIER_HOURLY
 
 _LOGGER = logging.getLogger(__name__)
@@ -79,17 +79,21 @@ class EeroTierCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._fetch = fetch
         self._retrying = False
 
-    def _after_failure(self, rate_limited: bool) -> None:
+    def _after_failure(
+        self, rate_limited: bool, retry_after: float | None = None
+    ) -> None:
         """Pick the interval to the next attempt after a failed poll.
 
         The fast tier keeps its interval, stretched only by a rate limit. The
         hourly and daily tiers retry within minutes, never later than their
-        normal cadence.
+        normal cadence. On a rate limit, every tier also waits at least as
+        long as the API's Retry-After asked, when it sent one.
         """
         if self.tier == TIER_FAST:
             if rate_limited:
-                self.update_interval = backoff_interval(
-                    self.update_interval, self.base_interval
+                self.update_interval = respect_retry_after(
+                    backoff_interval(self.update_interval, self.base_interval),
+                    retry_after,
                 )
             return
         retry = (
@@ -97,15 +101,18 @@ class EeroTierCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if self._retrying
             else SLOW_TIER_RETRY
         )
-        self.update_interval = min(retry, self.base_interval)
+        interval = min(retry, self.base_interval)
+        if rate_limited:
+            interval = respect_retry_after(interval, retry_after)
+        self.update_interval = interval
         self._retrying = True
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch this tier for every configured network.
 
         EeroAuthenticationException starts reauth. A rate limit stretches the
-        interval (doubling, up to 15 minutes) until the next success, because
-        the API's 429 carries no usable Retry-After. Timeouts and transport
+        interval (doubling, up to 15 minutes, or longer when the API's
+        Retry-After asks for it) until the next success. Timeouts and transport
         errors fail the poll, which makes this tier's entities unavailable.
         """
         data: dict[str, Any] = {}
@@ -118,7 +125,7 @@ class EeroTierCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 translation_domain=DOMAIN, translation_key="auth_failed"
             ) from error
         except EeroRateLimitException as error:
-            self._after_failure(rate_limited=True)
+            self._after_failure(rate_limited=True, retry_after=error.retry_after)
             raise UpdateFailed(
                 translation_domain=DOMAIN,
                 translation_key="rate_limited",
