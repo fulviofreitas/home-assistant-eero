@@ -6,4 +6,4 @@
 # available from the HA version this pin brings in.
 pytest-homeassistant-custom-component==0.13.371
 mypy==2.4.0
-eero-api==8.0.6
+eero-api==8.2.0

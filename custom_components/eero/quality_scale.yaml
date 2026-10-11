@@ -42,7 +42,7 @@ rules:
   dependency-transparency:
     status: done
     comment: >-
-      eero-api==8.0.6 from PyPI, MIT-licensed, source at
+      eero-api==8.2.0 from PyPI, MIT-licensed, source at
       github.com/fulviofreitas/eero-api with tagged releases. Its release.yml
       builds and publishes to PyPI from GitHub Actions via trusted publishing;
       PyPI attestations are turned off, so the files carry no provenance.
