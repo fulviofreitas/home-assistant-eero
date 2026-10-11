@@ -40,11 +40,11 @@ type EeroEntityResource = (
     EeroNetwork | EeroBackupNetwork | EeroDevice | EeroProfile | EeroClient
 )
 
-# The no-SDK-method writes below (DNS-policy settings, hide_5g, preferred
-# update hour, ipv6_upstream on its own, the Thread enable path) go through
-# the SDK's public put/post/delete with the exact request the integration has
-# always sent: eero-api has no reader-verified method for them, or its method
-# sends a different request (see CHANGELOG 2.0.0).
+# The no-SDK-method writes below (DNS-policy settings, ipv6_upstream on its
+# own, SQM, the Thread enable path) go through the SDK's public
+# put/post/delete with the exact request the integration has always sent:
+# eero-api has no method for them, or its method sends a different,
+# unverified request.
 
 
 def _same_dns_servers(current: list[str], target: list[str]) -> bool:
@@ -881,11 +881,10 @@ class EeroNetwork(EeroResource):
 
     async def async_set_pause_5g_enabled(self, value: bool) -> None:
         """Pause or resume the 5 GHz band."""
-        url = f"{self.url}/temporary_flags/hide_5g"
-        if value:
-            await self.api.put(url, json={"value": True})
-        else:
-            await self.api.delete(url)
+        await self.api.call(
+            self.api.sdk.networks.set_hide_5g(self.known_id, value),
+            name=f"{self.url}/temporary_flags/hide_5g",
+        )
 
     @property
     def postal_code(self) -> str | None:
@@ -925,9 +924,11 @@ class EeroNetwork(EeroResource):
         """Set the hour firmware updates may install."""
         if value not in self.preferred_update_hour_options:
             return
-        await self.api.post(
-            f"{self.url}/updates/preferred_update_hour",
-            json={"preferred_update_hour": PREFERRED_UPDATE_HOUR_MAP[value]},
+        await self.api.call(
+            self.api.sdk.updates.set_preferred_update_hour(
+                self.known_id, PREFERRED_UPDATE_HOUR_MAP[value]
+            ),
+            name=f"{self.url}/updates/preferred_update_hour",
         )
 
     @property

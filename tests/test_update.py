@@ -404,7 +404,7 @@ def test_network_entry_without_a_url_is_skipped() -> None:
 
 async def test_empty_account_response_raises() -> None:
     """A body with no networks member is a failed poll, not zero entities (N6)."""
-    hub = build_hub(sdk=FakeSDK({"GET /account": {}}))
+    hub = build_hub(sdk=FakeSDK({"account.get_account": {}}))
 
     with pytest.raises(eero_api.EeroException):
         await hub.get_account()
@@ -412,7 +412,7 @@ async def test_empty_account_response_raises() -> None:
 
 async def test_null_account_response_raises() -> None:
     """Same for a 200 carrying no data at all (N6)."""
-    hub = build_hub(sdk=FakeSDK({"GET /account": None}))
+    hub = build_hub(sdk=FakeSDK({"account.get_account": None}))
 
     with pytest.raises(eero_api.EeroException):
         await hub.get_account()

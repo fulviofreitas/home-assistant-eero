@@ -498,32 +498,22 @@ SETTER_CASES = [
     ),
     _case(
         "network.pause_5g_enabled.enable",
-        {"PUT /2.2/networks/1234567/temporary_flags/hide_5g": {}},
+        {"networks.set_hide_5g": {}},
         lambda hub: make_network(hub).async_set_pause_5g_enabled(True),
-        lambda sdk: any(
-            d == "networks" and m == "put" and kw.get("json") == {"value": True}
-            for d, m, a, kw in sdk.calls
-        ),
+        lambda sdk: ("networks", "set_hide_5g", (NETWORK_ID, True), {}) in sdk.calls,
     ),
     _case(
         "network.pause_5g_enabled.disable",
-        {"DELETE /2.2/networks/1234567/temporary_flags/hide_5g": {}},
+        {"networks.set_hide_5g": {}},
         lambda hub: make_network(hub).async_set_pause_5g_enabled(False),
-        lambda sdk: any(
-            d == "networks" and m == "delete" and "json" not in kw
-            for d, m, a, kw in sdk.calls
-        ),
+        lambda sdk: ("networks", "set_hide_5g", (NETWORK_ID, False), {}) in sdk.calls,
     ),
     _case(
         "network.preferred_update_hour",
-        {"POST /2.2/networks/1234567/updates/preferred_update_hour": {}},
+        {"updates.set_preferred_update_hour": {}},
         lambda hub: make_network(hub).async_set_preferred_update_hour("12am_1am"),
-        lambda sdk: any(
-            d == "networks"
-            and m == "post"
-            and kw.get("json") == {"preferred_update_hour": 0}
-            for d, m, a, kw in sdk.calls
-        ),
+        lambda sdk: ("updates", "set_preferred_update_hour", (NETWORK_ID, 0), {})
+        in sdk.calls,
     ),
     _case(
         "network.reboot",

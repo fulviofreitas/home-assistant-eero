@@ -258,7 +258,7 @@ class EeroHub:
     async def get_account(self) -> dict[str, Any]:
         """Return the account, with its list of networks."""
         account = await self.call(
-            self.sdk.auth.get("/account", auth_token=await self._token()),
+            self.sdk.account.get_account(),
             name="/2.2/account",
         )
         if not account or "networks" not in account:
