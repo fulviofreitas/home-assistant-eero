@@ -9,6 +9,24 @@ This file covers two forks:
 
 # fulviofreitas/home-assistant-eero
 
+## [2.1.0](https://github.com/fulviofreitas/home-assistant-eero/compare/v2.0.1...v2.1.0) (2026-10-12)
+
+
+### Features
+
+* wait as long as the eero API's Retry-After asks after a rate limit ([e330730](https://github.com/fulviofreitas/home-assistant-eero/commit/e330730e99e5ada2a068a59dc2e4412dd8a2a1e9))
+
+
+### Bug Fixes
+
+* **deps:** require eero-api 8.2.0 ([eb4dfb5](https://github.com/fulviofreitas/home-assistant-eero/commit/eb4dfb555ded4cfa916a65c2395c69bad4e5fd2d))
+* **deps:** require eero-api 8.3.0 ([f979f4f](https://github.com/fulviofreitas/home-assistant-eero/commit/f979f4fa9bd6925908f849f10f02abbada31e0aa))
+
+
+### Documentation
+
+* describe the slow-tier retry and Retry-After in the README ([356157a](https://github.com/fulviofreitas/home-assistant-eero/commit/356157a8d2546eae887c208d7f6b413f190ebc52))
+
 ## [2.0.1](https://github.com/fulviofreitas/home-assistant-eero/compare/v2.0.0...v2.0.1) (2026-10-09)
 
 ### Fixes
