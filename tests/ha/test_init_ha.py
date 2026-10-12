@@ -27,7 +27,7 @@ from custom_components.eero.const import (
     TIER_HOURLY,
 )
 
-from conftest import NETWORK_ID, NETWORK_URL, entry_data, network_envelope
+from conftest import NETWORK_ID, NETWORK_URL, default_routes, entry_data, network_envelope
 
 
 def make_entry(hass, **data_overrides) -> MockConfigEntry:
@@ -1112,6 +1112,37 @@ async def test_device_tracker_reads_connected_state(hass, sdk_factory) -> None:
     )
     assert entity_id is not None
     assert hass.states.get(entity_id).state == "home"
+
+
+async def test_network_client_counts_without_client_entities(hass, sdk_factory) -> None:
+    """The network's client counts read the device list with no client configured."""
+    devices = [
+        {"url": f"{NETWORK_URL}/devices/aa", "mac": "aa", "connected": True},
+        {
+            "url": f"{NETWORK_URL}/devices/bb",
+            "mac": "bb",
+            "connected": True,
+            "is_guest": True,
+        },
+        {"url": f"{NETWORK_URL}/devices/cc", "mac": "cc", "connected": False},
+    ]
+    sdk = sdk_factory({**default_routes(), "devices.get_devices": devices})
+    entry = make_entry(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    from homeassistant.helpers import entity_registry as er
+
+    registry = er.async_get(hass)
+    for key, expected in (
+        ("connected_clients_count", "2"),
+        ("connected_guest_clients_count", "1"),
+    ):
+        entity_id = registry.async_get_entity_id("sensor", DOMAIN, f"{NETWORK_ID}-{key}")
+        assert entity_id is not None
+        assert hass.states.get(entity_id).state == expected
+    # No client entity is configured, so the block switch's list is not read.
+    assert not [call for call in sdk.calls if call[0] == "blacklist"]
 
 
 async def test_light_status_light_reads_and_writes(hass, sdk_factory) -> None:
