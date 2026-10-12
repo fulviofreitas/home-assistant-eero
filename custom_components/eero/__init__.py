@@ -511,7 +511,7 @@ def _update_config(
     """Work out what each configured network needs fetched."""
     conf_update = {}
     for network_id, resources in conf_resources.items():
-        get_devices = any(
+        has_clients = any(
             [
                 resources[CONF_WIRED_CLIENTS_FILTER] == CONF_FILTER_EXCLUDE,
                 resources[CONF_WIRED_CLIENTS_FILTER] == CONF_FILTER_INCLUDE
@@ -526,12 +526,15 @@ def _update_config(
             profiles=resources[CONF_PROFILES],
             eeros=resources[CONF_EEROS],
             get_backup_access_points=bool(resources[CONF_BACKUP_NETWORKS]),
-            get_devices=get_devices,
+            # Always read: the network's connected/guest client counts and
+            # the eeros' client names are computed from this list, and those
+            # entities exist whether or not any client entity is configured.
+            get_devices=True,
             get_release_notes=bool(resources[CONF_EEROS]),
             # The block switch's state has nothing else to read: gated on
-            # the same condition as get_devices, so networks with no client
-            # entities configured never pay for this daily-tier request.
-            get_blacklist=get_devices,
+            # client entities being configured, so networks with none never
+            # pay for this daily-tier request.
+            get_blacklist=has_clients,
             # Bedtime schedules: one read per configured profile.
             get_schedules=bool(resources[CONF_PROFILES]),
             # Per-port sensors/buttons: one connections read per configured

@@ -65,6 +65,7 @@ def default_routes() -> dict:
     return {
         "networks.get_network": network_envelope(),
         "eeros.get_eeros": [],
+        "devices.get_devices": [],
         "entitlements.get_features": {"features": []},
         "updates.get_updates": {},
         "reservations.get_reservations": [],
