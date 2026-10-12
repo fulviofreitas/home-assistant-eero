@@ -9,6 +9,23 @@ This file covers two forks:
 
 # fulviofreitas/home-assistant-eero
 
+## [2.1.0](https://github.com/fulviofreitas/home-assistant-eero/compare/v2.0.1...v2.1.0) (2026-10-12)
+
+### Changes
+
+- Requires `eero-api` 8.3.0 (was 8.0.6). The account read, the Preferred
+  Update Time select and the 5 GHz pause switch now use eero-api's own
+  methods for them; the requests sent to eero are unchanged.
+- After a rate limit, the integration waits at least as long as the eero API
+  asks (its `Retry-After` header), up to one hour, before polling again.
+  Without the header, the backoff is as before.
+
+### Internal
+
+- A contract test runs every control and the main reads through the real
+  eero-api and checks the exact request each one sends, so an eero-api
+  upgrade that changes a request is caught before release.
+
 ## [2.0.1](https://github.com/fulviofreitas/home-assistant-eero/compare/v2.0.0...v2.0.1) (2026-10-09)
 
 ### Fixes
