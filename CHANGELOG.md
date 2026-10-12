@@ -11,10 +11,14 @@ This file covers two forks:
 
 ## [2.1.1](https://github.com/fulviofreitas/home-assistant-eero/compare/v2.1.0...v2.1.1) (2026-10-12)
 
+### Fixes
 
-### Bug Fixes
-
-* always read the device list so the network client counts are right ([3ded6a1](https://github.com/fulviofreitas/home-assistant-eero/commit/3ded6a1c1ce1b98f23b0bf6cb1e6c7867555ee37))
+- The network's Connected Clients and Connected Guest Clients sensors showed
+  0 unless a wired or wireless client entity was configured, and each eero's
+  Connected Clients sensor had an empty `clients` attribute. The device list
+  they count from is now read on every poll, which adds one request per
+  network per scan interval. Profile and eero client counts were already
+  correct.
 
 ## [2.1.0](https://github.com/fulviofreitas/home-assistant-eero/compare/v2.0.1...v2.1.0) (2026-10-12)
 
