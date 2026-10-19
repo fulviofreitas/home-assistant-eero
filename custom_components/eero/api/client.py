@@ -413,9 +413,11 @@ class EeroClient(EeroResource):
 
     async def async_set_secondary_wan_allow_access(self, value: bool) -> None:
         """Allow or deny this client the internet backup connection."""
-        await self.api.put(
-            f"/2.3/networks/{self.network.id}/devices/{self.mac}",
-            json={"secondary_wan_deny_access": not value},
+        await self.api.call(
+            self.api.sdk.wan.set_device_secondary_wan_access(
+                self.network.known_id, cast("str", self.mac), deny=not value
+            ),
+            name=f"/2.3/networks/{self.network.id}/devices/{self.mac}",
         )
 
     @property

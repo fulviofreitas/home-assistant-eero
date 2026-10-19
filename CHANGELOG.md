@@ -9,6 +9,17 @@ This file covers two forks:
 
 # fulviofreitas/home-assistant-eero
 
+## Unreleased
+
+### Changes
+
+- Requires `eero-api` 8.4.0 (was 8.3.0). The client Internet Backup switch,
+  the IPv6 Upstream switch, the network and profile Ad Block switches, the
+  Block Malware switch and the per-eero data usage read now use eero-api's
+  own methods for them; the requests sent to eero are unchanged. The profile
+  content filters, Smart Queue Management and Thread switches keep sending
+  their own requests until eero-api has verified methods for them.
+
 ## [2.1.1](https://github.com/fulviofreitas/home-assistant-eero/compare/v2.1.0...v2.1.1) (2026-10-12)
 
 ### Fixes

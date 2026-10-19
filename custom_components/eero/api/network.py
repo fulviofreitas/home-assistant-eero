@@ -86,7 +86,12 @@ class EeroNetwork(EeroResource):
 
     async def async_set_ad_block(self, value: bool) -> None:
         """Set network-wide ad blocking."""
-        await self.api.post(f"{self.url_dns_policies}/adblock", json={"enable": value})
+        await self.api.call(
+            self.api.sdk.dns_policies.set_network_ad_block(
+                self.known_id, value, parent=self.data
+            ),
+            name=f"{self.url_dns_policies}/adblock",
+        )
 
     @property
     def ad_block_enabled(self) -> bool | None:
@@ -189,8 +194,11 @@ class EeroNetwork(EeroResource):
 
     async def async_set_block_malware(self, value: bool) -> None:
         """Set Advanced Security malware blocking."""
-        await self.api.post(
-            f"{self.url_dns_policies}/network", json={"block_malware": value}
+        await self.api.call(
+            self.api.sdk.dns_policies.set_network_block_malware(
+                self.known_id, value, parent=self.data
+            ),
+            name=f"{self.url_dns_policies}/network",
         )
 
     @property
@@ -779,7 +787,10 @@ class EeroNetwork(EeroResource):
 
     async def async_set_ipv6_upstream(self, value: bool) -> None:
         """Set IPv6 upstream only; security.set_ipv6 would set downstream too."""
-        await self.api.put(cast("str", self.url_settings), json={"ipv6_upstream": value})
+        await self.api.call(
+            self.api.sdk.security.set_ipv6_upstream(self.known_id, value, parent=self.data),
+            name=f"{self.url}/settings",
+        )
 
     @property
     def isp(self) -> str | None:

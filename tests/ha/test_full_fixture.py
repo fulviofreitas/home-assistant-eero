@@ -232,7 +232,7 @@ def full_routes() -> dict:
         "data_usage.get_profile_usage": [],
         "data_usage.get_unprofiled_summary": [],
         "data_usage.get_eeros_summary": [],
-        "GET /2.2/networks/1234567/data_usage/eeros": [],
+        "data_usage.get_eeros_usage": [],
         "insights.get_insights": [],
         "insights.get_devices_insights": [],
         "insights.get_profile_insights": [],

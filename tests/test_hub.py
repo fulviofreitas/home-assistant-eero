@@ -51,7 +51,7 @@ async def test_activity_uses_query_params_never_json_body() -> None:
             "data_usage.get_data_usage": {},
             "data_usage.get_devices_usage": {},
             "data_usage.get_profile_usage": {},
-            "GET /2.2/networks/1234567/data_usage/eeros": {},
+            "data_usage.get_eeros_usage": {},
             "insights.get_insights": {},
             "insights.get_devices_insights": {},
             "insights.get_profile_insights": {},
@@ -471,28 +471,31 @@ SETTER_CASES = [
     ),
     _case(
         "network.ipv6_upstream",
-        {"PUT /2.2/networks/1234567/settings": {}},
+        {"security.set_ipv6_upstream": {}},
         lambda hub: make_network(hub).async_set_ipv6_upstream(True),
         lambda sdk: any(
-            d == "networks" and m == "put" and kw.get("json") == {"ipv6_upstream": True}
+            d == "security" and m == "set_ipv6_upstream" and a[:2] == (NETWORK_ID, True)
             for d, m, a, kw in sdk.calls
         ),
     ),
     _case(
         "network.ad_block",
-        {"POST /2.2/networks/1234567/dns_policies/adblock": {}},
+        {"dns_policies.set_network_ad_block": {}},
         lambda hub: make_network(hub).async_set_ad_block(True),
         lambda sdk: any(
-            d == "networks" and m == "post" and kw.get("json") == {"enable": True}
+            d == "dns_policies"
+            and m == "set_network_ad_block"
+            and a[:2] == (NETWORK_ID, True)
+            and "profiles" not in kw
             for d, m, a, kw in sdk.calls
         ),
     ),
     _case(
         "network.block_malware",
-        {"POST /2.2/networks/1234567/dns_policies/network": {}},
+        {"dns_policies.set_network_block_malware": {}},
         lambda hub: make_network(hub).async_set_block_malware(True),
         lambda sdk: any(
-            d == "networks" and m == "post" and kw.get("json") == {"block_malware": True}
+            d == "dns_policies" and m == "set_network_block_malware" and a[:2] == (NETWORK_ID, True)
             for d, m, a, kw in sdk.calls
         ),
     ),
@@ -612,17 +615,12 @@ SETTER_CASES = [
     ),
     _case(
         "client.secondary_wan_allow_access",
-        {"PUT /2.3/networks/1234567/devices/aa": {}},
+        {"wan.set_device_secondary_wan_access": {}},
         lambda hub: eero_api.client.EeroClient(
             hub, make_network(hub), {"url": f"{NETWORK_URL}/devices/aa", "mac": "aa"}
         ).async_set_secondary_wan_allow_access(False),
-        lambda sdk: any(
-            d == "networks"
-            and m == "put"
-            and a[0] == "https://api-user.e2ro.com/2.3/networks/1234567/devices/aa"
-            and kw.get("json") == {"secondary_wan_deny_access": True}
-            for d, m, a, kw in sdk.calls
-        ),
+        lambda sdk: ("wan", "set_device_secondary_wan_access", (NETWORK_ID, "aa"), {"deny": True})
+        in sdk.calls,
     ),
     _case(
         "profile.paused",
@@ -854,10 +852,10 @@ async def test_raw_verb_writes_use_an_absolute_url_with_network_id() -> None:
     Using a relative path would make the SDK re-prefix /2.2 onto an
     already-absolute-looking path, corrupting the request.
     """
-    sdk = FakeSDK({"POST /2.2/networks/1234567/dns_policies/adblock": {}})
+    sdk = FakeSDK({"PUT /2.2/networks/1234567/settings": {}})
     hub = build_hub(sdk=sdk)
 
-    await make_network(hub).async_set_ad_block(True)
+    await make_network(hub).async_set_sqm(True)
 
     (_domain, _method, args, _kwargs) = sdk.calls[-1]
     assert args[0].startswith("https://api-user.e2ro.com/")
