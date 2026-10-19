@@ -428,11 +428,8 @@ class EeroHub:
                     network_id, str(profile_id), timezone=timezone, **window
                 )
             else:
-                # Per-eero usage has no SDK reader; same query, same endpoint.
-                request = self.sdk.data_usage.get(
-                    api_url(f"/2.2/networks/{network_id}/data_usage/{resource}"),
-                    auth_token=await self._token(),
-                    params={**window, "timezone": timezone},
+                request = self.sdk.data_usage.get_eeros_usage(
+                    network_id, timezone=timezone, **window
                 )
         elif resource == "network":
             request = self.sdk.insights.get_insights(

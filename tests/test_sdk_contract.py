@@ -167,6 +167,13 @@ WRITES = [
      ("PUT", f"{NETWORK_URL}/fast_transition", {"json": {"fast_transition": True}})),
     ("network.mlo_mode", "network", "async_set_mlo_mode", ("multi",),
      ("PUT", f"{NETWORK_URL}/mlo_mode", {"json": {"mlo_mode": "multi"}})),
+    ("profile.ad_block_on", "profile", "async_set_ad_block", (True,),
+     ("POST", f"{NETWORK_URL}/dns_policies/adblock",
+      {"json": {"enable": True, "profiles": [f"{NETWORK_URL}/profiles/P1"]}})),
+    ("profile.ad_block_off_last", "profile", "async_set_ad_block", (False,),
+     ("POST", f"{NETWORK_URL}/dns_policies/adblock", {"json": {"enable": False, "profiles": []}})),
+    # Still raw transport, by design (eero-api#174): pinned so an SDK change
+    # that starts rejecting the path is caught.
     ("profile.content_filter", "profile", "async_set_block_gaming_content", (True,),
      ("POST", f"{NETWORK_URL}/dns_policies/profiles/P1", {"json": {"block_gaming_content": True}})),
     ("profile.paused", "profile", "async_set_paused", (True,),

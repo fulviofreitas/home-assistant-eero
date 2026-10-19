@@ -58,7 +58,7 @@ def test_ad_block_false_when_profile_not_listed_or_disabled() -> None:
 
 
 async def test_async_set_ad_block_adds_profile_to_existing_list() -> None:
-    sdk = FakeSDK({f"POST {NETWORK_URL}/dns_policies/adblock": {}})
+    sdk = FakeSDK({"dns_policies.set_network_ad_block": {}})
     hub = build_hub(sdk=sdk)
     profile = make_profile(
         hub,
@@ -69,12 +69,13 @@ async def test_async_set_ad_block_adds_profile_to_existing_list() -> None:
 
     await profile.async_set_ad_block(True)
 
-    _domain, _method, _args, kwargs = sdk.calls[-1]
-    assert kwargs["json"] == {"enable": True, "profiles": ["other", PROFILE_URL]}
+    domain, method, args, kwargs = sdk.calls[-1]
+    assert (domain, method, args[:2]) == ("dns_policies", "set_network_ad_block", (NETWORK_ID, True))
+    assert kwargs["profiles"] == ["other", PROFILE_URL]
 
 
 async def test_async_set_ad_block_removes_profile_from_list() -> None:
-    sdk = FakeSDK({f"POST {NETWORK_URL}/dns_policies/adblock": {}})
+    sdk = FakeSDK({"dns_policies.set_network_ad_block": {}})
     hub = build_hub(sdk=sdk)
     profile = make_profile(
         hub,
@@ -87,12 +88,13 @@ async def test_async_set_ad_block_removes_profile_from_list() -> None:
 
     await profile.async_set_ad_block(False)
 
-    _domain, _method, _args, kwargs = sdk.calls[-1]
-    assert kwargs["json"] == {"enable": True, "profiles": ["other"]}
+    domain, method, args, kwargs = sdk.calls[-1]
+    assert (domain, method, args[:2]) == ("dns_policies", "set_network_ad_block", (NETWORK_ID, True))
+    assert kwargs["profiles"] == ["other"]
 
 
 async def test_async_set_ad_block_disable_clears_enable_flag_when_list_empties() -> None:
-    sdk = FakeSDK({f"POST {NETWORK_URL}/dns_policies/adblock": {}})
+    sdk = FakeSDK({"dns_policies.set_network_ad_block": {}})
     hub = build_hub(sdk=sdk)
     profile = make_profile(
         hub,
@@ -103,8 +105,9 @@ async def test_async_set_ad_block_disable_clears_enable_flag_when_list_empties()
 
     await profile.async_set_ad_block(False)
 
-    _domain, _method, _args, kwargs = sdk.calls[-1]
-    assert kwargs["json"] == {"enable": False, "profiles": []}
+    domain, method, args, kwargs = sdk.calls[-1]
+    assert (domain, method, args[:2]) == ("dns_policies", "set_network_ad_block", (NETWORK_ID, False))
+    assert kwargs["profiles"] == []
 
 
 def test_adblock_day_month_week_sum_from_insights() -> None:

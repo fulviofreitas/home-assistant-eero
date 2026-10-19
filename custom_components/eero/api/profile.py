@@ -69,9 +69,14 @@ class EeroProfile(EeroResource):
                 profiles.append(self.url)
         elif self.url in profiles:
             profiles.remove(self.url)
-        await self.api.post(
-            f"{self.network.url_dns_policies}/adblock",
-            json={"enable": bool(value or profiles), "profiles": profiles},
+        await self.api.call(
+            self.api.sdk.dns_policies.set_network_ad_block(
+                self.network.known_id,
+                bool(value or profiles),
+                profiles=[profile for profile in profiles if profile],
+                parent=self.network.data,
+            ),
+            name=f"{self.network.url_dns_policies}/adblock",
         )
 
     @property
