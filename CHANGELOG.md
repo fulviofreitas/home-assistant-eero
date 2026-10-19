@@ -20,6 +20,13 @@ This file covers two forks:
   content filters, Smart Queue Management and Thread switches keep sending
   their own requests until eero-api has verified methods for them.
 
+## [2.1.2](https://github.com/fulviofreitas/home-assistant-eero/compare/v2.1.1...v2.1.2) (2026-10-19)
+
+
+### Bug Fixes
+
+* **deps:** require eero-api 8.4.0 and use its methods for five requests ([#10](https://github.com/fulviofreitas/home-assistant-eero/issues/10)) ([57e880f](https://github.com/fulviofreitas/home-assistant-eero/commit/57e880fc394e39fb007ea94dc468f87c984389ec))
+
 ## [2.1.1](https://github.com/fulviofreitas/home-assistant-eero/compare/v2.1.0...v2.1.1) (2026-10-12)
 
 ### Fixes
