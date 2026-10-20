@@ -39,7 +39,7 @@ def resource_supports(resource: object, key: str) -> bool:
         getattr(resource, key)
     except AttributeError:
         return False
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         _LOGGER.exception(
             "Error reading %s from %s, skipping entity",
             key,
