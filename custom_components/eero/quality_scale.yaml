@@ -144,12 +144,14 @@ rules:
     comment: >-
       `pytest --cov=custom_components.eero -o addopts="" tests tests/ha`
       (3.14 venv, standalone + HA suites combined) measures 97% line
-      coverage (3848 statements, 123 missed). Every api module is at or near
-      100%; the lowest are config_flow.py 90% (per-network loop edges and
-      the multi-network "next network" branches), __init__.py 91%
-      and device_tracker.py 88%. tests/ha/test_full_fixture.py also asserts
-      that every description key of every platform produces an entity on a
-      fully-featured network and that every writable entity reaches the SDK.
+      coverage (3853 statements, 123 missed). Every api module is at or near
+      100%; the five modules under 92% are update.py 86%, device_tracker.py
+      88%, light.py 89%, config_flow.py 90% (its error arms: the
+      cannot_connect aborts, the failed login and code checks, and the
+      scan-interval/timeout validation error) and __init__.py 91%.
+      tests/ha/test_full_fixture.py also asserts that every description key
+      of every platform produces an entity on a fully-featured network and
+      that every writable entity reaches the SDK.
 
   # Gold
   devices:
