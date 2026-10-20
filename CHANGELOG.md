@@ -9,7 +9,7 @@ This file covers two forks:
 
 # fulviofreitas/home-assistant-eero
 
-## Unreleased
+## [2.2.0](https://github.com/fulviofreitas/home-assistant-eero/compare/v2.1.2...v2.2.0) (2026-10-20)
 
 ### Features
 
@@ -39,7 +39,7 @@ This file covers two forks:
   a burst, at the polling interval). With the WAN sensors disabled they
   behave as before.
 
-## Unreleased
+## [2.1.2](https://github.com/fulviofreitas/home-assistant-eero/compare/v2.1.1...v2.1.2) (2026-10-19)
 
 ### Changes
 
@@ -49,25 +49,6 @@ This file covers two forks:
   own methods for them; the requests sent to eero are unchanged. The profile
   content filters, Smart Queue Management and Thread switches keep sending
   their own requests until eero-api has verified methods for them.
-
-## [2.2.0](https://github.com/fulviofreitas/home-assistant-eero/compare/v2.1.2...v2.2.0) (2026-10-20)
-
-
-### Features
-
-* WAN download and upload sensors from eero's live-usage burst ([#12](https://github.com/fulviofreitas/home-assistant-eero/issues/12)) ([e4c25ae](https://github.com/fulviofreitas/home-assistant-eero/commit/e4c25aeaa021cd33aa0094244948d0bc1663bd99))
-
-
-### Documentation
-
-* the per-client rate sensors go live once the usage burst runs ([#13](https://github.com/fulviofreitas/home-assistant-eero/issues/13)) ([e37b36c](https://github.com/fulviofreitas/home-assistant-eero/commit/e37b36ce4b8d80537e8890adb37d59117bcab4d9))
-
-## [2.1.2](https://github.com/fulviofreitas/home-assistant-eero/compare/v2.1.1...v2.1.2) (2026-10-19)
-
-
-### Bug Fixes
-
-* **deps:** require eero-api 8.4.0 and use its methods for five requests ([#10](https://github.com/fulviofreitas/home-assistant-eero/issues/10)) ([57e880f](https://github.com/fulviofreitas/home-assistant-eero/commit/57e880fc394e39fb007ea94dc468f87c984389ec))
 
 ## [2.1.1](https://github.com/fulviofreitas/home-assistant-eero/compare/v2.1.0...v2.1.1) (2026-10-12)
 
