@@ -9,6 +9,17 @@ This file covers two forks:
 
 # fulviofreitas/home-assistant-eero
 
+## Unreleased
+
+### Fixes
+
+- With two or more networks configured, setup no longer removes each
+  network's eeros, profiles, backup networks and clients from the device
+  registry. A device was dropped as soon as one network did not list it; it
+  is now dropped only when no configured network wants it. A client one
+  network excludes stays while another network includes it. With one
+  network nothing changes.
+
 ## [2.2.0](https://github.com/fulviofreitas/home-assistant-eero/compare/v2.1.2...v2.2.0) (2026-10-20)
 
 ### Features

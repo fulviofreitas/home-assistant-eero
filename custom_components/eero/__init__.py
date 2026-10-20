@@ -391,19 +391,18 @@ def _is_stale_device(
 def _remove_device(
     device_registry: dr.DeviceRegistry, device_entry: dr.DeviceEntry
 ) -> None:
-    """Remove a device the entry no longer configures."""
+    """Remove a device the entry no longer configures.
+
+    Called once per device. Removing a network's device does not remove the
+    devices linked to it by via_device_id, Home Assistant only unlinks them,
+    so every device in the registry snapshot still exists when it is reached.
+    """
     _LOGGER.debug(
         "Removing device entry: %s - %s",
         device_entry.name,
         device_entry.model,
     )
-    try:
-        device_registry.async_remove_device(device_entry.id)
-    except KeyError:
-        # This loop iterates a snapshot of the registry, so a device
-        # already removed as a side effect of removing its
-        # via_device parent is reached a second time.
-        _LOGGER.debug("Device entry %s was already removed", device_entry.id)
+    device_registry.async_remove_device(device_entry.id)
 
 
 @callback
@@ -450,7 +449,17 @@ def _prune_registries(
     conf_resources: dict[str, Any],
     conf_activity: dict[str, Any],
 ) -> None:
-    """Drop the devices and the activity entities the entry no longer configures."""
+    """Drop the devices and the activity entities the entry no longer configures.
+
+    A device goes only when no configured network wants it. The registry
+    cannot say which network a device is on: its identifier is the
+    resource's ID alone, a client that joins several networks is one
+    device, and its via_device_id names whichever network registered it
+    last, or none. Judging it against a single network would drop a device
+    another network still shows.
+    """
+    if not conf_resources:
+        return
     device_registry = dr.async_get(hass)
     entity_registry = er.async_get(hass)
 
@@ -462,13 +471,15 @@ def _prune_registries(
             device_entry.name,
             device_entry.model,
         )
-        for network_id, resources in conf_resources.items():
-            if _is_stale_device(device_entry, network_id, resources):
-                _remove_device(device_registry, device_entry)
-            else:
-                _remove_unselected_activity_entities(
-                    entity_registry, device_entry, conf_activity
-                )
+        if all(
+            _is_stale_device(device_entry, network_id, resources)
+            for network_id, resources in conf_resources.items()
+        ):
+            _remove_device(device_registry, device_entry)
+        else:
+            _remove_unselected_activity_entities(
+                entity_registry, device_entry, conf_activity
+            )
 
 
 def _warn_consider_home(
