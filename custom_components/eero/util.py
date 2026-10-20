@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from typing import Any
 
 from .api.client import EeroClient
@@ -16,6 +17,13 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def stored_setting(
+    options: Mapping[str, Any], data: Mapping[str, Any], key: str, default: Any
+) -> Any:
+    """Return a setting of a config entry: its option, else its data, else the default."""
+    return options.get(key, data.get(key, default))
 
 
 def resource_supports(resource: object, key: str) -> bool:
