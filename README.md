@@ -304,7 +304,7 @@ A Beacon has the eero entities above, plus:
 | IP Address | sensor | The device's IP address. | |
 | Last Active | sensor | When the device was last active. | |
 | Signal Strength | sensor | Wi-Fi signal, in dBm. | Wireless only |
-| Download Rate, Upload Rate | sensor | Current throughput, in Mbit/s. | |
+| Download Rate, Upload Rate | sensor | The client's current throughput, in Mbit/s, as refreshed by the network's usage burst. Stale or zero unless the network's WAN download or WAN upload sensor is enabled, which makes the burst run every minute; then live on each fast poll. | |
 | Allow Internet Backup | switch | Whether the device may use backup internet. | Plus |
 | Data Usage, Ad Blocks, Threat Blocks, Scans (Day / Week / Month) | sensor | Per-device activity. | Activity (all but data usage week need Plus) |
 

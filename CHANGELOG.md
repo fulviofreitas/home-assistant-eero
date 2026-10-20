@@ -31,6 +31,13 @@ This file covers two forks:
 
 - Requires `eero-api` 8.4.1 (was 8.4.0), where the burst request is
   live-verified and no longer logs a warning.
+- The per-client **Download Rate** and **Upload Rate** sensors read the same
+  per-device `usage` block the burst refreshes. Until now that block was
+  stale or zero, because nothing ever requested a burst; once a network's
+  WAN download or WAN upload sensor is enabled, the burst runs every minute
+  and these sensors show live values on each fast poll (the next poll after
+  a burst, at the polling interval). With the WAN sensors disabled they
+  behave as before.
 
 ## Unreleased
 
