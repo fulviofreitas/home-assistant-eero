@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import importlib.util
 from pathlib import Path
 
+from helpers import load_module
+
 MODULE = Path(__file__).resolve().parents[1] / "custom_components" / "eero" / "device_removal.py"
-spec = importlib.util.spec_from_file_location("eero_device_removal", MODULE)
-dr = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(dr)
+dr = load_module("eero_device_removal", MODULE)
 
 DOMAIN = "eero"
 CLIENTS = ("Client (Wired)", "Client (Wireless)")

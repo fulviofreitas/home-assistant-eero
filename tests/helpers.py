@@ -12,6 +12,7 @@ import importlib.util
 import json
 from pathlib import Path
 import sys
+from types import ModuleType
 from typing import Any
 from urllib.parse import urlparse
 
@@ -22,19 +23,32 @@ FIXTURE_DIR = Path(__file__).parent / "fixtures"
 _VERBS = {"get": "GET", "put": "PUT", "post": "POST", "delete": "DELETE"}
 
 
-def load_api():
+def load_module(name: str, path: Path, *, register: bool = False) -> ModuleType:
+    """Load the module at ``path`` under ``name``.
+
+    A package's ``__init__.py`` becomes a package that searches its own
+    directory, so its submodules and relative imports resolve. Pass
+    ``register=True`` to put the module in ``sys.modules`` before it runs,
+    which a package needs for those relative imports.
+
+    Raises:
+        ImportError: ``path`` has no usable import spec or loader.
+    """
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load {name!r} from {path}", name=name, path=str(path))
+    module = importlib.util.module_from_spec(spec)
+    if register:
+        sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def load_api() -> ModuleType:
     """Load custom_components/eero/api as a standalone package."""
     if (module := sys.modules.get("eero_api")) is not None:
         return module
-    spec = importlib.util.spec_from_file_location(
-        "eero_api",
-        API_DIR / "__init__.py",
-        submodule_search_locations=[str(API_DIR)],
-    )
-    module = importlib.util.module_from_spec(spec)
-    sys.modules["eero_api"] = module
-    spec.loader.exec_module(module)
-    return module
+    return load_module("eero_api", API_DIR / "__init__.py", register=True)
 
 
 def __getattr__(name: str) -> Any:

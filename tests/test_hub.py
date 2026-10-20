@@ -6,11 +6,9 @@ requests-based client (b989da7, the commit immediately before this SDK port).
 from __future__ import annotations
 
 from datetime import time as _time
-import importlib.util
 import json
 from pathlib import Path
 import subprocess
-import sys
 
 import pytest
 
@@ -20,7 +18,7 @@ from eero.exceptions import (
     EeroNotFoundException,
     EeroPremiumRequiredException,
 )
-from helpers import FakeSDK, build_hub, eero_api
+from helpers import FakeSDK, build_hub, eero_api, load_module
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -973,15 +971,7 @@ def _load_old_api(tmp_path):
         ).stdout
         dest = checkout / Path(repo_path).name
         dest.write_text(content)
-    spec = importlib.util.spec_from_file_location(
-        "eero_api_old",
-        checkout / "__init__.py",
-        submodule_search_locations=[str(checkout)],
-    )
-    module = importlib.util.module_from_spec(spec)
-    sys.modules["eero_api_old"] = module
-    spec.loader.exec_module(module)
-    return module
+    return load_module("eero_api_old", checkout / "__init__.py", register=True)
 
 
 class _OldFakeResponse:
