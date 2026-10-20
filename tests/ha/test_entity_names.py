@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import importlib
 import json
 from pathlib import Path
 import re
 from string import Formatter
+from types import ModuleType
 from typing import Any
 
 from homeassistant.helpers import entity_registry as er
@@ -14,6 +14,8 @@ from homeassistant.helpers.typing import UNDEFINED
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 import pytest
 
+import custom_components.eero.binary_sensor
+import custom_components.eero.button
 from custom_components.eero.const import (
     CONF_BACKUP_NETWORKS,
     CONF_EEROS,
@@ -26,25 +28,36 @@ from custom_components.eero.const import (
     CONF_WIRELESS_CLIENTS_FILTER,
     DOMAIN,
 )
+import custom_components.eero.device_tracker
 from custom_components.eero.entity import EeroEntityDescription
+import custom_components.eero.event
+import custom_components.eero.light
+import custom_components.eero.number
+import custom_components.eero.select
+import custom_components.eero.sensor
+import custom_components.eero.switch
+import custom_components.eero.text
+import custom_components.eero.time
+import custom_components.eero.update
 
 from conftest import NETWORK_ID, entry_data, network_envelope
 
 COMPONENT = Path(__file__).resolve().parents[2] / "custom_components" / DOMAIN
-PLATFORMS = (
-    "binary_sensor",
-    "button",
-    "device_tracker",
-    "event",
-    "light",
-    "number",
-    "select",
-    "sensor",
-    "switch",
-    "text",
-    "time",
-    "update",
-)
+PLATFORM_MODULES: dict[str, ModuleType] = {
+    "binary_sensor": custom_components.eero.binary_sensor,
+    "button": custom_components.eero.button,
+    "device_tracker": custom_components.eero.device_tracker,
+    "event": custom_components.eero.event,
+    "light": custom_components.eero.light,
+    "number": custom_components.eero.number,
+    "select": custom_components.eero.select,
+    "sensor": custom_components.eero.sensor,
+    "switch": custom_components.eero.switch,
+    "text": custom_components.eero.text,
+    "time": custom_components.eero.time,
+    "update": custom_components.eero.update,
+}
+PLATFORMS = tuple(PLATFORM_MODULES)
 
 
 def _load(path: Path) -> dict:
@@ -56,9 +69,8 @@ STRINGS = _load(COMPONENT / "strings.json")
 
 def _descriptions(platform: str) -> list[Any]:
     """Every entity description a platform module defines at module level."""
-    module = importlib.import_module(f"custom_components.{DOMAIN}.{platform}")
     found = []
-    for value in vars(module).values():
+    for value in vars(PLATFORM_MODULES[platform]).values():
         if isinstance(value, (list, tuple)):
             found.extend(
                 item
