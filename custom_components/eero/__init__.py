@@ -8,7 +8,7 @@ from typing import Any
 
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import CONF_SCAN_INTERVAL, Platform
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers import (
     config_validation as cv,
@@ -133,6 +133,7 @@ def _was_selected(
     )
 
 
+@callback
 def _migrate_resources(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
@@ -386,6 +387,7 @@ def _is_stale_device(
     )
 
 
+@callback
 def _remove_device(
     device_registry: dr.DeviceRegistry, device_entry: dr.DeviceEntry
 ) -> None:
@@ -404,6 +406,7 @@ def _remove_device(
         _LOGGER.debug("Device entry %s was already removed", device_entry.id)
 
 
+@callback
 def _remove_unselected_activity_entities(
     entity_registry: er.EntityRegistry,
     device_entry: dr.DeviceEntry,
@@ -440,6 +443,7 @@ def _remove_unselected_activity_entities(
             entity_registry.async_remove(entity_entry.entity_id)
 
 
+@callback
 def _prune_registries(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
@@ -485,6 +489,7 @@ def _warn_consider_home(
                 )
 
 
+@callback
 def _register_network_devices(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
