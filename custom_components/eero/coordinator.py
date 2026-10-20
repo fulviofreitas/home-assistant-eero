@@ -4,8 +4,10 @@ One DataUpdateCoordinator per cadence, each owning its own eero-api calls:
 
 - fast (the scan interval option): network, clients, profiles, eeros.
 - hourly: insights and data usage series, which the API aggregates hourly.
-- daily, and on demand after a setter that touches it: Thread, backup access
-  points, backup internet, entitlements, firmware updates.
+- daily, and on demand after a setter that touches it: block list, schedules,
+  reservations, port forwards, fast transition, eero ports, Thread, backup
+  access points, backup internet, entitlements, firmware updates and their
+  release notes.
 
 A fourth coordinator, the burst one, is not a tier: while a WAN throughput
 sensor is enabled it requests a live-usage burst every minute and reads the

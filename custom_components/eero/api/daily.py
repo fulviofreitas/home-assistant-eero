@@ -1,4 +1,10 @@
-"""The daily tier: Thread, backup access points, backup internet, entitlements, updates.
+"""The daily tier: the lists, settings and hardware that rarely change.
+
+It reads the block list, the profiles' schedules, the DHCP reservations, the
+port forwards, fast transition, the eeros' ports (connections), Thread, the
+entitlements, the backup access points and backup internet, and the firmware
+updates with their release notes. Which of them are read follows the update
+config, the network's resources and capabilities, and the premium plan.
 
 These change when somebody changes them, so they are polled daily and
 refreshed on demand after a setter that touches them.
@@ -20,7 +26,7 @@ if TYPE_CHECKING:
 async def fetch_daily(
     hub: EeroHub, network_id: str, network: dict[str, Any], config: EeroUpdateConfig
 ) -> dict[str, Any]:
-    """Thread, backup access points, backup internet, entitlements, updates."""
+    """Everything the daily tier reads, as one payload (see the module docstring)."""
     payload: dict[str, Any] = {}
     resources = network.get("resources") or {}
     await _read_clients(hub, network_id, config, payload)

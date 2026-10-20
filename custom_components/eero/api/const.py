@@ -237,9 +237,10 @@ ACTIVITY_MAP: dict[str, list[str | None]] = {
         PERIOD_WEEK,
     ],
     # Routed to data_usage.get_unprofiled_summary/get_eeros_summary by
-    # EeroHub.update_activity, which checks for these two activity keys
-    # before falling back to the generic family/resource branching below;
-    # the family/insight_type placeholders here are unused in that path.
+    # hourly._special_activity_request, which _activity_request checks for
+    # these two activity keys before falling back to the generic
+    # family/resource branching; the family/insight_type placeholders here
+    # are unused in that path.
     ACTIVITY_UNPROFILED_DATA_USAGE_DAY: [
         "{}/data_usage",
         None,
@@ -251,7 +252,7 @@ ACTIVITY_MAP: dict[str, list[str | None]] = {
         PERIOD_DAY,
     ],
     # No time window at all; period/family placeholders unused, see
-    # EeroHub.update_activity.
+    # hourly._special_activity_request and hourly._activity_series.
     ACTIVITY_APP_EVENTS: [
         "{}/app_events",
         None,

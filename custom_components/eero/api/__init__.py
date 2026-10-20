@@ -385,10 +385,11 @@ class EeroHub:
     async def fetch_daily(
         self, network_id: str, network: dict[str, Any], config: EeroUpdateConfig
     ) -> dict[str, Any]:
-        """Thread, backup access points, backup internet, entitlements, updates.
+        """The lists, settings, hardware and firmware updates of the daily tier.
 
         These change when somebody changes them, so they are polled daily and
-        refreshed on demand after a setter that touches them.
+        refreshed on demand after a setter that touches them. What is read is
+        listed in the docstring of api/daily.py.
         """
         return await daily_tier.fetch_daily(self, network_id, network, config)
 
