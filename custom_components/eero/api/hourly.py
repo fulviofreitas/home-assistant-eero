@@ -71,7 +71,7 @@ async def update_activity(
     request, name = await _activity_request(
         hub, activity, network_id, resource, timezone, profile_id
     )
-    data = await hub._optional(request, name, network_id, activity)
+    data = await hub.call_optional(request, name, network_id, activity)
     return _activity_series(activity, {} if data is None else data)
 
 
@@ -193,7 +193,7 @@ async def _insights_request(
         )
     return hub.sdk.insights.get(
         api_url(f"/2.2/networks/{network_id}/insights/{resource}"),
-        auth_token=await hub._token(),
+        auth_token=await hub.require_token(),
         params={**window, "insight_type": insight_type},
     )
 

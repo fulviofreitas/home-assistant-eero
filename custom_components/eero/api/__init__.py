@@ -156,7 +156,13 @@ class EeroHub:
 
     # -- transport -------------------------------------------------------
 
-    async def _token(self) -> str:
+    async def require_token(self) -> str:
+        """Return the token the SDK is using now, or raise if there is none.
+
+        For the requests the SDK has no method for and the tier modules send
+        through its generic ``get``; async_current_token() answers None
+        instead.
+        """
         if not (token := await self.async_current_token()):
             raise EeroAuthenticationException("Not authenticated")
         return token
@@ -177,21 +183,21 @@ class EeroHub:
     async def get(self, path: str, **kwargs: Any) -> Any:
         """GET an endpoint the SDK has no method for."""
         return await self.call(
-            self.sdk.networks.get(api_url(path), auth_token=await self._token(), **kwargs),
+            self.sdk.networks.get(api_url(path), auth_token=await self.require_token(), **kwargs),
             name=path,
         )
 
     async def put(self, path: str, **kwargs: Any) -> Any:
         """PUT to an endpoint the SDK has no method for."""
         return await self.call(
-            self.sdk.networks.put(api_url(path), auth_token=await self._token(), **kwargs),
+            self.sdk.networks.put(api_url(path), auth_token=await self.require_token(), **kwargs),
             name=path,
         )
 
     async def post(self, path: str, **kwargs: Any) -> Any:
         """POST to an endpoint the SDK has no method for."""
         return await self.call(
-            self.sdk.networks.post(api_url(path), auth_token=await self._token(), **kwargs),
+            self.sdk.networks.post(api_url(path), auth_token=await self.require_token(), **kwargs),
             name=path,
         )
 
@@ -199,12 +205,12 @@ class EeroHub:
         """DELETE an endpoint the SDK has no method for."""
         return await self.call(
             self.sdk.networks.delete(
-                api_url(path), auth_token=await self._token(), **kwargs
+                api_url(path), auth_token=await self.require_token(), **kwargs
             ),
             name=path,
         )
 
-    async def _optional(
+    async def call_optional(
         self,
         request: Awaitable[dict[str, Any]],
         name: str,
