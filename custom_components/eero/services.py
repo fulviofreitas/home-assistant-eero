@@ -55,25 +55,23 @@ from .const import (
 )
 from .coordinator import EeroRuntime
 
+# Names or IDs, each kept as a string: the IDs the targets are compared with
+# are strings, so an ID given as a number (12345, or "12345" read back as
+# one) must not be turned into an int, and a name made of digits keeps its
+# leading zeros.
+_TARGETS = vol.All(cv.ensure_list, [cv.string])
+
 SET_BLOCKED_APPS_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_BLOCKED_APPS): vol.All(
             cv.ensure_list, [vol.In(SUPPORTED_APPS.keys())]
         ),
-        vol.Optional(ATTR_TARGET_PROFILE, default=[]): vol.All(
-            cv.ensure_list, [vol.Any(cv.positive_int, cv.string)]
-        ),
-        vol.Optional(ATTR_TARGET_NETWORK, default=[]): vol.All(
-            cv.ensure_list, [vol.Any(cv.positive_int, cv.string)]
-        ),
+        vol.Optional(ATTR_TARGET_PROFILE, default=[]): _TARGETS,
+        vol.Optional(ATTR_TARGET_NETWORK, default=[]): _TARGETS,
     }
 )
 
-_TARGET_NETWORK_REQUIRED = {
-    vol.Required(ATTR_TARGET_NETWORK): vol.All(
-        cv.ensure_list, [vol.Any(cv.positive_int, cv.string)]
-    )
-}
+_TARGET_NETWORK_REQUIRED = {vol.Required(ATTR_TARGET_NETWORK): _TARGETS}
 
 CREATE_RESERVATION_SCHEMA = vol.Schema(
     {
