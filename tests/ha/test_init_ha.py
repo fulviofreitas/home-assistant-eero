@@ -1272,7 +1272,7 @@ async def test_an_action_failure_on_one_target_does_not_skip_the_others(hass) ->
     """Every target is tried; the failures are raised together at the end."""
     from homeassistant.exceptions import HomeAssistantError
 
-    from custom_components.eero import _ActionFailures
+    from custom_components.eero.services import _ActionFailures
     from custom_components.eero.api import EeroAuthenticationException, EeroException
 
     entry = make_entry(hass)

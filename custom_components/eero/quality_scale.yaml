@@ -5,8 +5,9 @@ rules:
     comment: >-
       Every action (set_blocked_apps, create/delete_reservation,
       create/delete_port_forward, set_custom_dns) is registered in
-      async_setup, whether or not anything is configured, and the handlers
-      skip entries that are not loaded.
+      async_setup (through async_setup_services in services.py), whether or
+      not anything is configured, and the handlers skip entries that are not
+      loaded.
   appropriate-polling:
     status: done
     comment: >-
@@ -27,7 +28,7 @@ rules:
     status: done
     comment: >-
       The coordinators and the per-entry runtime live in coordinator.py, the
-      base entity in entity.py.
+      base entity in entity.py, the actions in services.py.
   config-flow:
     status: done
     comment: >-
