@@ -297,3 +297,47 @@ async def test_diagnostics_carry_the_burst_readings(hass, sdk_factory, freezer) 
     assert burst["readings"][NETWORK_ID]["down_mbps"] == 12.125
     assert burst["readings"][NETWORK_ID]["devices"] == 2
     assert burst["readings"][NETWORK_ID]["next_burst"] == NEXT_BURST
+
+
+async def test_per_client_rate_sensors_follow_the_device_list_on_the_next_fast_poll(
+    hass, sdk_factory, freezer
+) -> None:
+    """The client Download/Upload Rate sensors read the usage block the burst refreshes.
+
+    Pins the changelog claim: once the burst runs, each fast poll's device
+    read carries the refreshed per-device usage, and these sensors show it.
+    """
+    from custom_components.eero.const import (
+        CONF_FILTER_EXCLUDE,
+        CONF_RESOURCES,
+        CONF_WIRED_CLIENTS_FILTER,
+        CONF_WIRELESS_CLIENTS_FILTER,
+        TIER_FAST,
+    )
+
+    sdk = sdk_factory(
+        {BURST: {"next_burst": NEXT_BURST}, "devices.get_devices": devices()}
+    )
+    data = entry_data()
+    data[CONF_RESOURCES][NETWORK_ID][CONF_WIRED_CLIENTS_FILTER] = CONF_FILTER_EXCLUDE
+    data[CONF_RESOURCES][NETWORK_ID][CONF_WIRELESS_CLIENTS_FILTER] = CONF_FILTER_EXCLUDE
+    entry = MockConfigEntry(domain=DOMAIN, version=3, minor_version=0, data=data, options={})
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    registry = er.async_get(hass)
+    down = registry.async_get_entity_id("sensor", DOMAIN, f"{NETWORK_ID}-aa-usage_down")
+    up = registry.async_get_entity_id("sensor", DOMAIN, f"{NETWORK_ID}-aa-usage_up")
+    assert down and up
+    assert hass.states.get(down).state == "10.125"
+    assert hass.states.get(up).state == "1.5"
+
+    refreshed = devices()
+    refreshed[0]["usage"] = {"down_mbps": 42.5, "up_mbps": 3.25}
+    sdk.set_route("devices.get_devices", refreshed)
+    await entry.runtime_data.coordinator(TIER_FAST).async_refresh()
+    await hass.async_block_till_done()
+
+    assert hass.states.get(down).state == "42.5"
+    assert hass.states.get(up).state == "3.25"
