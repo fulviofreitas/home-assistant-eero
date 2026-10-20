@@ -28,7 +28,8 @@ rules:
     status: done
     comment: >-
       The coordinators and the per-entry runtime live in coordinator.py, the
-      base entity in entity.py, the actions in services.py.
+      base entity in entity.py, the actions in services.py, the forms of the
+      config and options flows in schemas.py.
   config-flow:
     status: done
     comment: >-
@@ -41,7 +42,8 @@ rules:
       invalid_login/invalid_code, already_configured, reauth (success and
       wrong_account), reconfigure (success, overriding an existing options
       value, and the validation error) and the options flow (happy path, and
-      running while the entry is not loaded). config_flow.py itself measures 89% line coverage (see
+      running while the entry is not loaded). config_flow.py itself measures 90% line
+      coverage and schemas.py, which builds the forms both flows share, 94% (see
       test-coverage below).
   dependency-transparency:
     status: done
@@ -142,8 +144,8 @@ rules:
     comment: >-
       `pytest --cov=custom_components.eero -o addopts="" tests tests/ha`
       (3.14 venv, standalone + HA suites combined) measures 97% line
-      coverage (3456 statements, 115 missed). Every api module is at or near
-      100%; the lowest are config_flow.py 89% (per-network loop edges and
+      coverage (3848 statements, 123 missed). Every api module is at or near
+      100%; the lowest are config_flow.py 90% (per-network loop edges and
       the multi-network "next network" branches), __init__.py 91%
       and device_tracker.py 88%. tests/ha/test_full_fixture.py also asserts
       that every description key of every platform produces an entity on a
