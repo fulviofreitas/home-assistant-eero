@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import pytest
 
-from eero.exceptions import EeroAuthenticationException, EeroRateLimitException
+from eero.exceptions import EeroAuthenticationException, EeroException, EeroRateLimitException
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.eero.const import (
@@ -135,8 +135,6 @@ async def test_rate_limit_honours_retry_after_capped_at_an_hour(hass, sdk_factor
     """A Retry-After longer than the backoff is waited out, up to one hour, on every tier."""
     from datetime import timedelta
 
-    from custom_components.eero.const import TIER_DAILY
-
     sdk = sdk_factory()
     entry = make_entry(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
@@ -175,8 +173,6 @@ async def test_a_failed_daily_poll_retries_within_minutes_then_resets(
 
     from eero.exceptions import EeroAPIException
 
-    from custom_components.eero.const import TIER_DAILY
-
     sdk = sdk_factory()
     entry = make_entry(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
@@ -201,8 +197,6 @@ async def test_a_gone_network_issue_names_the_network(hass, sdk_factory) -> None
     """The repair issue for a network the API no longer returns uses its name."""
     from eero.exceptions import EeroNotFoundException
     from homeassistant.helpers import issue_registry as ir
-
-    from custom_components.eero.const import DOMAIN
 
     sdk = sdk_factory()
     entry = make_entry(hass)
@@ -1273,7 +1267,6 @@ async def test_an_action_failure_on_one_target_does_not_skip_the_others(hass) ->
     from homeassistant.exceptions import HomeAssistantError
 
     from custom_components.eero.services import _ActionFailures
-    from custom_components.eero.api import EeroAuthenticationException, EeroException
 
     entry = make_entry(hass)
     done: list[str] = []
