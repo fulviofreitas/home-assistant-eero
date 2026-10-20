@@ -12,15 +12,19 @@
 
 engines:
   # pytest requires bare `assert` (B101), and the tests feed literal
-  # placeholder credentials to fake SDK sessions (B105/B106/B107). Bandit is
-  # meaningful on custom_components/ only.
+  # placeholder credentials to fake SDK sessions (B105/B106/B107).
+  # tests/test_hub.py runs `git ls-tree` / `git show` (B404/B603/B607) with a
+  # fixed argv and no shell, against a pinned commit of this repository's own
+  # history, to measure the 1.9.3 client. Bandit is meaningful on
+  # custom_components/ only.
   bandit:
     exclude_paths:
       - "tests/**"
 
   # Codacy runs Pylint without pytest, Home Assistant or the eero-api SDK
-  # installed, and pytest fixture injection shadows module-level fixture
-  # names by design (W0621).
+  # installed, and tests/helpers.py loads `eero_api` lazily through a PEP 562
+  # module __getattr__ (so the api package does not run at conftest import),
+  # which Pylint cannot see: `from helpers import eero_api` is E0611.
   pylintpython3:
     exclude_paths:
       - "tests/**"
