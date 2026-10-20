@@ -61,8 +61,8 @@ class RecordingSession:
         return _Response({"meta": {"code": 200}, "data": self.data})
 
 
-@pytest.fixture
-async def wire():
+@pytest.fixture(name="wire")
+async def wire_fixture():
     """Return (session, hub, models) with a real SDK on a recording session."""
     session = RecordingSession()
     hub = eero_api.EeroHub(session=session, sdk=EeroSDK(session=session, use_keyring=False))
