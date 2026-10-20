@@ -92,7 +92,7 @@ async def async_setup_entry(
     )
 
 
-class EeroBinarySensorEntity(EeroEntity, BinarySensorEntity):
+class EeroBinarySensorEntity(EeroEntity[EeroBinarySensorEntityDescription], BinarySensorEntity):
     """Representation of an Eero binary sensor entity."""
 
     entity_description: EeroBinarySensorEntityDescription

@@ -567,7 +567,7 @@ class EeroWanThroughputSensor(CoordinatorEntity[EeroBurstCoordinator], SensorEnt
         self.async_write_ha_state()
 
 
-class EeroSensorEntity(EeroEntity, SensorEntity):
+class EeroSensorEntity(EeroEntity[EeroSensorEntityDescription], SensorEntity):
     """Representation of an Eero sensor entity."""
 
     entity_description: EeroSensorEntityDescription

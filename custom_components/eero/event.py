@@ -63,7 +63,7 @@ async def async_setup_entry(
     )
 
 
-class EeroEventEntity(EeroEntity, EventEntity):
+class EeroEventEntity(EeroEntity[EeroEventEntityDescription], EventEntity):
     """Representation of an Eero event entity.
 
     Fires EVENT_TYPE_APP_EVENT for every app event the network reports that

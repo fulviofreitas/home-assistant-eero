@@ -235,7 +235,7 @@ async def async_setup_entry(
     )
 
 
-class EeroSwitchEntity(EeroEntity, SwitchEntity):
+class EeroSwitchEntity(EeroEntity[EeroSwitchEntityDescription], SwitchEntity):
     """Representation of an Eero switch entity."""
 
     entity_description: EeroSwitchEntityDescription

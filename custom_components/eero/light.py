@@ -65,7 +65,7 @@ async def async_setup_entry(
     )
 
 
-class EeroLightEntity(EeroEntity, LightEntity):
+class EeroLightEntity(EeroEntity[EeroLightEntityDescription], LightEntity):
     """Representation of an Eero light entity."""
 
     entity_description: EeroLightEntityDescription

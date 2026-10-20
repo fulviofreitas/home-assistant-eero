@@ -93,7 +93,7 @@ async def async_setup_entry(
     )
 
 
-class EeroButtonEntity(EeroEntity, ButtonEntity):
+class EeroButtonEntity(EeroEntity[EeroButtonEntityDescription], ButtonEntity):
     """Representation of an Eero button entity."""
 
     entity_description: EeroButtonEntityDescription

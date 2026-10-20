@@ -117,7 +117,7 @@ def iter_resources(
                 yield KIND_CLIENTS, client
 
 
-def build_entities[EntityT: "EeroEntity"](
+def build_entities[EntityT: "EeroEntity[Any]"](
     runtime: EeroRuntime,
     descriptions: list[Any],
     entity_class: type[EntityT],
@@ -169,7 +169,7 @@ def build_entities[EntityT: "EeroEntity"](
     return entities
 
 
-def async_setup_platform_entities[EntityT: "EeroEntity"](
+def async_setup_platform_entities[EntityT: "EeroEntity[Any]"](
     config_entry: EeroConfigEntry,
     descriptions: list[Any],
     entity_class: type[EntityT],
@@ -274,18 +274,26 @@ def resource_device_info(
     return device_info
 
 
-class EeroEntity(CoordinatorEntity[EeroTierCoordinator]):
-    """Representation of an Eero entity."""
+class EeroEntity[DescriptionT: EeroEntityDescription](CoordinatorEntity[EeroTierCoordinator]):
+    """Representation of an Eero entity.
+
+    Generic in its description type: a platform class subclasses
+    EeroEntity[EeroXEntityDescription], so that entity_description has one
+    type through the whole hierarchy. It still repeats the annotation
+    (entity_description: EeroXEntityDescription) because Home Assistant's
+    platform base classes (BinarySensorEntity, ...) declare their own, and
+    mypy needs the class to settle which of the two it means.
+    """
 
     _attr_has_entity_name = True
-    entity_description: EeroEntityDescription
+    entity_description: DescriptionT
 
     def __init__(
         self,
         runtime: EeroRuntime,
         network_id: str,
         resource_id: str | None,
-        description: EeroEntityDescription,
+        description: DescriptionT,
         tier: str | None = None,
     ) -> None:
         """Initialize device."""

@@ -76,7 +76,7 @@ async def async_setup_entry(
     )
 
 
-class EeroSelectEntity(EeroEntity, SelectEntity):
+class EeroSelectEntity(EeroEntity[EeroSelectEntityDescription], SelectEntity):
     """Representation of an Eero select entity."""
 
     entity_description: EeroSelectEntityDescription
