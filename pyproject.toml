@@ -44,8 +44,10 @@ ignore = [
 # not install.
 python_version = "3.14"
 strict = true
-# custom_components/ has no __init__.py, so without these mypy would name the
-# integration package plain "eero" and shadow the eero-api SDK of the same name.
+# custom_components/__init__.py is what keeps the tools from naming the
+# integration package plain "eero", which would shadow the eero-api SDK of the
+# same name. These two settings predate it and are now redundant for that; they
+# are kept so mypy keeps naming modules from the repository root.
 explicit_package_bases = true
 mypy_path = "$MYPY_CONFIG_FILE_DIR"
 
