@@ -37,7 +37,7 @@ async def _read_clients(
     """Read what the client entities need: the block list and bedtime schedules."""
     if config.get_blacklist:
         payload["blacklist"] = (
-            await hub._optional(
+            await hub.call_optional(
                 hub.sdk.blacklist.get_blacklist(network_id),
                 f"/2.2/networks/{network_id}/blacklist",
                 network_id,
@@ -53,7 +53,7 @@ async def _read_clients(
                 # profile IDs to resolve schedules for.
                 continue
             schedules[profile_id] = (
-                await hub._optional(
+                await hub.call_optional(
                     hub.sdk.schedule.get_schedules(network_id, profile_id),
                     f"/2.2/networks/{network_id}/profiles/{profile_id}/schedules",
                     network_id,
@@ -69,7 +69,7 @@ async def _read_network_settings(
 ) -> None:
     """Read the network's reservations, port forwards and fast transition."""
     payload["reservations"] = (
-        await hub._optional(
+        await hub.call_optional(
             hub.sdk.reservations.get_reservations(network_id),
             f"/2.2/networks/{network_id}/reservations",
             network_id,
@@ -78,7 +78,7 @@ async def _read_network_settings(
         or []
     )
     payload["forwards"] = (
-        await hub._optional(
+        await hub.call_optional(
             hub.sdk.forwards.get_forwards(network_id),
             f"/2.2/networks/{network_id}/forwards",
             network_id,
@@ -86,7 +86,7 @@ async def _read_network_settings(
         )
         or []
     )
-    payload["fast_transition"] = await hub._optional(
+    payload["fast_transition"] = await hub.call_optional(
         hub.sdk.security.get_fast_transition(network_id),
         f"/2.2/networks/{network_id}/fast_transition",
         network_id,
@@ -106,7 +106,7 @@ async def _read_hardware(
         connections: dict[str, Any] = {}
         for eero_id in config.eeros:
             connections[eero_id] = (
-                await hub._optional(
+                await hub.call_optional(
                     hub.sdk.eeros.get_connections(network_id, eero_id),
                     f"/2.2/eeros/{eero_id}/connections",
                     network_id,
@@ -116,13 +116,13 @@ async def _read_hardware(
             )
         payload["connections"] = connections
     if resources.get("thread"):
-        payload["thread"] = await hub._optional(
+        payload["thread"] = await hub.call_optional(
             hub.sdk.thread.get_thread(network_id),
             f"/2.2/networks/{network_id}/thread",
             network_id,
             "thread",
         )
-    payload["features"] = await hub._optional(
+    payload["features"] = await hub.call_optional(
         hub.sdk.entitlements.get_features(network_id),
         f"/2.2/entitlements/networks/{network_id}/features",
         network_id,
@@ -150,7 +150,7 @@ async def _read_backup(
     ):
         if premium_enabled(network, payload["features"]):
             payload["backup_access_points"] = (
-                await hub._optional(
+                await hub.call_optional(
                     hub.sdk.backup_access_points.list(network_id),
                     f"/2.2/networks/{network_id}/backup_access_points",
                     network_id,
@@ -158,7 +158,7 @@ async def _read_backup(
                 )
                 or []
             )
-            payload["backup_internet"] = await hub._optional(
+            payload["backup_internet"] = await hub.call_optional(
                 hub.sdk.backup.get_backup_internet(network_id),
                 f"/2.2/networks/{network_id}/backupinternet",
                 network_id,
@@ -174,7 +174,7 @@ async def _read_updates(
     payload: dict[str, Any],
 ) -> None:
     """Read the firmware updates and, if wanted, their release notes."""
-    updates = await hub._optional(
+    updates = await hub.call_optional(
         hub.sdk.updates.get_updates(network_id),
         f"/2.2/networks/{network_id}/updates",
         network_id,

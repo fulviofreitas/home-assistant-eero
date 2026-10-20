@@ -1,4 +1,4 @@
-"""Unit tests for EeroHub: activity query shape, setter→SDK mapping, _optional,
+"""Unit tests for EeroHub: activity query shape, setter→SDK mapping, call_optional,
 premium_enabled, and the fast-tier request-count comparison against the old
 requests-based client (b989da7, the commit immediately before this SDK port).
 """
@@ -137,7 +137,7 @@ async def test_app_events_and_has_unread_route_to_their_sdk_methods_and_shapes()
     assert ("notifications", "has_unread", (NETWORK_ID,), {}) in sdk.calls
 
 
-# -- _optional -----------------------------------------------------------
+# -- call_optional -------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -155,7 +155,7 @@ async def test_optional_collects_unavailable_features(exc, expected_premium) -> 
         raise exc
 
     with eero_api.collect_unavailable() as found:
-        result = await hub._optional(failing(), "name", NETWORK_ID, "thread")
+        result = await hub.call_optional(failing(), "name", NETWORK_ID, "thread")
 
     assert result is None
     assert len(found) == 1
@@ -179,7 +179,7 @@ async def test_optional_absorbs_not_found_and_access_denied_silently(exc) -> Non
         raise exc
 
     with eero_api.collect_unavailable() as found:
-        result = await hub._optional(failing(), "name", NETWORK_ID, "thread")
+        result = await hub.call_optional(failing(), "name", NETWORK_ID, "thread")
 
     assert result is None
     assert found == []
@@ -207,7 +207,7 @@ async def test_optional_propagates_other_exceptions() -> None:
         raise eero_api.EeroException("boom")
 
     with pytest.raises(eero_api.EeroException):
-        await hub._optional(failing(), "name", NETWORK_ID, "thread")
+        await hub.call_optional(failing(), "name", NETWORK_ID, "thread")
 
 
 # -- premium_enabled -------------------------------------------------------
