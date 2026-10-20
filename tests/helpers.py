@@ -222,17 +222,15 @@ class _FakeHTTPResponse:
 class _FakeHTTPContext:
     """Stand-in for the async context manager aiohttp.ClientSession.get returns."""
 
-    def __init__(self, response: _FakeHTTPResponse | None, error: Exception | None) -> None:
+    def __init__(self, outcome: _FakeHTTPResponse | Exception) -> None:
         """Initialize."""
-        self._response = response
-        self._error = error
+        self._outcome = outcome
 
     async def __aenter__(self) -> _FakeHTTPResponse:
-        """Enter."""
-        if self._error is not None:
-            raise self._error
-        assert self._response is not None
-        return self._response
+        """Enter: raise the configured error, or return the response."""
+        if isinstance(self._outcome, Exception):
+            raise self._outcome
+        return self._outcome
 
     async def __aexit__(self, *exc_info: Any) -> bool:
         """Exit."""
@@ -256,9 +254,9 @@ class FakeHTTPSession:
         self.calls.append(url)
         item = self.routes.get(url, (404, ""))
         if isinstance(item, Exception):
-            return _FakeHTTPContext(None, item)
+            return _FakeHTTPContext(item)
         status, text = item
-        return _FakeHTTPContext(_FakeHTTPResponse(status, text), None)
+        return _FakeHTTPContext(_FakeHTTPResponse(status, text))
 
 
 def build_hub(
