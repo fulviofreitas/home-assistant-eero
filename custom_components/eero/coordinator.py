@@ -277,7 +277,7 @@ class EeroBurstCoordinator(DataUpdateCoordinator[dict[str, WanReading]]):
                     next_burst = await self.runtime.hub.request_burst(
                         network_id, self.runtime.network_payload(network_id)
                     )
-                except Exception as error:  # noqa: BLE001 - mapped below
+                except (EeroException, TimeoutError) as error:
                     self._handle_failure(network_id, error, now)
                     continue
                 requested.append((network_id, next_burst))
@@ -286,7 +286,7 @@ class EeroBurstCoordinator(DataUpdateCoordinator[dict[str, WanReading]]):
             for network_id, next_burst in requested:
                 try:
                     devices = await self.runtime.hub.get_devices(network_id)
-                except Exception as error:  # noqa: BLE001 - mapped below
+                except (EeroException, TimeoutError) as error:
                     self._handle_failure(network_id, error, now)
                     continue
                 data[network_id] = WanReading(
@@ -300,8 +300,14 @@ class EeroBurstCoordinator(DataUpdateCoordinator[dict[str, WanReading]]):
         self._arm_expiry(data)
         return data
 
-    def _handle_failure(self, network_id: str, error: Exception, now: datetime) -> None:
-        """Map one network's failed burst or read; re-raise what ends the run."""
+    def _handle_failure(
+        self, network_id: str, error: EeroException | TimeoutError, now: datetime
+    ) -> None:
+        """Map one network's failed burst or read; re-raise what ends the run.
+
+        Only SDK errors and timeouts get here. Anything else is not caught by
+        the callers and propagates unmapped.
+        """
         if isinstance(error, EeroAuthenticationException):
             raise error
         if isinstance(error, EeroPremiumRequiredException):
@@ -323,14 +329,12 @@ class EeroBurstCoordinator(DataUpdateCoordinator[dict[str, WanReading]]):
             self._next_allowed[network_id] = now + timedelta(
                 seconds=max(BURST_INTERVAL_SECONDS, error.retry_after or 0)
             )
-        elif isinstance(error, (EeroException, TimeoutError)):
+        else:
             _LOGGER.debug(
                 "Live usage burst on network %s failed, keeping the last reading: %s",
                 network_id,
                 error,
             )
-        else:
-            raise error
 
     @callback
     def _arm_expiry(self, data: dict[str, WanReading]) -> None:
