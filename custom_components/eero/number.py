@@ -52,7 +52,7 @@ async def async_setup_entry(
     )
 
 
-class EeroNumberEntity(EeroEntity, NumberEntity):
+class EeroNumberEntity(EeroEntity[EeroNumberEntityDescription], NumberEntity):
     """Representation of an Eero number entity."""
 
     entity_description: EeroNumberEntityDescription

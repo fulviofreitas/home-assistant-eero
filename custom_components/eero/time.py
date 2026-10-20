@@ -78,7 +78,7 @@ async def async_setup_entry(
     )
 
 
-class EeroTimeEntity(EeroEntity, TimeEntity):
+class EeroTimeEntity(EeroEntity[EeroTimeEntityDescription], TimeEntity):
     """Representation of an Eero time entity."""
 
     entity_description: EeroTimeEntityDescription

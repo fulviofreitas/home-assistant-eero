@@ -61,7 +61,7 @@ async def async_setup_entry(
     )
 
 
-class EeroDeviceTrackerEntity(EeroEntity, BaseScannerEntity):
+class EeroDeviceTrackerEntity(EeroEntity[EeroDeviceTrackerEntityDescription], BaseScannerEntity):
     """Representation of an Eero device tracker entity."""
 
     entity_description: EeroDeviceTrackerEntityDescription

@@ -61,7 +61,7 @@ async def async_setup_entry(
     )
 
 
-class EeroUpdateEntity(EeroEntity, UpdateEntity):
+class EeroUpdateEntity(EeroEntity[EeroUpdateEntityDescription], UpdateEntity):
     """Representation of an Eero update entity."""
 
     entity_description: EeroUpdateEntityDescription
