@@ -25,6 +25,14 @@ This file covers two forks:
   IDs in `eero.set_blocked_apps`, and to a network or profile whose name is
   only digits.
 
+## [2.2.1](https://github.com/fulviofreitas/home-assistant-eero/compare/v2.2.0...v2.2.1) (2026-10-20)
+
+
+### Bug Fixes
+
+* **init:** keep devices another configured network still wants ([620ef05](https://github.com/fulviofreitas/home-assistant-eero/commit/620ef052648a98cc8ecf588c48675ba2e9731f0c))
+* **services:** match target_network and target_profile IDs as strings ([56a174d](https://github.com/fulviofreitas/home-assistant-eero/commit/56a174d549e91656fc62d15d93c6a649db59d1a7))
+
 ## [2.2.0](https://github.com/fulviofreitas/home-assistant-eero/compare/v2.1.2...v2.2.0) (2026-10-20)
 
 ### Features
