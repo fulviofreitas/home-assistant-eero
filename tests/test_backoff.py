@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 from datetime import timedelta
-import importlib.util
 from pathlib import Path
 
+from helpers import load_module
+
 MODULE = Path(__file__).resolve().parents[1] / "custom_components" / "eero" / "backoff.py"
-spec = importlib.util.spec_from_file_location("eero_backoff", MODULE)
-backoff = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(backoff)
+backoff = load_module("eero_backoff", MODULE)
 
 BASE = timedelta(seconds=300)
 
