@@ -644,6 +644,28 @@
                         "name": "Máscara de sub-rede"
                     }
                 }
+            },
+            "wan_download": {
+                "name": "Download da WAN",
+                "state_attributes": {
+                    "next_burst": {
+                        "name": "Próxima medição"
+                    },
+                    "devices": {
+                        "name": "Dispositivos"
+                    }
+                }
+            },
+            "wan_upload": {
+                "name": "Upload da WAN",
+                "state_attributes": {
+                    "next_burst": {
+                        "name": "Próxima medição"
+                    },
+                    "devices": {
+                        "name": "Dispositivos"
+                    }
+                }
             }
         },
         "switch": {
@@ -824,6 +846,10 @@
         "network_unavailable": {
             "title": "Rede {network} indisponível",
             "description": "A rede {network} está configurada, mas a API da eero não a encontra mais (foi removida da conta ou esta conta perdeu o acesso a ela). As entidades dela ficam indisponíveis. Remova-a nas opções da integração, ou restaure o acesso; este aviso some sozinho quando a rede voltar a responder."
+        },
+        "wan_throughput_unavailable": {
+            "title": "A medição de tráfego da WAN não está disponível em {network}",
+            "description": "A rede {network} recusou a medição de uso em tempo real de que os sensores Download da WAN e Upload da WAN precisam: a API do eero respondeu que o recurso não está disponível nela, ou que esta conta não pode usá-lo. Os dois sensores ficam indisponíveis e nenhuma nova medição é pedida para esta rede até a integração ser recarregada. Se a rede não oferece o recurso, desative os dois sensores para que este aviso desapareça de vez."
         }
     }
 }

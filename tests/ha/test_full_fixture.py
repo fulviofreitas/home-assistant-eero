@@ -43,7 +43,11 @@ PLATFORM_DESCRIPTIONS = {
     "light": light.LIGHT_DESCRIPTIONS,
     "number": number.NUMBER_DESCRIPTIONS,
     "select": select.SELECT_DESCRIPTIONS,
-    "sensor": [*sensor.SENSOR_DESCRIPTIONS, *sensor.PORT_SENSOR_DESCRIPTIONS],
+    "sensor": [
+        *sensor.SENSOR_DESCRIPTIONS,
+        *sensor.PORT_SENSOR_DESCRIPTIONS,
+        *sensor.WAN_SENSOR_DESCRIPTIONS,
+    ],
     "switch": switch.SWITCH_DESCRIPTIONS,
     "text": text.TEXT_DESCRIPTIONS,
     "time": eero_time.TIME_DESCRIPTIONS,

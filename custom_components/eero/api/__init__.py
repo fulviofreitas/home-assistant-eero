@@ -56,6 +56,7 @@ from .const import (
     REDACT_KEYS,
     RESOURCE_MAP,
 )
+from .throughput import WanTotal, wan_total
 from .util import backup_access_point_ok, premium_ok
 
 __all__ = [
@@ -71,7 +72,9 @@ __all__ = [
     "EeroTimeoutException",
     "EeroUpdateConfig",
     "UnavailableFeature",
+    "WanTotal",
     "collect_unavailable",
+    "wan_total",
 ]
 
 _LOGGER = logging.getLogger(__name__)
@@ -296,6 +299,35 @@ class EeroHub:
 
     # -- fast tier -------------------------------------------------------
 
+    async def get_devices(self, network_id: str) -> list[Any]:
+        """Return a network's device list, read from the API now.
+
+        The SDK's device read has no cache: every call is a request, which
+        is what the fast tier and the post-burst read both want.
+        """
+        devices = await self.call(
+            self.sdk.devices.get_devices(network_id),
+            name=f"/2.2/networks/{network_id}/devices",
+        )
+        return cast("list[Any]", devices or [])
+
+    async def request_burst(
+        self, network_id: str, network: dict[str, Any] | None = None
+    ) -> str | None:
+        """Request a live-usage burst and return the API's ``next_burst``.
+
+        About 12 s later the device list carries fresh ``usage`` values (see
+        api.throughput). Refusals are raised as they come: the caller maps a
+        premium or feature refusal to a repair issue and stops asking.
+        """
+        data = await self.call(
+            self.sdk.burst_reporters.create_burst_reporter(network_id, parent=network),
+            name=f"/2.2/networks/{network_id}/burst_reporters",
+        )
+        if isinstance(data, dict) and (next_burst := data.get("next_burst")) is not None:
+            return str(next_burst)
+        return None
+
     async def fetch_fast(
         self, network_id: str, config: EeroUpdateConfig
     ) -> dict[str, Any]:
@@ -323,13 +355,7 @@ class EeroHub:
             raise EeroException(f"Network {network_id} returned no data")
         payload: dict[str, Any] = {"network": network}
         if config.get_devices:
-            payload["devices"] = (
-                await self.call(
-                    self.sdk.devices.get_devices(network_id),
-                    name=f"/2.2/networks/{network_id}/devices",
-                )
-                or []
-            )
+            payload["devices"] = await self.get_devices(network_id)
         if config.get_profiles:
             payload["profiles"] = (
                 await self.call(

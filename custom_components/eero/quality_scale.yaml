@@ -13,7 +13,10 @@ rules:
       Cloud polling in three tiers: the fast tier at the scan interval
       (default 300 s, 60 to 600 s in the Advanced step), activity hourly, and
       Thread, backup networks, entitlements and firmware daily. A rate-limited
-      tier backs its own interval off.
+      tier backs its own interval off. The live usage burst behind the WAN
+      throughput sensors runs every 60 s only while one of those (disabled
+      by default) sensors is enabled: the coordinator polls only with
+      listeners, and a disabled entity registers none.
   brands:
     status: done
     comment: >-
@@ -42,7 +45,7 @@ rules:
   dependency-transparency:
     status: done
     comment: >-
-      eero-api==8.4.0 from PyPI, MIT-licensed, source at
+      eero-api==8.4.1 from PyPI, MIT-licensed, source at
       github.com/fulviofreitas/eero-api with tagged releases. Its release.yml
       builds and publishes to PyPI from GitHub Actions via trusted publishing;
       PyPI attestations are turned off, so the files carry no provenance.
@@ -200,7 +203,9 @@ rules:
     status: done
     comment: >-
       The port action buttons (EeroPortButtonEntity in button.py) are
-      disruptive and set entity_registry_enabled_default to False.
+      disruptive and set entity_registry_enabled_default to False, as do the
+      WAN download and WAN upload sensors (two extra requests per minute per
+      network while enabled).
   entity-translations:
     status: done
     comment: >-
@@ -234,7 +239,9 @@ rules:
     comment: >-
       premium_required / feature_unavailable issues for a tier read the
       account is not entitled to or the network lacks; cleared when the read
-      succeeds again and on unload.
+      succeeds again and on unload. wan_throughput_unavailable (or
+      premium_required) when a network refuses the live usage burst; cleared
+      on unload, since the network is not asked again until then.
   stale-devices:
     status: done
     comment: >-

@@ -155,3 +155,15 @@ DEFAULT_WIRELESS_CLIENTS_FILTER: str = CONF_FILTER_INCLUDE
 TIER_FAST = "fast"
 TIER_HOURLY = "hourly"
 TIER_DAILY = "daily"
+# Not a polling tier: the live-usage burst coordinator, which only runs while
+# a WAN throughput sensor is enabled. Named like one so its repair issues
+# share EeroRuntime.report_unavailable's bookkeeping.
+TIER_BURST = "burst"
+
+# Live WAN throughput: one burst per network per minute at most, the device
+# list read about 12 s after the POST (the refreshed values have largely
+# decayed again by 30 s), and a reading that is older than 90 s is stale.
+BURST_INTERVAL_SECONDS: int = 60
+BURST_SETTLE_SECONDS: float = 12.0
+BURST_TTL_SECONDS: int = 90
+FEATURE_WAN_THROUGHPUT = "wan_throughput"
