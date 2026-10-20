@@ -20,9 +20,12 @@ from homeassistant.const import (
     UnitOfDataRate,
     UnitOfInformation,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import StateType
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import dt as dt_util
 
 from .api.backup_network import EeroBackupNetwork
 from .api.const import (
@@ -39,10 +42,12 @@ from .api.const import (
     STATE_PROFILE,
 )
 from .api.eero import EeroDevice
+from .api.network import EeroNetwork
 from .api.profile import EeroProfile
+from .api.throughput import WanTotal
 from .api.util import sum_data_usage
-from .const import TIER_DAILY, TIER_HOURLY
-from .coordinator import EeroConfigEntry, EeroRuntime
+from .const import DOMAIN, TIER_DAILY, TIER_HOURLY
+from .coordinator import EeroBurstCoordinator, EeroConfigEntry, EeroRuntime, WanReading
 from .entity import (
     KIND_BACKUP_NETWORKS,
     KIND_CLIENTS,
@@ -54,6 +59,7 @@ from .entity import (
     EeroPortEntity,
     async_setup_platform_entities,
     async_setup_port_entities,
+    resource_device_info,
 )
 from .util import resource_supports
 
@@ -114,6 +120,33 @@ PORT_SENSOR_DESCRIPTIONS: tuple[EeroPortSensorEntityDescription, ...] = (
         native_unit_of_measurement=UnitOfDataRate.MEGABITS_PER_SECOND,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=_port_negotiated_speed,
+    ),
+)
+
+@dataclass(frozen=True, kw_only=True)
+class EeroWanSensorEntityDescription(SensorEntityDescription):
+    """Class to describe one live WAN throughput sensor."""
+
+    value_fn: Callable[[WanTotal], float | None]
+    translation_key: str | None = None
+    device_class: SensorDeviceClass | None = SensorDeviceClass.DATA_RATE
+    state_class: SensorStateClass | None = SensorStateClass.MEASUREMENT
+    native_unit_of_measurement: str | None = UnitOfDataRate.MEGABITS_PER_SECOND
+    suggested_display_precision: int | None = 2
+    # Two extra requests per minute per network while enabled.
+    entity_registry_enabled_default: bool = False
+
+
+WAN_SENSOR_DESCRIPTIONS: tuple[EeroWanSensorEntityDescription, ...] = (
+    EeroWanSensorEntityDescription(
+        key="wan_download",
+        translation_key="wan_download",
+        value_fn=lambda total: total.down,
+    ),
+    EeroWanSensorEntityDescription(
+        key="wan_upload",
+        translation_key="wan_upload",
+        value_fn=lambda total: total.up,
     ),
 )
 
@@ -437,6 +470,101 @@ async def async_setup_entry(
         ],
         async_add_entities,
     )
+    runtime = config_entry.runtime_data
+    async_add_entities(
+        EeroWanThroughputSensor(runtime, network.known_id, description)
+        for network in runtime.account.networks
+        if network.id in runtime.networks and network.wan_throughput_supported
+        for description in WAN_SENSOR_DESCRIPTIONS
+    )
+
+
+class EeroWanThroughputSensor(CoordinatorEntity[EeroBurstCoordinator], SensorEntity):
+    """Live WAN download or upload of one network, summed from a usage burst.
+
+    Reads the burst coordinator, not a tier. Unavailable, never 0, when the
+    reading is missing or older than its TTL, and when the network refused
+    the burst; unknown when a connected device had no usable usage pair.
+    """
+
+    _attr_has_entity_name = True
+    entity_description: EeroWanSensorEntityDescription
+
+    def __init__(
+        self,
+        runtime: EeroRuntime,
+        network_id: str,
+        description: EeroWanSensorEntityDescription,
+    ) -> None:
+        """Initialize."""
+        # The network ID is the listener context: the coordinator only
+        # bursts networks that have an enabled sensor.
+        super().__init__(runtime.burst, context=network_id)
+        self.runtime = runtime
+        self.network_id = network_id
+        self.entity_description = description
+        self._attr_unique_id = f"{network_id}-{description.key}"
+
+    async def async_added_to_hass(self) -> None:
+        """Ask for a first reading now rather than a minute from now.
+
+        In the background: the burst waits 12 s before its read, and the
+        platform's setup must not.
+        """
+        await super().async_added_to_hass()
+        self.runtime.entry.async_create_background_task(
+            self.hass,
+            self.coordinator.async_request_refresh(),
+            f"{DOMAIN} first burst for {self.network_id}",
+        )
+
+    @property
+    def network(self) -> EeroNetwork | None:
+        """Return the network, or None if the fast tier no longer reports it."""
+        return self.runtime.account.network_by_id.get(self.network_id)
+
+    @property
+    def reading(self) -> WanReading | None:
+        """Return the network's last reading, fresh or not."""
+        return self.coordinator.reading(self.network_id)
+
+    @property
+    def available(self) -> bool:
+        """Return True while there is a fresh reading from a network that answers."""
+        return bool(
+            self.network is not None
+            and self.network_id not in self.coordinator.refused
+            and (reading := self.reading) is not None
+            and reading.is_fresh(dt_util.utcnow())
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the summed rate in Mbit/s, or None when the total is unknown."""
+        if (reading := self.reading) is None:
+            return None
+        return self.entity_description.value_fn(reading.total)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Return when the API allows the next burst and how many devices were summed."""
+        if (reading := self.reading) is None:
+            return None
+        return {"next_burst": reading.next_burst, "devices": reading.total.devices}
+
+    @property
+    def device_info(self) -> dr.DeviceInfo | None:
+        """Return the network's own device, complete."""
+        if (network := self.network) is None:
+            return dr.DeviceInfo(identifiers={(DOMAIN, self.network_id)})
+        return resource_device_info(
+            self.hass or self.coordinator.hass, self.runtime, network, network
+        )
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Write state; also called by the coordinator's expiry timer."""
+        self.async_write_ha_state()
 
 
 class EeroSensorEntity(EeroEntity, SensorEntity):

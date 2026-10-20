@@ -644,6 +644,28 @@
                         "name": "Subnet mask"
                     }
                 }
+            },
+            "wan_download": {
+                "name": "WAN download",
+                "state_attributes": {
+                    "next_burst": {
+                        "name": "Next burst"
+                    },
+                    "devices": {
+                        "name": "Devices"
+                    }
+                }
+            },
+            "wan_upload": {
+                "name": "WAN upload",
+                "state_attributes": {
+                    "next_burst": {
+                        "name": "Next burst"
+                    },
+                    "devices": {
+                        "name": "Devices"
+                    }
+                }
             }
         },
         "switch": {
@@ -824,6 +846,10 @@
         "network_unavailable": {
             "title": "Network {network} is unavailable",
             "description": "Network {network} is configured, but the eero API no longer finds it (it was removed from the account, or this account lost access to it). Its entities are unavailable. Remove it in the integration's options, or restore access; this notice clears itself once the network answers again."
+        },
+        "wan_throughput_unavailable": {
+            "title": "Live WAN throughput is not available on {network}",
+            "description": "Network {network} refused the live-usage burst that the WAN download and WAN upload sensors need: the eero API answered that the feature is not available on it, or that this account may not use it. The two sensors stay unavailable and no further bursts are requested for this network until the integration is reloaded. If the network does not support it, disable the two sensors to clear this notice for good."
         }
     }
 }

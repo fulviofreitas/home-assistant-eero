@@ -173,6 +173,8 @@ PORT_ACTIONS = frozenset(
     }
 )
 
+CONNECTION_MODE_BRIDGE = "BRIDGE"
+
 STATE_ACTIVE = "active"
 STATE_AMBIENT = "ambient"
 STATE_AUTOMATIC = "automatic"

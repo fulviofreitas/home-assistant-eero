@@ -7,6 +7,10 @@ One DataUpdateCoordinator per cadence, each owning its own eero-api calls:
 - daily, and on demand after a setter that touches it: Thread, backup access
   points, backup internet, entitlements, firmware updates.
 
+A fourth coordinator, the burst one, is not a tier: while a WAN throughput
+sensor is enabled it requests a live-usage burst every minute and reads the
+device list 12 s later; with none enabled it sends nothing.
+
 Entities subscribe to the coordinator of their tier. The property objects
 they read (EeroNetwork, EeroClient, ...) are assembled from all three tiers'
 data by EeroRuntime.account.
@@ -18,28 +22,50 @@ import asyncio
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
+from eero.exceptions import (
+    EeroAccessDeniedException,
+    EeroNotFoundException,
+)
+
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 
 from .api import (
     EeroAccount,
     EeroAuthenticationException,
     EeroException,
+    EeroFeatureUnavailableException,
     EeroHub,
+    EeroPremiumRequiredException,
     EeroRateLimitException,
     EeroUpdateConfig,
     UnavailableFeature,
+    WanTotal,
     collect_unavailable,
+    wan_total,
 )
 from .backoff import backoff_interval, respect_retry_after
-from .const import CONF_USER_TOKEN, DOMAIN, TIER_DAILY, TIER_FAST, TIER_HOURLY
+from .const import (
+    BURST_INTERVAL_SECONDS,
+    BURST_SETTLE_SECONDS,
+    BURST_TTL_SECONDS,
+    CONF_USER_TOKEN,
+    DOMAIN,
+    FEATURE_WAN_THROUGHPUT,
+    TIER_BURST,
+    TIER_DAILY,
+    TIER_FAST,
+    TIER_HOURLY,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -155,6 +181,184 @@ class EeroTierCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return data
 
 
+@dataclass(frozen=True)
+class WanReading:
+    """One network's live throughput, as summed after a burst."""
+
+    total: WanTotal
+    taken_at: datetime
+    next_burst: str | None
+
+    @property
+    def expires_at(self) -> datetime:
+        """When this reading stops being shown."""
+        return self.taken_at + timedelta(seconds=BURST_TTL_SECONDS)
+
+    def is_fresh(self, now: datetime) -> bool:
+        """Return True while the reading is younger than the TTL."""
+        return now < self.expires_at
+
+
+class EeroBurstCoordinator(DataUpdateCoordinator[dict[str, WanReading]]):
+    """Live WAN throughput: burst, settle, read, sum; one network at a time at most once a minute.
+
+    Not an EeroTierCoordinator: a failed burst must not make the sensors
+    unavailable (the last reading stands until it expires), and the 12 s
+    settle between the POST and the device read has no place in a tier's
+    per-network fetch. Polls only while it has listeners, which Home
+    Assistant arranges: a disabled sensor never registers one. Each sensor
+    registers with its network ID as context, so only networks with an
+    enabled sensor are burst.
+    """
+
+    def __init__(
+        self, hass: HomeAssistant, config_entry: ConfigEntry, runtime: EeroRuntime
+    ) -> None:
+        """Initialize."""
+        super().__init__(
+            hass,
+            _LOGGER,
+            config_entry=config_entry,
+            name=f"{DOMAIN} {TIER_BURST} ({config_entry.title})",
+            update_interval=timedelta(seconds=BURST_INTERVAL_SECONDS),
+        )
+        self.runtime = runtime
+        #: Networks that refused the burst (premium or feature): no more
+        #: requests until the entry is reloaded; each keeps its repair issue.
+        self.refused: dict[str, UnavailableFeature] = {}
+        self._next_allowed: dict[str, datetime] = {}
+        self._expiry_unsub: CALLBACK_TYPE | None = None
+
+    def reading(self, network_id: str) -> WanReading | None:
+        """Return a network's current reading, fresh or not."""
+        return (self.data or {}).get(network_id)
+
+    def _targets(self, now: datetime) -> list[str]:
+        """Return the networks to burst on this run."""
+        networks = self.runtime.account.network_by_id
+        targets: list[str] = []
+        for network_id in dict.fromkeys(self.async_contexts()):
+            if (
+                network_id in self.refused
+                or network_id in targets
+                or network_id not in self.runtime.networks
+                or (network := networks.get(network_id)) is None
+                or not network.wan_throughput_supported
+                or now < self._next_allowed.get(network_id, now)
+            ):
+                continue
+            targets.append(network_id)
+        return targets
+
+    async def _async_update_data(self) -> dict[str, WanReading]:
+        """Burst every eligible network, wait, read their devices, sum.
+
+        A transport error on one network keeps its last reading (the
+        expiry timer retires it); a premium or feature refusal retires the
+        network with a repair issue; an expired session starts reauth.
+        """
+        now = dt_util.utcnow()
+        # Expired readings are dropped here; until then a failed burst
+        # leaves the last one in place.
+        data = {
+            network_id: reading
+            for network_id, reading in (self.data or {}).items()
+            if reading.is_fresh(now)
+        }
+        requested: list[tuple[str, str | None]] = []
+        try:
+            # One network after the other: a handful of requests, and a
+            # failure on one is mapped on the spot.
+            for network_id in self._targets(now):
+                self._next_allowed[network_id] = now + timedelta(
+                    seconds=BURST_INTERVAL_SECONDS
+                )
+                try:
+                    next_burst = await self.runtime.hub.request_burst(
+                        network_id, self.runtime.network_payload(network_id)
+                    )
+                except Exception as error:  # noqa: BLE001 - mapped below
+                    self._handle_failure(network_id, error, now)
+                    continue
+                requested.append((network_id, next_burst))
+            if requested:
+                await asyncio.sleep(BURST_SETTLE_SECONDS)
+            for network_id, next_burst in requested:
+                try:
+                    devices = await self.runtime.hub.get_devices(network_id)
+                except Exception as error:  # noqa: BLE001 - mapped below
+                    self._handle_failure(network_id, error, now)
+                    continue
+                data[network_id] = WanReading(
+                    wan_total(devices), dt_util.utcnow(), next_burst
+                )
+        except EeroAuthenticationException as error:
+            raise ConfigEntryAuthFailed(
+                translation_domain=DOMAIN, translation_key="auth_failed"
+            ) from error
+        self.runtime.report_unavailable(TIER_BURST, list(self.refused.values()))
+        self._arm_expiry(data)
+        return data
+
+    def _handle_failure(self, network_id: str, error: Exception, now: datetime) -> None:
+        """Map one network's failed burst or read; re-raise what ends the run."""
+        if isinstance(error, EeroAuthenticationException):
+            raise error
+        if isinstance(error, EeroPremiumRequiredException):
+            self.refused[network_id] = UnavailableFeature(
+                network_id, FEATURE_WAN_THROUGHPUT, True
+            )
+        elif isinstance(
+            error,
+            (
+                EeroFeatureUnavailableException,
+                EeroAccessDeniedException,
+                EeroNotFoundException,
+            ),
+        ):
+            self.refused[network_id] = UnavailableFeature(
+                network_id, FEATURE_WAN_THROUGHPUT, False
+            )
+        elif isinstance(error, EeroRateLimitException):
+            self._next_allowed[network_id] = now + timedelta(
+                seconds=max(BURST_INTERVAL_SECONDS, error.retry_after or 0)
+            )
+        elif isinstance(error, (EeroException, TimeoutError)):
+            _LOGGER.debug(
+                "Live usage burst on network %s failed, keeping the last reading: %s",
+                network_id,
+                error,
+            )
+        else:
+            raise error
+
+    @callback
+    def _arm_expiry(self, data: dict[str, WanReading]) -> None:
+        """Push state when the oldest reading expires, so it goes unavailable on time."""
+        if self._expiry_unsub is not None:
+            self._expiry_unsub()
+            self._expiry_unsub = None
+        if not data:
+            return
+        now = dt_util.utcnow()
+        soonest = min(reading.expires_at for reading in data.values())
+        delay = max((soonest - now).total_seconds(), 0) + 1
+
+        @callback
+        def _expired(_now: datetime) -> None:
+            self._expiry_unsub = None
+            self.async_update_listeners()
+
+        self._expiry_unsub = async_call_later(self.hass, delay, _expired)
+
+    async def async_shutdown(self) -> None:
+        """Cancel the expiry timer along with the scheduled refresh."""
+        if self._expiry_unsub is not None:
+            self._expiry_unsub()
+            self._expiry_unsub = None
+        await super().async_shutdown()
+
+
 @dataclass
 class EeroRuntime:
     """Everything a loaded config entry holds: the hub, the tiers, the options."""
@@ -169,6 +373,7 @@ class EeroRuntime:
     miscellaneous: dict[str, Any]
     options: dict[str, Any]
     coordinators: dict[str, EeroTierCoordinator] = field(default_factory=dict)
+    burst: EeroBurstCoordinator = field(init=False)
     _account: EeroAccount | None = None
     _account_sources: (
         tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None] | None
@@ -202,6 +407,9 @@ class EeroRuntime:
             self.coordinators[tier] = EeroTierCoordinator(
                 self.hass, self.entry, self, tier, interval, fetch
             )
+        # Never refreshed at setup: it only runs once a WAN sensor listens.
+        self.burst = EeroBurstCoordinator(self.hass, self.entry, self)
+        self.entry.async_on_unload(self.burst.async_shutdown)
 
     async def async_first_refresh(self) -> None:
         """Refresh the fast tier first: the other two read its network payload.
@@ -307,6 +515,8 @@ class EeroRuntime:
                     if item.feature == "network"
                     else "premium_required"
                     if item.premium
+                    else "wan_throughput_unavailable"
+                    if item.feature == FEATURE_WAN_THROUGHPUT
                     else "feature_unavailable"
                 ),
                 translation_placeholders={

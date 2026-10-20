@@ -11,6 +11,29 @@ This file covers two forks:
 
 ## Unreleased
 
+### Features
+
+- **WAN download and WAN upload sensors** on the network device: the
+  network's live throughput in Mbit/s, two decimals, built on eero's usage
+  burst. While one of them is enabled the integration requests a burst once
+  a minute and reads the device list about 12 seconds later, then sums the
+  live usage of the connected devices (deduplicated by MAC address). A
+  reading expires after 90 seconds, after which the sensors are unavailable
+  rather than 0; a connected device with no usable usage makes the total
+  unknown. Attributes: the next burst the API allows, and the number of
+  devices summed. Disabled by default, since they cost two extra requests per
+  minute per network; not created on a network in bridge mode. A failed burst
+  keeps the last reading until it expires; a network that refuses the burst
+  raises a Repairs issue and is not asked again until the integration is
+  reloaded.
+
+### Changes
+
+- Requires `eero-api` 8.4.1 (was 8.4.0), where the burst request is
+  live-verified and no longer logs a warning.
+
+## Unreleased
+
 ### Changes
 
 - Requires `eero-api` 8.4.0 (was 8.3.0). The client Internet Backup switch,

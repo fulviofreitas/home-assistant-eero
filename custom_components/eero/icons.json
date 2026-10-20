@@ -92,6 +92,12 @@
             },
             "forward_count": {
                 "default": "mdi:router-network"
+            },
+            "wan_download": {
+                "default": "mdi:download-network"
+            },
+            "wan_upload": {
+                "default": "mdi:upload-network"
             }
         },
         "select": {

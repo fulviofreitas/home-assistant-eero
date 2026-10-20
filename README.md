@@ -183,10 +183,12 @@ The integration polls the eero cloud (`cloud_polling`); eero does not push chang
 | Fast | The polling interval (default 300 seconds, 60 to 600) | The network itself, its clients, its profiles and its eeros: device trackers, connected state, IP addresses, rates, signal, counts, most switches and selects. |
 | Hourly | Every hour | The selected activity metrics: data usage, ad blocks, threat blocks, scans, app events, unread notifications. The eero API aggregates these hourly, so polling faster would return the same numbers. |
 | Daily | Every 24 hours | Client block list, profile bedtime schedules, DHCP reservations and port forwards, 802.11r fast transition, eero ports, Thread, eero Plus entitlements, backup networks and backup internet, firmware updates and their release notes. |
+| Live usage burst (opt-in) | Every 60 seconds, only while a WAN download or WAN upload sensor is enabled | The network's live throughput: one burst request, then one device-list read about 12 seconds later. A reading older than 90 seconds makes the sensors unavailable. |
 
 - **After a change made from Home Assistant**, the tier holding that data is refreshed right away, so the new state shows without waiting for the next poll. A few writes (Local DNS Caching, IPv6 Enabled, MLO mode) are not followed by an immediate refresh; DNS caching and possibly MLO mode reboot the mesh. Their state updates on the next scheduled poll.
 - **A change that already matches the current state is not sent.** Some eero writes reboot every eero on the network, so repeated writes are skipped.
 - **Rate limiting and failures.** When the eero API rate-limits the fast tier, its interval doubles on each limited poll, up to 15 minutes. A failed hourly or daily poll is retried after 5, then 10, then 15 minutes instead of waiting for its next hourly or daily run. When the API says how long to wait (a `Retry-After` header), the next poll waits at least that long, up to one hour. Every tier returns to its normal interval after its next successful poll, and the error says when the next poll is.
+- **The live usage burst costs two requests per minute per network,** which is why the WAN download and WAN upload sensors are disabled by default. With both disabled, nothing is sent. A burst that fails keeps the last reading until it expires; a network that refuses it (the feature is not available, or the account may not use it) raises a Repairs issue and is not asked again until the integration is reloaded.
 - **Setup.** Only the fast tier has to succeed for the integration to load. If the hourly or daily tier fails, only its own entities are unavailable until its next successful poll.
 - **Failures.** A failed poll makes the affected entities unavailable rather than showing stale values. An expired session starts re-authentication.
 - **New devices.** A client that joins the network gets its entities on the next fast poll, without a reload, if the client filter allows it. New eero ports appear after the next daily poll.
@@ -229,6 +231,7 @@ An entity is only created when the network reports the feature it reads, so not 
 | Connected Clients | sensor | Number of connected clients, with per-category counts as attributes. | |
 | Connected Guest Clients | sensor | Number of connected guest clients. | |
 | Download Speed, Upload Speed | sensor | Result of the last speed test. Attribute: last updated. | |
+| WAN download, WAN upload | sensor | The network's live throughput in Mbit/s: the per-device usage the eero cloud reports after a usage burst, summed over the connected devices. Attributes: next burst, devices (the number summed). Unavailable, never 0, when there is no reading less than 90 seconds old; unknown when a connected device reported no usable usage. | Disabled; not created on a network in bridge mode |
 | Public IP | sensor | Public IP address. | |
 | Gateway IP | sensor | Gateway eero's IP. Attributes: MAC address, name. | |
 | WAN Router IP | sensor | Upstream router IP. Attribute: subnet mask. | |
@@ -517,6 +520,7 @@ automation:
 - **The guest password is write-only,** but Home Assistant itself records the data of the `text.set_value` call that sets it, for example in automation traces.
 - **eero Plus features** (content filters, ad blocking, advanced security, dynamic DNS, backup networks, most activity metrics) need the subscription.
 - **The polling timeout is at most 30 seconds,** which is the limit of the `eero-api` client.
+- **Live WAN throughput is a sum of per-device usage.** The WAN download and WAN upload sensors add up the live usage the eero cloud reports per connected device after a usage burst, which is what the eero app shows per device; the API has no network-level figure. The burst was verified once on a live network (no eero rebooted, the usage refreshed on most devices within 12 seconds), and the values decay again within about 30 seconds of each burst.
 - **With the include filter, new devices are not added.** Only clients selected in the options get entities; use the exclude filter to pick up new devices automatically.
 
 ## Troubleshooting
@@ -531,13 +535,14 @@ automation:
 
 ### A Repairs issue appears
 
-Go to **Settings** > **System** > **Repairs**. The integration raises three kinds of issue, all of which clear themselves:
+Go to **Settings** > **System** > **Repairs**. The integration raises four kinds of issue, all of which clear themselves:
 
 | Issue | Meaning | What to do |
 | --- | --- | --- |
 | eero Plus required for *feature* | The network is not entitled to a feature that needs eero Plus. The entities that depend on it are not created. | Subscribe to eero Plus, or ignore the issue. It clears once the subscription is active. |
 | *feature* is not available | The hardware or the account does not support the feature. | Nothing; it clears if the feature becomes available. |
 | Network *network* is unavailable | A configured network is no longer found: it was removed from the account, or the account lost access. Its entities are unavailable; other networks keep working. | Deselect the network in **Configure**, or restore access in the eero app. |
+| Live WAN throughput is not available on *network* | The network refused the usage burst behind the WAN download and WAN upload sensors. The two sensors are unavailable and the network is not asked again until the integration is reloaded. | Disable the two sensors if the network does not support it; otherwise reload the integration once the cause (access, entitlement) is fixed. |
 
 ### Entities are unavailable or the log mentions rate limiting
 

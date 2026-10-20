@@ -304,3 +304,30 @@ async def test_activity_reads_use_query_parameters(
     assert (method, sent_path) == ("GET", path)
     assert set(body) == {"params"}
     assert set(body["params"]) == param_keys
+
+
+async def test_burst_then_device_read(wire) -> None:
+    """The live-usage burst is a bodyless POST to burst_reporters, then a plain device GET."""
+    session, hub, _models = wire
+    session.data = {"next_burst": "2026-10-20T00:01:00Z"}
+
+    next_burst = await hub.request_burst(NETWORK_ID, {"url": NETWORK_URL})
+    session.data = []
+    devices = await hub.get_devices(NETWORK_ID)
+
+    assert session.requests == [
+        ("POST", f"{NETWORK_URL}/burst_reporters", {"data": EMPTY}),
+        ("GET", f"{NETWORK_URL}/devices", {}),
+    ]
+    assert next_burst == "2026-10-20T00:01:00Z"
+    assert devices == []
+
+
+async def test_burst_follows_the_network_envelope_link(wire) -> None:
+    """With a published burst_reporters link, the SDK posts there, not to the template."""
+    session, hub, _models = wire
+    link = f"/2.3/networks/{NETWORK_ID}/burst_reporters"
+
+    await hub.request_burst(NETWORK_ID, {"url": NETWORK_URL, "resources": {"burst_reporters": link}})
+
+    assert [(method, path) for method, path, _body in session.requests] == [("POST", link)]

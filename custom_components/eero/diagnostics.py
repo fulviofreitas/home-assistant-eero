@@ -9,7 +9,7 @@ from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 
 from .api.const import REDACT_KEYS
-from .const import CONF_LOGIN
+from .const import CONF_LOGIN, TIER_BURST
 from .coordinator import EeroConfigEntry
 
 # The secrets the saved-responses option already strips, plus the account
@@ -34,6 +34,21 @@ async def async_get_config_entry_diagnostics(
                 if coordinator.update_interval
                 else None,
             }
+        burst = runtime.burst
+        tiers[TIER_BURST] = {
+            "last_update_success": burst.last_update_success,
+            "refused": sorted(burst.refused),
+            "readings": {
+                network_id: {
+                    "taken_at": reading.taken_at.isoformat(),
+                    "down_mbps": reading.total.down,
+                    "up_mbps": reading.total.up,
+                    "devices": reading.total.devices,
+                    "next_burst": reading.next_burst,
+                }
+                for network_id, reading in (burst.data or {}).items()
+            },
+        }
     return {
         "entry": {
             "data": async_redact_data(dict(config_entry.data), TO_REDACT),

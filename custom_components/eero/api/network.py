@@ -12,6 +12,7 @@ from eero.api.security import MLO_MODE_DISABLED, MLO_MODE_MULTI, MLO_MODE_SINGLE
 from .backup_network import EeroBackupNetwork
 from .client import EeroClient
 from .const import (
+    CONNECTION_MODE_BRIDGE,
     DEVICE_CATEGORY_COMPUTERS_PERSONAL,
     DEVICE_CATEGORY_ENTERTAINMENT,
     DEVICE_CATEGORY_HOME,
@@ -956,6 +957,23 @@ class EeroNetwork(EeroResource):
     def premium_status(self) -> str | None:
         """Premium status."""
         return self.data.get("premium_status")
+
+    @property
+    def connection_mode(self) -> str | None:
+        """Connection mode: NAT (routing) or BRIDGE, when the API reports one."""
+        connection = self.data.get("connection")
+        if isinstance(connection, dict):
+            return cast("str | None", connection.get("mode"))
+        return None
+
+    @property
+    def wan_throughput_supported(self) -> bool:
+        """Whether the live WAN throughput sensors make sense on this network.
+
+        A bridged network does not route its clients' traffic, so the
+        per-device usage the burst refreshes says nothing about its WAN.
+        """
+        return (self.connection_mode or "").upper() != CONNECTION_MODE_BRIDGE
 
     @property
     def premium_enabled(self) -> bool:
