@@ -19,6 +19,11 @@ This file covers two forks:
   is now dropped only when no configured network wants it. A client one
   network excludes stays while another network includes it. With one
   network nothing changes.
+- Actions targeted at a network by its ID now reach it. The ID was turned
+  into a number and never matched, so the action did nothing and reported
+  no error; naming the network worked. The same applied to `target_profile`
+  IDs in `eero.set_blocked_apps`, and to a network or profile whose name is
+  only digits.
 
 ## [2.2.0](https://github.com/fulviofreitas/home-assistant-eero/compare/v2.1.2...v2.2.0) (2026-10-20)
 
