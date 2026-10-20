@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import time as _time
 
+from homeassistant.exceptions import HomeAssistantError
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.eero import binary_sensor, button, device_tracker, event
@@ -375,7 +376,7 @@ async def test_every_writable_entity_reaches_the_sdk(hass, sdk_factory) -> None:
                 domain, service, {"entity_id": eid, **data}, blocking=True
             )
             await hass.async_block_till_done()
-        except Exception as error:  # noqa: BLE001
+        except HomeAssistantError as error:
             failures.append((eid, f"raised {error!r}"))
             continue
         if not any(is_write(call) for call in sdk.calls[before:]):
