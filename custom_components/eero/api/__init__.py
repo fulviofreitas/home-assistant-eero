@@ -12,7 +12,6 @@ Kept free of Home Assistant imports so it can be unit tested on its own.
 from __future__ import annotations
 
 import asyncio
-import datetime
 import json
 import logging
 from collections.abc import Awaitable, Iterator
@@ -22,12 +21,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
 from urllib.parse import urlparse
-from zoneinfo import ZoneInfo
 
 import aiohttp
 
 from eero import EeroAPI as EeroSDK
-from eero.const import API_ENDPOINT
 from eero.exceptions import (
     EeroAccessDeniedException,
     EeroAPIException,
@@ -41,24 +38,12 @@ from eero.exceptions import (
     EeroTimeoutException,
 )
 
+from . import daily as daily_tier
+from . import hourly as hourly_tier
 from .account import EeroAccount
-from .const import (
-    ACTIVITY_APP_EVENTS,
-    ACTIVITY_EEROS_DATA_USAGE_SUMMARY_DAY,
-    ACTIVITY_MAP,
-    ACTIVITY_NOTIFICATIONS_UNREAD,
-    ACTIVITY_UNPROFILED_DATA_USAGE_DAY,
-    CADENCE_DAILY,
-    CADENCE_HOURLY,
-    DEFAULT_REQUEST_TIMEOUT,
-    PERIOD_DAY,
-    PERIOD_MONTH,
-    PERIOD_WEEK,
-    REDACT_KEYS,
-    RESOURCE_MAP,
-)
+from .const import DEFAULT_REQUEST_TIMEOUT, REDACT_KEYS
 from .throughput import WanTotal, wan_total
-from .util import backup_access_point_ok, premium_ok
+from .util import api_url, premium_enabled
 
 __all__ = [
     "EeroAPIException",
@@ -75,23 +60,11 @@ __all__ = [
     "UnavailableFeature",
     "WanTotal",
     "collect_unavailable",
+    "premium_enabled",
     "wan_total",
 ]
 
 _LOGGER = logging.getLogger(__name__)
-
-# The SDK resolves a relative path against .../2.2, so a path the API itself
-# returned ("/2.2/networks/1/...", "/2.3/...") has to be made absolute on the
-# same host, or it would become ".../2.2/2.2/networks/1/...". The host has to
-# match exactly: the SDK only attaches the session token to its own host.
-API_HOST = API_ENDPOINT.rsplit("/2.2", 1)[0]
-
-
-def api_url(path: str) -> str:
-    """Return an absolute API URL for a path the API returned."""
-    if path.startswith(("http://", "https://")):
-        return path
-    return f"{API_HOST}/{path.lstrip('/')}"
 
 
 class UnavailableFeature(Exception):
@@ -386,25 +359,7 @@ class EeroHub:
         the same numbers again. Every request sends start, end and cadence as
         query parameters: the API rejects a GET that carries a body.
         """
-        timezone = (network.get("timezone") or {}).get("value") or "UTC"
-        activity_data: dict[str, Any] = {}
-        for resource, activities in config.activity.items():
-            resource = RESOURCE_MAP.get(resource, resource)
-            activity_data[resource] = {}
-            for activity in activities:
-                if resource == "profiles":
-                    activity_data[resource][activity] = {}
-                    for profile_id in config.profiles:
-                        activity_data[resource][activity][profile_id] = (
-                            await self.update_activity(
-                                activity, network_id, resource, timezone, profile_id
-                            )
-                        )
-                else:
-                    activity_data[resource][activity] = await self.update_activity(
-                        activity, network_id, resource, timezone
-                    )
-        return activity_data
+        return await hourly_tier.fetch_hourly(self, network_id, network, config)
 
     async def update_activity(
         self,
@@ -415,129 +370,8 @@ class EeroHub:
         profile_id: str | None = None,
     ) -> Any:
         """Fetch one activity series."""
-        request, name = await self._activity_request(
-            activity, network_id, resource, timezone, profile_id
-        )
-        data = await self._optional(request, name, network_id, activity)
-        return _activity_series(activity, {} if data is None else data)
-
-    async def _activity_request(
-        self,
-        activity: str,
-        network_id: str,
-        resource: str,
-        timezone: str,
-        profile_id: str | None,
-    ) -> tuple[Awaitable[dict[str, Any]], str]:
-        """Return the SDK request for one activity series and the name it is saved under."""
-        # "{}/insights" or "{}/data_usage": the family is the last segment.
-        family: str = str(ACTIVITY_MAP[activity][0]).rsplit("/", 1)[-1]
-        insight_type = cast("str", ACTIVITY_MAP[activity][1])
-        period = cast("str", ACTIVITY_MAP[activity][2])
-        start, end, cadence = self.define_period(period=period, timezone=timezone)
-        window: dict[str, Any] = {"start": start, "end": end, "cadence": cadence}
-        if (
-            special := self._special_activity_request(
-                activity, network_id, timezone, window
-            )
-        ) is not None:
-            return special
-        name = f"/2.2/networks/{network_id}/{family}/{resource}"
-        if family == "data_usage":
-            return (
-                self._usage_request(network_id, resource, profile_id, timezone, window),
-                name,
-            )
-        return (
-            await self._insights_request(
-                network_id, resource, profile_id, insight_type, window
-            ),
-            name,
-        )
-
-    def _special_activity_request(
-        self, activity: str, network_id: str, timezone: str, window: dict[str, Any]
-    ) -> tuple[Awaitable[dict[str, Any]], str] | None:
-        """Return the request of an activity with an endpoint of its own, else None."""
-        if activity == ACTIVITY_UNPROFILED_DATA_USAGE_DAY:
-            return (
-                self.sdk.data_usage.get_unprofiled_summary(
-                    network_id, timezone=timezone, **window
-                ),
-                f"/2.2/networks/{network_id}/data_usage/unprofiled/summary",
-            )
-        if activity == ACTIVITY_EEROS_DATA_USAGE_SUMMARY_DAY:
-            return (
-                self.sdk.data_usage.get_eeros_summary(
-                    network_id, timezone=timezone, **window
-                ),
-                f"/2.2/networks/{network_id}/data_usage/eeros/summary",
-            )
-        if activity == ACTIVITY_APP_EVENTS:
-            # A bounded page: this is reported as new HA events on every
-            # entity not yet seen, so an unbounded page would replay a
-            # flood of history the first time the entity is added.
-            return (
-                self.sdk.events.get_app_events(network_id, page_size=25),
-                f"/2.2/networks/{network_id}/app_events",
-            )
-        if activity == ACTIVITY_NOTIFICATIONS_UNREAD:
-            return (
-                self.sdk.notifications.has_unread(network_id),
-                f"/2.2/networks/{network_id}/notifications/has_unread",
-            )
-        return None
-
-    def _usage_request(
-        self,
-        network_id: str,
-        resource: str,
-        profile_id: str | None,
-        timezone: str,
-        window: dict[str, Any],
-    ) -> Awaitable[dict[str, Any]]:
-        """Return the data usage request for a network, its devices, a profile or its eeros."""
-        if resource == "network":
-            return self.sdk.data_usage.get_data_usage(
-                network_id, timezone=timezone, **window
-            )
-        if resource == "devices":
-            return self.sdk.data_usage.get_devices_usage(
-                network_id, timezone=timezone, **window
-            )
-        if resource == "profiles":
-            return self.sdk.data_usage.get_profile_usage(
-                network_id, str(profile_id), timezone=timezone, **window
-            )
-        return self.sdk.data_usage.get_eeros_usage(
-            network_id, timezone=timezone, **window
-        )
-
-    async def _insights_request(
-        self,
-        network_id: str,
-        resource: str,
-        profile_id: str | None,
-        insight_type: str,
-        window: dict[str, Any],
-    ) -> Awaitable[dict[str, Any]]:
-        """Return the insights request for a network, its devices, a profile or the rest."""
-        if resource == "network":
-            return self.sdk.insights.get_insights(
-                network_id, insight_type=insight_type, **window
-            )
-        if resource == "devices":
-            return self.sdk.insights.get_devices_insights(
-                network_id, insight_type=insight_type, **window
-            )
-        if resource == "profiles":
-            return self.sdk.insights.get_profile_insights(
-                network_id, str(profile_id), insight_type=insight_type, **window
-            )
-        return self.sdk.insights.get(
-            api_url(f"/2.2/networks/{network_id}/insights/{resource}"),
-            auth_token=await self._token(),
-            params={**window, "insight_type": insight_type},
+        return await hourly_tier.update_activity(
+            self, activity, network_id, resource, timezone, profile_id
         )
 
     # -- daily tier ------------------------------------------------------
@@ -550,172 +384,20 @@ class EeroHub:
         These change when somebody changes them, so they are polled daily and
         refreshed on demand after a setter that touches them.
         """
-        payload: dict[str, Any] = {}
-        resources = network.get("resources") or {}
-        await self._daily_clients(network_id, config, payload)
-        await self._daily_network_settings(network_id, payload)
-        await self._daily_hardware(network_id, resources, config, payload)
-        await self._daily_backup(network_id, network, config, payload)
-        await self._daily_updates(network_id, network, config, payload)
-        return payload
+        return await daily_tier.fetch_daily(self, network_id, network, config)
 
-    async def _daily_clients(
-        self, network_id: str, config: EeroUpdateConfig, payload: dict[str, Any]
-    ) -> None:
-        """Read what the client entities need: the block list and bedtime schedules."""
-        if config.get_blacklist:
-            payload["blacklist"] = (
-                await self._optional(
-                    self.sdk.blacklist.get_blacklist(network_id),
-                    f"/2.2/networks/{network_id}/blacklist",
-                    network_id,
-                    "blacklist",
-                )
-                or []
-            )
-        if config.get_schedules:
-            schedules: dict[str, Any] = {}
-            for profile_id in config.profiles:
-                if profile_id == "*":
-                    # Only ever seen from snapshot(), which has no real
-                    # profile IDs to resolve schedules for.
-                    continue
-                schedules[profile_id] = (
-                    await self._optional(
-                        self.sdk.schedule.get_schedules(network_id, profile_id),
-                        f"/2.2/networks/{network_id}/profiles/{profile_id}/schedules",
-                        network_id,
-                        "schedules",
-                    )
-                    or []
-                )
-            payload["schedules"] = schedules
+    async def attach_release_notes(self, updates: dict[str, Any]) -> None:
+        """Add the release notes to an updates read, unless fetching them fails.
 
-    async def _daily_network_settings(
-        self, network_id: str, payload: dict[str, Any]
-    ) -> None:
-        """Read the network's reservations, port forwards and fast transition."""
-        payload["reservations"] = (
-            await self._optional(
-                self.sdk.reservations.get_reservations(network_id),
-                f"/2.2/networks/{network_id}/reservations",
-                network_id,
-                "reservations",
-            )
-            or []
-        )
-        payload["forwards"] = (
-            await self._optional(
-                self.sdk.forwards.get_forwards(network_id),
-                f"/2.2/networks/{network_id}/forwards",
-                network_id,
-                "forwards",
-            )
-            or []
-        )
-        payload["fast_transition"] = await self._optional(
-            self.sdk.security.get_fast_transition(network_id),
-            f"/2.2/networks/{network_id}/fast_transition",
-            network_id,
-            "fast_transition",
-        )
-
-    async def _daily_hardware(
-        self,
-        network_id: str,
-        resources: dict[str, Any],
-        config: EeroUpdateConfig,
-        payload: dict[str, Any],
-    ) -> None:
-        """Read the eeros' ports, the Thread network and the entitlements."""
-        if config.get_connections:
-            connections: dict[str, Any] = {}
-            for eero_id in config.eeros:
-                connections[eero_id] = (
-                    await self._optional(
-                        self.sdk.eeros.get_connections(network_id, eero_id),
-                        f"/2.2/eeros/{eero_id}/connections",
-                        network_id,
-                        "connections",
-                    )
-                    or {}
-                )
-            payload["connections"] = connections
-        if resources.get("thread"):
-            payload["thread"] = await self._optional(
-                self.sdk.thread.get_thread(network_id),
-                f"/2.2/networks/{network_id}/thread",
-                network_id,
-                "thread",
-            )
-        payload["features"] = await self._optional(
-            self.sdk.entitlements.get_features(network_id),
-            f"/2.2/entitlements/networks/{network_id}/features",
-            network_id,
-            "entitlements",
-        )
-
-    async def _daily_backup(
-        self,
-        network_id: str,
-        network: dict[str, Any],
-        config: EeroUpdateConfig,
-        payload: dict[str, Any],
-    ) -> None:
-        """Read the backup access points and backup internet, where offered.
-
-        Needs the entitlements read before it, to know whether the network
-        has the premium plan.
+        Release notes only decorate the update entities. Losing them must not
+        take the rest of the tier down with them.
         """
-        capabilities = network.get("capabilities") or {}
-        backup_access_point = capabilities.get("backup_access_point") or {}
-        if config.get_backup_access_points and backup_access_point_ok(
-            capable=backup_access_point.get("capable"),
-            requirements=backup_access_point.get("requirements"),
-        ):
-            if premium_enabled(network, payload["features"]):
-                payload["backup_access_points"] = (
-                    await self._optional(
-                        self.sdk.backup_access_points.list(network_id),
-                        f"/2.2/networks/{network_id}/backup_access_points",
-                        network_id,
-                        "backup_access_points",
-                    )
-                    or []
-                )
-                payload["backup_internet"] = await self._optional(
-                    self.sdk.backup.get_backup_internet(network_id),
-                    f"/2.2/networks/{network_id}/backupinternet",
-                    network_id,
-                    "backup_internet",
-                )
-
-    async def _daily_updates(
-        self,
-        network_id: str,
-        network: dict[str, Any],
-        config: EeroUpdateConfig,
-        payload: dict[str, Any],
-    ) -> None:
-        """Read the firmware updates and, if wanted, their release notes."""
-        updates = await self._optional(
-            self.sdk.updates.get_updates(network_id),
-            f"/2.2/networks/{network_id}/updates",
-            network_id,
-            "updates",
-        )
-        if not isinstance(updates, dict):
-            updates = dict(network.get("updates") or {})
-        if config.get_release_notes:
-            try:
-                updates["release_notes"] = await self.get_release_notes(
-                    updates.get("manifest_resource")
-                )
-            except (TimeoutError, aiohttp.ClientError, EeroException) as error:
-                # Release notes only decorate the update entities. Losing
-                # them must not take the rest of the tier down with them.
-                _LOGGER.warning("Could not fetch release notes: %s", error)
-        payload["updates"] = updates
+        try:
+            updates["release_notes"] = await self.get_release_notes(
+                updates.get("manifest_resource")
+            )
+        except (TimeoutError, aiohttp.ClientError, EeroException) as error:
+            _LOGGER.warning("Could not fetch release notes: %s", error)
 
     async def get_release_notes(self, url: str | None) -> dict[str, Any] | None:
         """Get release notes.
@@ -785,32 +467,8 @@ class EeroHub:
     def define_period(
         self, period: str, timezone: str
     ) -> tuple[str | None, str | None, str | None]:
-        """Return the (start, end, cadence) of the day, week or month so far.
-
-        Weeks start on Sunday, as the eero app's do. Standard library only:
-        python-dateutil is not a Home Assistant dependency.
-        """
-        now = datetime.datetime.now(tz=ZoneInfo(timezone))
-        today = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        if period == PERIOD_DAY:
-            start, cadence = today, CADENCE_HOURLY
-            following = start + datetime.timedelta(days=1)
-        elif period == PERIOD_WEEK:
-            start = today - datetime.timedelta(days=(now.weekday() + 1) % 7)
-            following = start + datetime.timedelta(weeks=1)
-            cadence = CADENCE_DAILY
-        elif period == PERIOD_MONTH:
-            start = today.replace(day=1)
-            following = (start + datetime.timedelta(days=32)).replace(day=1)
-            cadence = CADENCE_DAILY
-        else:
-            return (None, None, None)
-        end = following - datetime.timedelta(seconds=1)
-        return (
-            f"{start.astimezone(datetime.UTC).replace(tzinfo=None).isoformat()}Z",
-            f"{end.astimezone(datetime.UTC).replace(tzinfo=None).isoformat()}Z",
-            cadence,
-        )
+        """Return the (start, end, cadence) of the day, week or month so far."""
+        return hourly_tier.define_period(period, timezone)
 
     def redact(self, obj: Any) -> Any:
         """Return a copy of obj with every secret value replaced."""
@@ -855,28 +513,6 @@ def _write_text(directory: Path, file_name: str, text: str) -> None:
 def _counted(items: Any) -> dict[str, Any]:
     items = items if isinstance(items, list) else []
     return {"count": len(items), "data": items}
-
-
-def _activity_series(activity: str, data: Any) -> Any:
-    """Pick the series out of an activity response, whatever shape it came in."""
-    if activity == ACTIVITY_NOTIFICATIONS_UNREAD:
-        # Always the {"has_unread": bool} shape has_unread's docstring
-        # describes; never routed through the insights/series/values
-        # extraction below, which would silently discard it (it has no
-        # "insights"/"series"/"values" key to find).
-        return data if isinstance(data, dict) else {}
-    if not isinstance(data, dict):
-        return data
-    if activity == ACTIVITY_APP_EVENTS:
-        # Shape not documented by the SDK beyond "raw response". A bare
-        # list (the common shape for this family, see data_usage_day)
-        # is already returned above, before this dict-only branch; a
-        # dict envelope is assumed to nest the list under "events".
-        # Never raises on an unexpected shape: an empty list is safer
-        # than guessing wrong.
-        events = data.get("events")
-        return events if isinstance(events, list) else []
-    return data.get("insights", data.get("series", data.get("values")))
 
 
 def _fast_network(
@@ -929,21 +565,6 @@ def _merge_daily_settings(network: dict[str, Any], tier: dict[str, Any]) -> None
             **tier["updates"],
             **(network.get("updates") or {}),
         }
-
-
-def premium_enabled(network: dict[str, Any], features: Any) -> bool:
-    """Whether the network is entitled to eero Plus features.
-
-    Decided from the entitlements read when there is one: an empty feature
-    list means no subscription. When entitlements could not be read, fall
-    back to the premium_status field on the network envelope.
-    """
-    if isinstance(features, dict) and isinstance(features.get("features"), list):
-        return bool(features["features"])
-    return premium_ok(
-        capable=(network.get("capabilities") or {}).get("premium", {}).get("capable"),
-        status=network.get("premium_status"),
-    )
 
 
 @dataclass(eq=False)
