@@ -2,12 +2,12 @@
 
 This file covers two forks:
 
-- **[fulviofreitas/home-assistant-eero](https://github.com/fulviofreitas/home-assistant-eero)**: 2.0.0 and later.
+- **[fulviofreitas/homeassistant-eero](https://github.com/fulviofreitas/homeassistant-eero)**: 2.0.0 and later.
 - **[lpleva/home-assistant-eero](https://github.com/lpleva/home-assistant-eero)**: the audited 1.9.x releases this fork is based on.
 
 ---
 
-# fulviofreitas/home-assistant-eero
+# fulviofreitas/homeassistant-eero
 
 ## Unreleased
 

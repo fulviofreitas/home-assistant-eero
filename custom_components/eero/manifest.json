@@ -7,10 +7,10 @@
   ],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "https://github.com/fulviofreitas/home-assistant-eero",
+  "documentation": "https://github.com/fulviofreitas/homeassistant-eero",
   "integration_type": "hub",
   "iot_class": "cloud_polling",
-  "issue_tracker": "https://github.com/fulviofreitas/home-assistant-eero/issues",
+  "issue_tracker": "https://github.com/fulviofreitas/homeassistant-eero/issues",
   "loggers": [
     "eero"
   ],

@@ -59,7 +59,7 @@ Several networks on one account are supported, and so are several accounts (one 
 ### HACS (recommended)
 
 1. In HACS, open the menu and choose **Custom repositories**.
-2. Add `https://github.com/fulviofreitas/home-assistant-eero` with the type **Integration**.
+2. Add `https://github.com/fulviofreitas/homeassistant-eero` with the type **Integration**.
 3. Search for **eero** in HACS, open it, and select **Download**.
 4. Restart Home Assistant.
 
@@ -584,7 +584,7 @@ On the integration page, open the menu and select **Download diagnostics**. The 
 
 For problems with a particular API response, turn on **Save redacted server responses** in **Reconfigure** or the advanced options. Responses are written to `config/.storage/eero_responses/`, with secrets redacted and login exchanges left out. Turn it off again when done.
 
-Report problems at the [issue tracker](https://github.com/fulviofreitas/home-assistant-eero/issues).
+Report problems at the [issue tracker](https://github.com/fulviofreitas/homeassistant-eero/issues).
 
 ## Removing the integration
 
