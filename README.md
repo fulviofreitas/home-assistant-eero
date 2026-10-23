@@ -58,6 +58,14 @@ Several networks on one account are supported, and so are several accounts (one 
 
 ### HACS (recommended)
 
+Add it to Home Assistant via HACS (the preferred install):
+
+[![Open your Home Assistant instance and open this repository inside HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=fulviofreitas&repository=homeassistant-eero&category=integration)
+
+Select **Download** on the page that opens, then restart Home Assistant.
+
+Or add the repository by hand:
+
 1. In HACS, open the menu and choose **Custom repositories**.
 2. Add `https://github.com/fulviofreitas/homeassistant-eero` with the type **Integration**.
 3. Search for **eero** in HACS, open it, and select **Download**.
@@ -74,6 +82,10 @@ HACS then offers each new release as an update.
 Home Assistant installs the `eero-api` dependency itself when the integration loads.
 
 ### Adding the integration
+
+[![Open your Home Assistant instance and start setting up eero.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=eero)
+
+Or by hand:
 
 1. Go to **Settings** > **Devices & services** and select **Add integration**.
 2. Search for **eero** and follow the steps described below.
