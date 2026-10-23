@@ -17,5 +17,5 @@
   "requirements": [
     "eero-api==8.4.1"
   ],
-  "version": "2.2.1"
+  "version": "2.2.2"
 }

@@ -25,6 +25,18 @@ This file covers two forks:
   IDs in `eero.set_blocked_apps`, and to a network or profile whose name is
   only digits.
 
+## [2.2.2](https://github.com/fulviofreitas/homeassistant-eero/compare/v2.2.1...v2.2.2) (2026-10-23)
+
+
+### Bug Fixes
+
+* point manifest and docs at the renamed repository ([5e32abe](https://github.com/fulviofreitas/homeassistant-eero/commit/5e32abebc35d799b782e14e921ea4e86177519d7))
+
+
+### Documentation
+
+* **readme:** add My Home Assistant HACS and setup buttons ([2849646](https://github.com/fulviofreitas/homeassistant-eero/commit/28496461835bef247bd6a06e346ea882829934bb))
+
 ## [2.2.1](https://github.com/fulviofreitas/home-assistant-eero/compare/v2.2.0...v2.2.1) (2026-10-20)
 
 
